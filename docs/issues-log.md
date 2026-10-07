@@ -633,10 +633,67 @@
 - **WR-19** CEO、CTO 打开 `#/candidates` 时，每个不是自己的岗位都有一个 `role=alert` 的红色面板，读屏软件会一次念出全部。
 
 #### 其他
-- **规范与代码的出入**（做演示文稿时核对事实发现）：规范 §1、§12 说图的节点只通过运行时的三个辅助函数对外，但法务审查、HR 筛查、报告写作、销售抽取的领域代码直接调用 `get_gateway().chat`。所有模型调用仍然经过网关，安全保证不变。📌 规范同步时改写。
-- 法务审查节点“不持有工具”指的是不持有 MCP 工具；它的模型循环里有 Clause Check 自带的只读查询。规范和演示材料都要这样写。📌 规范同步。
+- **规范与代码的出入**（做演示文稿时核对事实发现）：规范 §1、§12 说图的节点只通过运行时的三个辅助函数对外，但法务审查、HR 筛查、报告写作、销售抽取的领域代码直接调用 `get_gateway().chat`。所有模型调用仍然经过网关，安全保证不变。✅ 规范核对时已改写（§1、§12、§16，见下面“规范核对”）。
+- 法务审查节点“不持有工具”指的是不持有 MCP 工具；它的模型循环里有 Clause Check 自带的只读查询。规范和演示材料都要这样写。✅ 规范已同步（§1、§12、§16）。
 - **W-02 工作流：修复阶段改用新规则**。修复代理是按旧脚本启动的，所以我停掉工作流，用 `resumeFromRunId` 从断点恢复：准备、接线、集成和三路审查都从缓存回放，只有修复代理按新规则（只修中高危、只跑相关测试）重跑。旧的修复代理只读了文件，没有改任何东西。
 
 #### 修复后的全量测试
 - 修复代理：共收集 4607 个测试，没有失败。
 - 我自己跑的全量测试：4605 个通过、2 个跳过、0 个失败（用时约 10 分钟）。之后修 WR-16 改了两个界面文件，又跑了 `tests/ui` 和 `tests/m3/test_ui.py`：154 个全部通过。
+
+#### 规范核对（接线阶段之后）
+接线阶段提交（2516172）之后，逐节对照代码核对了英文规范 `docs/architecture.md` 和 `docs/ENGINEERING.md`，共 76 处出入，全部改好，中文版 `docs/architecture.zh.md` 按同样的节号同步（💡 改了两条：§6 “已发布的指标”那条、§10 `ef_search` 那条；§16 新加一条；两段“实现说明”也更新了）。只改文档，没动代码。
+
+按类型统计：
+| 类型 | 数量 | 说明 |
+|---|---|---|
+| 错误（wrong） | 14 | 规范写的和代码做的不一样 |
+| 缺失（missing） | 23 | 代码有、规范没写 |
+| 过时（stale） | 13 | 当时写的“待做”已经做了，或者引用的东西已经变了 |
+| 小问题（minor） | 26 | 签名、字段、顺序之类的细节 |
+
+错误（14 处，已全部改正）：
+- §1 请求路径图：规范说每个节点只经三个辅助函数对外、MCP 服务器先 `decide()`；实际上法务、报告、HR 筛查、销售抽取的领域函数自己调用网关、自己在 `principal_tx` 里查询，MCP 的顺序是校验令牌 → 重读身份 → `tool_allowed()`，再逐行 `decide()`。已改图。
+- §2 里程碑图的导出：规范说各模块一个 `build_graph()`；销售和 HR 导出 `build_<app>_graph` 和 `<app>_initial_state`。已改。
+- §4 只有表主人能访问的表：规范说 `ops.*` 全都没有策略；`ops.proposals`、`ops.outbox`、`ops.threads` 有 SELECT 策略和授权。已改，逐张列出。
+- §5.1 指标行的 ACL：规范说已发布一律 `all`、草稿按内容定级；代码按 `visible_to`（company / management / dept）给 ACL，草稿的级别取 `config/metrics.yaml` 的 `level`。已改。
+- §6 hris 工具规则：规范里没有用人经理；代码有 `tool-hris-hiring-manager`（持有 `req:` 组的人可用 `list_candidates`/`get_candidate`）。已改。
+- §12 辅助函数之外的调用：规范说节点只经三个辅助函数对外；法务审查和起草、报告写作、HR 筛查、销售抽取自己调用 `ModelGateway.chat`，好几个领域函数直接在 `principal_tx` 里查询。已加一条“辅助函数之外的调用”，并改了 §1 的图。
+- §12 入口节点：规范说每张图的第一个节点都按 `classify_text(输入)` 升级；HR 三张图不给输入分级，只升到用户级别加读到的数据的级别。已改。
+- §13 里程碑路由：规范说每个路由都先查启动权限、拒绝写审计、再经 MCP 读取；实际只有销售和 HR 经 MCP，而且它们的 403 不写审计（WR-10），法务直接用 SQL（WR-11），指标路由不查应用。已按路由逐类写明。
+- §11 McpClient：规范说 `asgi_app` 只给测试用；API 自己就用 `McpClient(asgi_app=app)` 在进程内调用工具。已改。
+- §15 离职员工：规范说窗口内离职的 5 人都在技术和销售；其中一人在法务（u0194，2026-05-31）。已改，列出 id 和日期。
+- §16 M2 审查节点：规范说“没有任何工具”；它不持有 MCP 工具，但模型循环里有 Clause Check 的四个进程内工具；起草可能调一次本地模型。已改。
+- §16 各切片怎样调用模型：规范把领域函数写成普通步骤；实际有三种方式（`llm()`、传入本次运行的网关、进程默认网关）。已在表后补一段。
+- §18 错误：规范把网关错误列成 HTTP 503/429；实际运行失败返回 200 加 `status: "error"`，只有 `/v1/chat/completions` 用 503/429，另外还有 `tool_unavailable`、`internal_error`。已改。
+- `ENGINEERING.md` 表主人连接：规范说只有五类任务用、而且都写 `owner_job`；还有启动时的恢复、checkpoint 清理、回测、人名词典加载、锚点和链校验；其中迁移、人名词典加载、锚点和链校验不写审计。已改。
+
+缺失（23 处，已全部补上）：
+- §2 包结构表：缺 `corpai/legal/`、`corpai/sales/`、`corpai/hr/`、迁移 080/090/091/100–102，以及运行器等内部模块。已补。
+- §2 命令行：只写了 `db` 和 `synth`；实际还有 `ingest`、`metrics`、`prune`、`serve` 和它们的参数。已补。
+- §3 配置：缺 `checkpoint_ttl_days` / `CORPAI_CHECKPOINT_TTL_DAYS`、`cache_dir` 的位置，以及 `CORPAI_LLM`/`CORPAI_EMBED` 值不对时抛 `ValueError`。已补。
+- §4 `pg.py`：缺公开的 `SESSION_VARS` / `session_vars()`（a0d2d3f 加的）。已补。
+- §4 `lg` 表：缺“checkpoint 表不是迁移建的，由 `setup_schema()` 授增删改查并加 RLS”这个例外。已补。
+- §7 商业语境词：没写 60 字符的窗口和具体词表（包括 WI-03 加的合同金额词）。已补。
+- §9 锚点：没写 `db reset --yes` 会把锚点文件改名存档（WI-04）。已补。
+- §12 法务审查节点：没说清“没有工具”指的是 MCP 工具。已补。
+- §12 白名单：没说白名单只管 MCP 调用，领域函数自己做 `tool_allowed` / `may_start` / `decide()`，报告和两张 HR 图不调 MCP。已补。
+- §13 启动过程和界面挂载：缺自动发现 `routes_*.py`、`fail_interrupted`、`setup_schema`、`Services`、fixtures 返回 404、`no-store` 和安全响应头。已补。
+- §14 演示钩子：缺 `hasRecording` / `recordedPersonas` 和 `KB.appPage` 的 `sample` / `demoCoverage` / `markUnrecorded`。已补。
+- §14 假模型提示：缺 `C.fakeModelNote` 和 `REAL_RECORDINGS` 开关（WR-06）。已补。
+- §14 报告默认输入：缺按界面语言取 `report_default_input`（WR-16）。已补。
+- §11 提议的列：缺 `params_text`、`executed_at`、标签列、7 天过期和写入途径。已补。
+- §10 语料导入：缺版本规则和 `ingest_corpus` 的行为（先加载人名词典、替代不在语料里的文档、写审计）。已补。
+- §15 总账：只写了“有期初余额和 B 轮”；没写期初余额记在 2025-09-30（WR-04），也没写 9 月的两笔草稿预提。已补。
+- §15 synth 清空的范围：没写 `hr.screening_evidence` 也会被清空，`legal.reviews`、指标快照、提议、会话、RAG、审计都保留。已补。
+- §16 M3：缺默认期间、拒绝的格式、问题检测按哪个期间、事实检查和两次重写、导出的审计。已补。
+- §18 问答 `output.data`：缺 `tools`、`dropped_citations` 和引用工具结果的格式。已补。
+- §18 各应用 `output.data`：缺法务各模式的键、各应用的拒绝格式、PermissionError 的结果。已补。
+- §18 提议、审批、审计：缺提议的其余字段、审批人看到的删减版运行、审计的 `prev_hash`/`hash` 和拒绝记录。已补。
+- §18 里程碑接口的返回格式：原来只有几个。已补全。
+- `ENGINEERING.md` 命令：缺 `db status`、`db reset --yes`、各命令的参数、`metrics`、`prune`，以及“报告只引用已签核的快照，synth 之后要先刷新并签核”。已补。
+
+过时的 13 处里，主要是：§6、§7 的“待后续阶段”已经做完（用人经理的工具规则、人名词典的加载和指纹检查）；§14 的“强制演示模式”开关已删；§17 引用的 `docs/real-deployment.md` 还没写；`ENGINEERING.md` 里的 `demo-record` 命令不存在（改成“计划中”）；测试夹具的说明（`CORPAI_TEST_FASTEMBED`、`CORPAI_DATA_DIR` 已设置时夹具会删掉那个目录）。
+
+- **验证**：两份规范都是 UTF-8、LF 换行，§1–§18 的节号都在；`tests/ui/test_static.py` 全部通过（112 个，其中一个核对规范里的 CSP）。`tests/synth/test_fictional.py::test_company_md_is_the_rendered_script` 失败，原因是工作区里另一项正在进行、还没提交的改动（公司改名为 ABC Tech AB，改了 `docs/company.md` 和 `corpai/synth/script.py`，测试还在找 Kestrelbyte），和这次规范核对无关。📌 改名完成后，两份规范开头和 §15 的公司名、城市也要跟着改。
+- **状态**：✅
