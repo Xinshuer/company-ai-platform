@@ -1,0 +1,34 @@
+# Egress inventory (design-review 二.2, architecture §8): every place data may leave the process,
+# with the highest data level allowed to go there. Code that sends anything outbound asks
+# corpai.gateway.egress.check_egress(destination, url, level) first; an unlisted destination, an
+# unlisted host or a level above max_level is refused before a byte is sent.
+#
+#   kind: http        an HTTPS endpoint; `hosts` lists every host name it may contact
+#   kind: in_process  served inside this process (mock corpora), no network at all
+#   kind: simulated   writes a row in a simulated system table, nothing leaves the machine
+#
+# max_level: L1..L4, or null for "no model payloads, ever" (simulated systems carry their own
+# labels and go through proposals and approval instead).
+
+destinations:
+  model.external:
+    kind: http
+    hosts: [api.deepseek.com]
+    max_level: L2
+    note: third-party model API in China (GDPR Art. 46 transfer); public and internal data only
+  model.local:
+    kind: http
+    hosts: [api.deepseek.com]
+    max_level: L4
+    simulated_onprem: true
+    note: plays an on-prem model; in a real deployment this host is inside the company network
+  search.mock:
+    kind: in_process
+    hosts: []
+    max_level: L1
+    note: mock web search and fetch (corpai/mcp_servers/web); queries are built from company names only
+  email.outbox:
+    kind: simulated
+    hosts: []
+    max_level: null
+    note: ops.outbox; emails and contracts are "sent" by writing a row after human approval

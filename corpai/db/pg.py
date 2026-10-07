@@ -146,6 +146,28 @@ def install_app_pool(pool) -> None:
     _app_pool = pool
 
 
+def app_pool():
+    """The installed AsyncConnectionPool, or None outside the API process."""
+    return _app_pool
+
+
+@asynccontextmanager
+async def app_tx() -> AsyncIterator[psycopg.AsyncConnection]:
+    """One transaction as corpai_app with NO principal: RLS shows nothing.
+
+    Only for SECURITY DEFINER entry points that run before or without a principal
+    (principal lookup, sessions, outage switches)."""
+    if _app_pool is not None:
+        async with _app_pool.connection() as conn:
+            async with conn.transaction():
+                yield conn
+        return
+    conn = await psycopg.AsyncConnection.connect(app_dsn(), row_factory=dict_row)
+    async with conn:
+        async with conn.transaction():
+            yield conn
+
+
 @asynccontextmanager
 async def principal_tx(principal: Principal, *, run_id: str | None = None) -> AsyncIterator[psycopg.AsyncConnection]:
     """One transaction as corpai_app with the principal's session variables. RLS does the rest."""

@@ -76,3 +76,11 @@ def test_owner_is_not_superuser(pg):
     with pgmod.connect_owner() as c:
         row = c.execute("SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user").fetchone()
         assert row == {"rolsuper": False, "rolbypassrls": False}
+
+
+@pytest.mark.anyio
+async def test_app_tx_has_no_principal(demo_table):
+    async with pgmod.app_tx() as conn:
+        cur = await conn.execute("SELECT id FROM coretest.items")
+        assert await cur.fetchall() == []
+    assert pgmod.app_pool() is None  # no API pool in tests unless installed

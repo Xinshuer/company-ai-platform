@@ -1,0 +1,144 @@
+# Table-driven classification cases (design-review §4). Each case:
+#   text:      input
+#   level:     expected classify_text level (L1..L4)
+#   kinds:     finding kinds that must be present (optional)
+#   not_kinds: finding kinds that must be absent (optional)
+# The gazetteer used by these tests is GAZETTEER in test_classify_cases.py
+# (Anna Becker, Jonas Weber, Lukas Schmidt, Marie Dubois, Piotr Nowak, 王伟).
+
+# ---- L1: public / generic questions (en, de, zh) ---------------------------------------------
+- {id: en-deferred-revenue, text: "What is deferred revenue?", level: L1}
+- {id: en-python-generic, text: "How do I reverse a list in Python?", level: L1}
+- {id: en-gdpr-health, text: "What does GDPR Art. 9 say about health data?", level: L1}
+- {id: en-sql-injection-generic, text: "What is SQL injection and how do prepared statements prevent it?", level: L1}
+- {id: en-cve-generic, text: "What is CVE-2021-44228 and which Java versions are affected?", level: L1}
+- {id: en-litigation-generic, text: "What is the difference between litigation and arbitration?", level: L1}
+- {id: en-perf-process, text: "How does the performance review process work at a typical SaaS company?", level: L1}
+- {id: en-salary-noun-only, text: "Where can I find the salary band policy?", level: L1}
+- {id: en-salary-year, text: "The salary review cycle starts in 2026.", level: L1}
+- {id: en-bonus-no-number, text: "Bonus points for clean commit messages.", level: L1}
+- {id: en-revenue-percent, text: "Revenue grew 12% year over year according to the press release.", level: L1}
+- {id: en-fleetpilot-public, text: "FleetPilot is a route planning product for logistics companies.", level: L1}
+- {id: en-api-key-howto, text: "How do I rotate an API key safely?", level: L1}
+- {id: en-max-tokens, text: "Set max_tokens to a lower value for summaries.", level: L1}
+- {id: en-parental-leave, text: "Where is our parental leave policy described?", level: L1}
+- {id: en-first-name-only, text: "Anna will present the roadmap.", level: L1, not_kinds: [person_name]}
+- {id: en-surname-only, text: "The Becker report is on the wiki.", level: L1, not_kinds: [person_name]}
+- {id: en-name-lowercase, text: "anna becker is not a proper name in lower case", level: L1, not_kinds: [person_name]}
+- {id: en-name-prefix, text: "Anna Beckerson joined the meetup.", level: L1, not_kinds: [person_name]}
+- {id: de-gehalt-question, text: "Wie wird das Gehalt in Deutschland versteuert?", level: L1}
+- {id: de-religion-question, text: "Was regelt das AGG zum Thema Religion?", level: L1}
+- {id: de-klagenfurt, text: "Unser Kunde sitzt in Klagenfurt.", level: L1, not_kinds: [litigation]}
+- {id: zh-deferred-revenue, text: "什么是递延收入？", level: L1}
+- {id: zh-python, text: "如何用 Python 读取 CSV 文件？", level: L1}
+- {id: zh-salary-noun, text: "张伟的工资是多少？", level: L1}
+- {id: zh-quote-no-number, text: "客户的报价一般怎么定？", level: L1}
+- {id: zh-performance-process, text: "绩效评估流程是什么？", level: L1}
+- {id: zh-vuln-generic, text: "什么是漏洞扫描？", level: L1}
+- {id: zh-reimburse, text: "请问报销流程是什么？", level: L1}
+
+# ---- not phone numbers: ticket ids, dates, versions, order numbers -----------------------------
+- {id: neg-ticket-id, text: "Ticket FP-1234 was closed.", level: L1, not_kinds: [phone]}
+- {id: neg-iso-date, text: "The release is planned for 2026-10-01.", level: L1, not_kinds: [phone]}
+- {id: neg-de-date, text: "Termin am 01.10.2026 um 09:30.", level: L1, not_kinds: [phone]}
+- {id: neg-slash-date, text: "Deadline 05/10/2026.", level: L1, not_kinds: [phone]}
+- {id: neg-version, text: "Upgrade from version 1.2.3 to 10.4.12.", level: L1, not_kinds: [phone]}
+- {id: neg-order-number, text: "Order 4500012345 shipped yesterday.", level: L1, not_kinds: [phone, card]}
+- {id: neg-po-number, text: "PO-2026-000123 is approved.", level: L1, not_kinds: [phone]}
+- {id: neg-build-number, text: "Release 2.14.0 build 20261001 is green.", level: L1}
+- {id: neg-11-digits-no-context, text: "Reference 12345678901 in the batch file.", level: L1, not_kinds: [tax_id, phone]}
+- {id: neg-port, text: "The service listens on port 8080.", level: L1}
+
+# ---- L2: internal ----------------------------------------------------------------------------
+- {id: en-bare-money, text: "The conference fee is €120 per person.", level: L2, kinds: [money]}
+- {id: de-bare-money, text: "Die Taxi-Fahrt hat 45,50 € gekostet.", level: L2, kinds: [money]}
+- {id: zh-bare-money, text: "打车花了 35元。", level: L2, kinds: [money]}
+- {id: en-code-generic, text: "Why does this fail?\n```python\nitems = [3, 1, 2]\nprint(items.sort())\n```", level: L2, kinds: [code]}
+- {id: en-code-indented, text: "Example:\n\n    x = 1\n    y = 2\n    print(x + y)\n", level: L2, kinds: [code]}
+- {id: en-code-unfenced, text: "def add(a, b):\n    return a + b", level: L2, kinds: [code]}
+
+# ---- L3: confidential --------------------------------------------------------------------------
+- {id: en-gazetteer-name, text: "Please call Anna Becker tomorrow about the renewal.", level: L3, kinds: [person_name]}
+- {id: de-gazetteer-name, text: "Bitte Jonas Weber ins Meeting einladen.", level: L3, kinds: [person_name]}
+- {id: zh-gazetteer-name, text: "王伟明天来开会。", level: L3, kinds: [person_name]}
+- {id: en-name-possessive, text: "Lukas Schmidt's onboarding plan", level: L3, kinds: [person_name]}
+- {id: en-honorific-mr, text: "Mr Hargreaves approved the change.", level: L3, kinds: [person_name]}
+- {id: de-honorific-frau, text: "Frau Schneider ist diese Woche im Urlaub.", level: L3, kinds: [person_name]}
+- {id: de-honorific-dr, text: "Termin mit Dr. Kowalski bestätigt.", level: L3, kinds: [person_name]}
+- {id: en-email, text: "Send it to jane.doe@nordhafen-logistik.example please.", level: L3, kinds: [email]}
+- {id: zh-email, text: "请把发票发到 li.na@example.com", level: L3, kinds: [email]}
+- {id: de-phone-intl, text: "Erreichbar unter +49 30 12345678.", level: L3, kinds: [phone]}
+- {id: de-phone-0049, text: "Telefon 0049 89 1234567", level: L3, kinds: [phone]}
+- {id: de-phone-national, text: "Ruf mich an: 030 1234567", level: L3, kinds: [phone]}
+- {id: de-phone-slash, text: "Tel. 030/1234567", level: L3, kinds: [phone]}
+- {id: de-phone-mobile, text: "Mobil 0151 23456789", level: L3, kinds: [phone]}
+- {id: nl-phone, text: "Bel +31 20 123 4567 voor support.", level: L3, kinds: [phone]}
+- {id: nl-phone-national, text: "Mobiel 06-12345678", level: L3, kinds: [phone]}
+- {id: fr-phone, text: "Appelez le +33 1 23 45 67 89.", level: L3, kinds: [phone]}
+- {id: fr-phone-national, text: "Téléphone 01 23 45 67 89", level: L3, kinds: [phone]}
+- {id: pl-phone, text: "Kontakt +48 22 123 45 67", level: L3, kinds: [phone]}
+- {id: at-phone, text: "Büro Wien +43 1 234 5678", level: L3, kinds: [phone]}
+- {id: it-phone, text: "Chiamare +39 06 1234 5678", level: L3, kinds: [phone]}
+- {id: es-phone, text: "Llamar al +34 912 345 678", level: L3, kinds: [phone]}
+- {id: zh-mobile, text: "我的手机号是13812345678", level: L3, kinds: [phone]}
+- {id: zh-mobile-spaced, text: "联系电话 138 1234 5678", level: L3, kinds: [phone]}
+- {id: iban-de-valid, text: "IBAN DE89 3704 0044 0532 0130 00", level: L3, kinds: [iban]}
+- {id: iban-de-invalid, text: "IBAN DE89 3704 0044 0532 0130 01", level: L1, not_kinds: [iban, phone]}
+- {id: iban-nl-compact, text: "Rekening NL91ABNA0417164300", level: L3, kinds: [iban]}
+- {id: iban-fr-valid, text: "RIB: FR14 2004 1010 0505 0001 3M02 606", level: L3, kinds: [iban]}
+- {id: iban-gb-valid, text: "Pay to GB82WEST12345698765432", level: L3, kinds: [iban]}
+- {id: iban-pl-valid, text: "Konto PL61 1090 1014 0000 0712 1981 2874", level: L3, kinds: [iban]}
+- {id: card-visa, text: "Card 4111 1111 1111 1111 exp 12/28", level: L3, kinds: [card]}
+- {id: card-compact, text: "cc=5500000000000004", level: L3, kinds: [card]}
+- {id: card-amex, text: "Amex 3782 822463 10005", level: L3, kinds: [card]}
+- {id: card-luhn-invalid, text: "Card 4111 1111 1111 1112", level: L1, not_kinds: [card]}
+- {id: de-steuer-id, text: "Steuer-ID: 12345678901", level: L3, kinds: [tax_id]}
+- {id: de-steuer-id-grouped, text: "Steuerliche Identifikationsnummer 12 345 678 901", level: L3, kinds: [tax_id]}
+- {id: zh-resident-id, text: "身份证号 11010519491231002X", level: L3, kinds: [tax_id]}
+- {id: zh-resident-id-bad-checksum, text: "编号 110105194912310021", level: L1, not_kinds: [tax_id]}
+- {id: en-money-discount, text: "We offered Nordhafen a 15% discount; the quote is €12,500.", level: L3, kinds: [money]}
+- {id: en-money-revenue, text: "Q3 revenue was €2.3M.", level: L3, kinds: [money]}
+- {id: en-money-arr, text: "Their ARR is about EUR 480k.", level: L3, kinds: [money]}
+- {id: de-money-rabatt, text: "Angebot über 24.000 € mit 10 % Rabatt.", level: L3, kinds: [money]}
+- {id: zh-money-quote, text: "这个客户的报价是5万元，折扣15%。", level: L3, kinds: [money]}
+- {id: zh-money-budget, text: "明年预算 120万元", level: L3, kinds: [money]}
+- {id: en-code-fleetpilot, text: "```python\nfrom fleetpilot.routing import solve\nsolve(depot='BER')\n```", level: L3, kinds: [code]}
+- {id: en-code-kb-package, text: "```\nimport kb_billing\nkb_billing.run()\n```", level: L3, kinds: [code]}
+- {id: en-code-internal-host, text: "```bash\ncurl https://api.kestrelbyte.internal/v1/routes\n```", level: L3, kinds: [code]}
+- {id: en-dob-field, text: "Date of birth: 12.03.1988", level: L3, kinds: [protected_attr]}
+- {id: en-age-phrase, text: "The applicant is 34 years old.", level: L3, kinds: [protected_attr]}
+- {id: de-age-phrase, text: "Die Bewerberin ist 29 Jahre alt.", level: L3, kinds: [protected_attr]}
+- {id: zh-age, text: "候选人28岁，汉族。", level: L3, kinds: [protected_attr]}
+- {id: en-health, text: "The employee was diagnosed with diabetes last year.", level: L3, kinds: [health]}
+- {id: de-health, text: "Der Kollege ist seit Montag krankgeschrieben.", level: L3, kinds: [health]}
+- {id: zh-health, text: "他患有高血压。", level: L3, kinds: [health]}
+- {id: en-children-count, text: "She has two children and works part time.", level: L3, kinds: [protected_attr]}
+
+# ---- L4: restricted ----------------------------------------------------------------------------
+- {id: en-salary-name, text: "Anna Becker's salary is €78,000", level: L4, kinds: [salary, person_name]}
+- {id: en-salary-k, text: "Base pay of 85k for the senior role", level: L4, kinds: [salary]}
+- {id: en-compensation, text: "Total compensation: 92,500 EUR including bonus.", level: L4, kinds: [salary]}
+- {id: de-gehalt, text: "Das Gehalt von Jonas Weber beträgt 65.000 € brutto.", level: L4, kinds: [salary]}
+- {id: de-jahresgehalt, text: "Jahresgehalt 72000", level: L4, kinds: [salary]}
+- {id: zh-salary, text: "王伟的年薪30万", level: L4, kinds: [salary]}
+- {id: zh-monthly, text: "月薪 25000 元", level: L4, kinds: [salary]}
+- {id: en-performance-name, text: "Jonas Weber got a performance rating of 2 this cycle.", level: L4, kinds: [performance]}
+- {id: de-performance-name, text: "Leistungsbeurteilung für Herr Becker: übertrifft Erwartungen.", level: L4, kinds: [performance]}
+- {id: zh-performance-name, text: "王伟的绩效是A", level: L4, kinds: [performance]}
+- {id: en-vuln-company, text: "Is there an RCE in the FleetPilot dispatch API?", level: L4, kinds: [vulnerability]}
+- {id: en-cve-company, text: "CVE-2024-12345 affects kb_routing 2.3", level: L4, kinds: [vulnerability]}
+- {id: zh-vuln-company, text: "FleetPilot 有一个 SQL 注入漏洞", level: L4, kinds: [vulnerability]}
+- {id: de-vuln-company, text: "Schwachstelle in kestrelbyte.internal entdeckt", level: L4, kinds: [vulnerability]}
+- {id: en-lawsuit-matter, text: "Status of the lawsuit in matter M-0002?", level: L4, kinds: [litigation]}
+- {id: de-klage-company, text: "Die Klage gegen Kestrelbyte wurde eingereicht.", level: L4, kinds: [litigation]}
+- {id: zh-litigation, text: "Kestrelbyte 的诉讼进展如何？", level: L4, kinds: [litigation]}
+- {id: canary, text: "Reference KB-CANARY-0A1B2C3D in the appendix.", level: L4, kinds: [canary]}
+- {id: canary-embedded, text: "id=xKB-CANARY-DEADBEEFx", level: L4, kinds: [canary]}
+- {id: secret-openai, text: "my key is sk-abcdefghijklmnopqrstuvwxyz123456", level: L4, kinds: [secret]}
+- {id: secret-aws, text: "aws_access_key_id = AKIAIOSFODNN7EXAMPLE", level: L4, kinds: [secret]}
+- {id: secret-github, text: "token ghp_abcdefghijklmnopqrstuvwxyz0123456789", level: L4, kinds: [secret]}
+- {id: secret-password, text: "db password: hunter2!", level: L4, kinds: [secret]}
+- {id: secret-passwort, text: "Passwort=Geheim123", level: L4, kinds: [secret]}
+- {id: secret-jwt, text: "Authorization header was eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1MDAwMSJ9.c2lnbmF0dXJlLXZhbHVl", level: L4, kinds: [secret]}
+- {id: secret-pem, text: "-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA\n-----END RSA PRIVATE KEY-----", level: L4, kinds: [secret]}
+- {id: secret-zh, text: "服务器密码：Abc12345", level: L4, kinds: [secret]}

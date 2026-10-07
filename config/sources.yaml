@@ -1,0 +1,65 @@
+# Default classification level per data source (design-review §4 rule 4: "default by source,
+# raised by content"). Read by corpai.classify.source_default().
+#
+# Ordered list, FIRST MATCH WINS, so specific patterns come before general ones.
+# Patterns are shell-style globs matched case-insensitively against the source name with any
+# ":<id>" suffix removed ("crm.account:A-0012" -> "crm.account").
+# A source that matches nothing is L4 (fail closed): add new systems here explicitly.
+sources:
+  # --- L4 restricted: specific rows of otherwise L3 systems --------------------------------
+  - {pattern: "eng.vuln*", level: L4}                 # eng.vulnerabilities, resource kind eng.vuln
+  - {pattern: "legal.matter*", level: L4}             # litigation matters and their documents
+  - {pattern: "legal.litigation*", level: L4}
+  - {pattern: "fin.statement*", level: L4}            # financial statements
+  - {pattern: "fin.funding*", level: L4}
+  - {pattern: "finance.statement*", level: L4}       # corpus sources use the collection name "finance."
+  - {pattern: "finance.funding*", level: L4}
+  - {pattern: "hr.compensation*", level: L4}
+  - {pattern: "hr.performance*", level: L4}
+  - {pattern: "hr.screening*", level: L4}             # screening evidence and decisions
+  - {pattern: "exec.*", level: L4}
+  - {pattern: "exec", level: L4}
+
+  # --- L1 public ------------------------------------------------------------------------------
+  - {pattern: "legal.regulation*", level: L1}         # GDPR library (paraphrased public law)
+  - {pattern: "legal_regs", level: L1}                # RAG collection of the same
+  - {pattern: "public.*", level: L1}
+  - {pattern: "public", level: L1}
+  - {pattern: "web.*", level: L1}                     # mock web corpus: public, but trust=untrusted
+  - {pattern: "web", level: L1}
+
+  # --- L2 internal ----------------------------------------------------------------------------
+  - {pattern: "hr.requisitions", level: L2}           # role + headcount only; budgets are L3 below
+  - {pattern: "hr.requisition", level: L2}
+  - {pattern: "general.*", level: L2}
+  - {pattern: "general", level: L2}
+  - {pattern: "dept.*", level: L2}                    # dept-internal wiki and runbooks
+  # Dept-internal docs as the synth corpus names them (<dept>.<kind>; §5.1 "dept-internal docs" are L2).
+  # They must sit above the "<dept>.*" L3 rules below, or ingestion would raise them to L3.
+  - {pattern: "eng.wiki*", level: L2}
+  - {pattern: "eng.runbook*", level: L2}
+  - {pattern: "hr.handbook*", level: L2}
+  - {pattern: "hr.interview_guide*", level: L2}
+  - {pattern: "finance.close*", level: L2}
+  - {pattern: "playbook.internal", level: L2}         # playbooks are L2-L3 by content (§5.1); L3 ones use "playbook"
+  - {pattern: "fin.chart_of_accounts", level: L2}     # account codes and names only (synth labels it L2)
+
+  # --- L3 confidential ------------------------------------------------------------------------
+  - {pattern: "hr.requisition_budget*", level: L3}
+  - {pattern: "crm.*", level: L3}
+  - {pattern: "eng.*", level: L3}
+  - {pattern: "legal.contract*", level: L3}           # legal.contracts, legal.contract_requests
+  - {pattern: "legal.clause*", level: L3}             # clause library carries negotiation positions
+  - {pattern: "fin.*", level: L3}
+  - {pattern: "hr.*", level: L3}
+  - {pattern: "playbooks.*", level: L3}
+  - {pattern: "playbook*", level: L3}
+  # RAG collection names used as sources
+  - {pattern: "sales", level: L3}
+  - {pattern: "eng", level: L3}
+  - {pattern: "legal", level: L3}
+  - {pattern: "finance", level: L3}
+  - {pattern: "hr", level: L3}
+  # Corpus sources named after their collection ("sales.account_plan", "finance.close", ...)
+  - {pattern: "sales.*", level: L3}
+  - {pattern: "finance.*", level: L3}

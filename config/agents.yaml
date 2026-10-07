@@ -1,0 +1,127 @@
+# Agent allowlists (architecture §5, §12; design-review 二.4).
+# Effective rights of a tool call = the user's rights (corpai/policy/rules.py TOOL_RULES)
+#   ∩ this agent's `tools` ∩ the scope of the per-call tool token.
+# `start`: who may start the agent. A user matches if their role is in `roles` OR their dept is in
+# `depts` (depts never admit platform_admin, security_auditor or service accounts).
+# `apps`: UI apps the agent serves (empty = sub-agent, started only by its parent graph).
+# `purpose`: the rag_filter purpose the agent retrieves with (null = no retrieval).
+# Tools are `domain.tool` from the §11 catalogue; a test fails on unknown names.
+
+agents:
+  qa:
+    description: Q&A over documents the user may read; read-only tools, no web, no writes.
+    apps: [qa]
+    purpose: qa
+    start:
+      roles: [employee, manager, ceo, platform_admin, security_auditor]
+      depts: []
+    tools:
+      - docs.search_docs
+      - docs.get_doc
+      - crm.search_accounts
+      - crm.get_account
+      - code.get_project_status
+      - code.search_tickets
+      - finance.list_metrics
+      - finance.get_metric
+      - hris.headcount
+      - hris.list_requisitions
+      - legal.search_regulations
+      - legal.contracts_expiring
+
+  legal_review:
+    description: Contract intake and isolated clause review against the legal playbook; four-eyes before sending.
+    apps: [legal_review]
+    purpose: legal_review
+    start:
+      roles: [ceo]
+      depts: [legal]
+    tools:
+      - legal.search_contracts
+      - legal.get_contract
+      - legal.contracts_expiring
+      - legal.get_clause_library
+      - legal.search_regulations
+      - legal.create_contract_draft
+      - legal.send_contract
+      - crm.get_account
+      - docs.search_docs
+      - docs.get_doc
+
+  report:
+    description: Management report; fan-out per domain with the requester's own rights, numbers from SQL, no web, no writes.
+    apps: [report]
+    purpose: report
+    start:
+      roles: [ceo, manager]
+      depts: []
+    tools:
+      - finance.list_metrics
+      - finance.get_metric
+      - finance.list_invoices
+      - code.get_project_status
+      - code.list_ci_runs
+      - crm.search_accounts
+      - crm.list_opportunities
+      - hris.headcount
+      - hris.list_requisitions
+      - legal.contracts_expiring
+      - docs.search_docs
+
+  sales_profile:
+    description: Company profile and follow-up strategy; intent from CRM (local), web only through sales_web; send_email is a tier-3 proposal.
+    apps: [sales_profile]
+    purpose: sales_research
+    start:
+      roles: [ceo]
+      depts: [sales]
+    tools:
+      - crm.search_accounts
+      - crm.get_account
+      - crm.list_opportunities
+      - crm.get_interactions
+      - crm.log_interaction
+      - crm.update_opportunity_stage
+      - crm.send_email
+      - code.get_project_status
+      - docs.search_docs
+      - docs.get_doc
+
+  sales_web:
+    description: Isolated web sub-agent of sales_profile; untrusted input, only web.search and web.fetch, fixed JSON out.
+    apps: []
+    subagent_of: sales_profile
+    purpose: null
+    start:
+      roles: [ceo]
+      depts: [sales]
+    tools:
+      - web.search
+      - web.fetch
+
+  hr_headcount:
+    description: Headcount and requisition summary (L2 roles/counts vs L3 budgets); n<5 groups hidden.
+    apps: [hr_headcount]
+    purpose: qa
+    start:
+      roles: [ceo, manager]
+      depts: [hr]
+    tools:
+      - hris.headcount
+      - hris.list_requisitions
+      - hris.get_employee
+      - hris.create_requisition
+      - docs.search_docs
+
+  hr_screening:
+    description: Resume screening; evidence per requirement only (met / not met / unknown), no score, HR decides.
+    apps: [hr_screening]
+    purpose: hr_screening
+    start:
+      roles: []
+      depts: [hr]
+    tools:
+      - hris.list_requisitions
+      - hris.list_candidates
+      - hris.get_candidate
+      - docs.search_docs

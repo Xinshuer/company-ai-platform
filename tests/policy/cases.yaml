@@ -1,0 +1,278 @@
+# Table-driven policy cases over the 14 personas (tests/policy/fake_personas.py).
+#
+# decide / tools / approve entries are closed-world: `allow` lists the personas that are allowed
+# ("*" = all 14); every other persona of the 14 must be denied. `obligations` gives the exact
+# obligations per allowed persona (default none). `extra` adds cases for variant principals
+# (grants, deactivated, service account, misconfigured ops roles): [principal, allow|deny, rule_id?].
+# "@persona" inside acl/attrs is replaced by that persona's user_id.
+
+resources:
+  # --- L1 / L2 shared content
+  pub_page:        {kind: doc, level: 1, dept: null, acl: [all]}
+  handbook:        {kind: doc, level: 2, acl: [all]}
+  gdpr_article:    {kind: legal.regulation, level: 1, acl: [all]}
+  web_page:        {kind: web.page, level: 1, acl: [all], trust: untrusted}
+  eng_wiki:        {kind: doc, level: 2, dept: eng, acl: [dept:eng, head:eng, role:ceo]}
+  sales_wiki:      {kind: doc, level: 2, dept: sales, acl: [dept:sales, head:sales, role:ceo]}
+  no_acl_doc:      {kind: doc, level: 1, acl: []}            # missing ACL: nobody (fail closed)
+  mislabelled_l3:  {kind: doc, level: 3, acl: [all]}         # L3 with a too-wide ACL
+  # --- CRM
+  crm_acct_own:    {kind: crm.account, level: 3, dept: sales, acl: [user:@sales_staff, head:sales, role:ceo, grant:crm:A-0012]}
+  crm_acct_other:  {kind: crm.account, level: 3, dept: sales, acl: [user:@other_rep, head:sales, role:ceo, grant:crm:A-0020]}
+  crm_contact_own: {kind: crm.contact, level: 3, dept: sales, acl: [user:@sales_staff, head:sales, role:ceo, grant:crm:A-0012]}
+  crm_opp_other:   {kind: crm.opportunity, level: 3, dept: sales, acl: [user:@other_rep, head:sales, role:ceo, grant:crm:A-0020]}
+  # --- engineering
+  eng_project_p1:  {kind: eng.project, level: 3, dept: eng, acl: [proj:P-01, dept:eng, head:eng, dept:sales, role:ceo]}
+  eng_ticket_p1:   {kind: eng.ticket, level: 3, dept: eng, acl: [proj:P-01, head:eng]}
+  eng_ticket_p2:   {kind: eng.ticket, level: 3, dept: eng, acl: [proj:P-02, head:eng]}
+  eng_ci_p1:       {kind: eng.ci_run, level: 3, dept: eng, acl: [proj:P-01, head:eng]}
+  eng_vuln:        {kind: eng.vuln, level: 4, dept: eng, acl: [head:eng, role:ceo]}
+  eng_vuln_deptacl: {kind: eng.vuln, level: 4, dept: eng, acl: [dept:eng, head:eng]}   # clearance ceiling decides
+  # --- legal
+  contract_own:    {kind: legal.contract, level: 3, dept: legal, acl: [user:@legal_staff, head:legal, role:ceo]}
+  contract_other:  {kind: legal.contract, level: 3, dept: legal, acl: [user:@other_lawyer, head:legal, role:ceo]}
+  contract_req:    {kind: legal.contract_request, level: 3, dept: legal, acl: [user:@sales_staff, head:sales, dept:legal, head:legal]}
+  matter_m1:       {kind: legal.matter, level: 4, dept: legal, acl: [matter:M-01, head:legal, grant:matter:M-01]}
+  # --- finance
+  journal:         {kind: fin.ledger, level: 3, dept: finance, acl: [dept:finance, head:finance, role:ceo]}
+  invoice:         {kind: fin.invoice, level: 3, dept: finance, acl: [dept:finance, head:finance, role:ceo]}
+  statement:       {kind: fin.statement, level: 4, dept: finance, acl: [head:finance, dept:finance, role:ceo]}
+  metric_published: {kind: fin.metric, level: 2, dept: finance, acl: [all], attrs: {status: published}}
+  metric_draft:    {kind: fin.metric, level: 3, dept: finance, acl: [dept:finance, head:finance, role:ceo], attrs: {status: draft}}
+  canary_doc:      {kind: doc, level: 4, dept: finance, acl: [head:finance]}
+  # --- HR
+  emp_eng_staff:   {kind: hr.employee, level: 3, dept: hr, acl: [dept:hr, head:hr, mgr-of:@eng_staff]}
+  emp_sales_staff: {kind: hr.employee, level: 3, dept: hr, acl: [dept:hr, head:hr, mgr-of:@sales_staff]}
+  emp_eng_head:    {kind: hr.employee, level: 3, dept: hr, acl: [dept:hr, head:hr, mgr-of:@eng_head]}
+  comp_eng_staff:  {kind: hr.compensation, level: 4, dept: hr, acl: [head:hr]}
+  perf_eng_staff:  {kind: hr.performance, level: 4, dept: hr, acl: [head:hr]}
+  req_r1:          {kind: hr.requisition, level: 2, dept: hr, acl: [dept:hr, head:hr, head:eng, role:ceo, req:R-01]}
+  req_budget_r1:   {kind: hr.requisition_budget, level: 3, dept: hr, acl: [head:hr, head:eng, head:finance, role:ceo]}
+  cand_r1:         {kind: hr.candidate, level: 3, dept: hr, acl: [req:R-01, head:hr], trust: untrusted}
+  cand_r2:         {kind: hr.candidate, level: 3, dept: hr, acl: [req:R-02, head:hr], trust: untrusted}
+  screening_r1:    {kind: hr.screening, level: 4, dept: hr, acl: [req:R-01, head:hr]}
+  # --- playbooks
+  playbook_legal:  {kind: playbook, level: 3, dept: legal, acl: [dept:legal, head:legal, role:ceo]}
+  playbook_sales:  {kind: playbook, level: 2, dept: sales, acl: [dept:sales, head:sales, role:ceo]}
+  # --- unlabelled kinds (label irrelevant; role rules decide)
+  audit_log:       {kind: audit, level: 4, acl: []}
+  trace_sales:     {kind: trace, level: 3, acl: [], attrs: {owner_id: "@sales_staff", dept: sales}}
+  trace_exec:      {kind: trace, level: 3, acl: [], attrs: {owner_id: "@exec_staff", dept: exec}}
+  trace_no_dept:   {kind: trace, level: 3, acl: [], attrs: {owner_id: "@eng_staff"}}
+  switch_local:    {kind: admin.outage_switch, level: 2, acl: []}
+  budget_sales:    {kind: admin.budget, level: 2, acl: []}
+  report_finance:  {kind: report, level: 4, acl: [], attrs: {domain: finance}}
+  report_eng:      {kind: report, level: 3, acl: [], attrs: {domain: eng}}
+  report_sales:    {kind: report, level: 3, acl: [], attrs: {domain: sales}}
+  hr_aggregate:    {kind: hr.aggregate, level: 3, acl: []}
+  hr_agg_eng_headcount: {kind: hr.aggregate, level: 3, acl: [], attrs: {dept: eng, topic: headcount}}
+  hr_agg_eng_pay:  {kind: hr.aggregate, level: 4, acl: [], attrs: {dept: eng, topic: compensation}}
+  hr_agg_eng_no_topic: {kind: hr.aggregate, level: 3, acl: [], attrs: {dept: eng}}
+  prop_email_t3:   {kind: proposal, level: 3, acl: [], attrs: {requester_id: "@sales_staff", domain: crm, tool: send_email, tier: 3}}
+  prop_log_t2:     {kind: proposal, level: 3, acl: [], attrs: {requester_id: "@sales_staff", domain: crm, tool: log_interaction, tier: 2}}
+  prop_journal_t3: {kind: proposal, level: 3, acl: [], attrs: {requester_id: "@finance_staff", domain: finance, tool: post_journal_entry, tier: 3}}
+  prop_broken:     {kind: proposal, level: 3, acl: [], attrs: {domain: crm}}
+  unknown_kind:    {kind: crm.secret_stuff, level: 1, acl: [all]}
+
+decide:
+  # L1/L2 company-wide content: every active human
+  - {resource: pub_page, action: read, allow: "*", extra: [[sales_staff~inactive, deny, deny-inactive], [svc_metrics, deny, default-deny]]}
+  - {resource: pub_page, action: search, allow: "*"}
+  - {resource: handbook, action: read, allow: "*"}
+  - {resource: gdpr_article, action: read, allow: "*"}
+  - {resource: web_page, action: read, allow: "*"}
+  - {resource: eng_wiki, action: read, allow: [ceo, eng_head, eng_staff]}
+  - {resource: sales_wiki, action: search, allow: [ceo, sales_head, sales_staff]}
+  - {resource: no_acl_doc, action: read, allow: []}
+  - resource: mislabelled_l3
+    action: read
+    allow: [ceo, exec_staff, sales_head, sales_staff, eng_head, eng_staff, legal_head, legal_staff,
+            finance_head, finance_staff, hr_head, hr_staff]
+    extra: [[platform_admin!overgranted, deny, deny-ops-roles-confidential], [auditor!overgranted, deny, deny-ops-roles-confidential]]
+  # CRM: own accounts / whole dept / CEO / legal by grant
+  - resource: crm_acct_own
+    action: read
+    allow: [ceo, sales_head, sales_staff]
+    extra: [[legal_staff+crm_grant, allow, label-acl], [sales_staff~inactive, deny, deny-inactive],
+            [ceo~inactive, deny, deny-inactive], [platform_admin!overgranted, deny, deny-ops-roles-confidential]]
+  - {resource: crm_acct_other, action: read, allow: [ceo, sales_head], extra: [[legal_staff+crm_grant, deny, default-deny]]}
+  - {resource: crm_contact_own, action: search, allow: [ceo, sales_head, sales_staff]}
+  - {resource: crm_opp_other, action: read, allow: [ceo, sales_head]}
+  - {resource: crm_acct_own, action: export, allow: [ceo, sales_head, sales_staff],
+     obligations: {ceo: [watermark], sales_head: [watermark], sales_staff: [watermark]},
+     extra: [[legal_staff+crm_grant, allow, export-as-read]]}
+  - {resource: crm_acct_other, action: propose, allow: [ceo, sales_head]}
+  # Engineering
+  - {resource: eng_project_p1, action: read, allow: [ceo, sales_head, sales_staff, eng_head, eng_staff]}
+  - {resource: eng_ticket_p1, action: read, allow: [eng_head, eng_staff]}
+  - {resource: eng_ticket_p2, action: read, allow: [eng_head]}
+  - {resource: eng_ci_p1, action: search, allow: [eng_head, eng_staff]}
+  - {resource: eng_vuln, action: read, allow: [ceo, eng_head]}
+  - {resource: eng_vuln_deptacl, action: read, allow: [eng_head]}
+  # Legal
+  - {resource: contract_own, action: read, allow: [ceo, legal_head, legal_staff]}
+  - {resource: contract_other, action: read, allow: [ceo, legal_head]}
+  - {resource: contract_req, action: read, allow: [sales_head, sales_staff, legal_head, legal_staff]}
+  - {resource: matter_m1, action: read, allow: [legal_head, legal_staff], extra: [[ceo+matter_grant, allow, label-acl]]}
+  # Finance
+  - {resource: journal, action: read, allow: [ceo, finance_head, finance_staff]}
+  - {resource: journal, action: propose, allow: [ceo, finance_head, finance_staff]}
+  - {resource: journal, action: execute, allow: []}
+  - {resource: journal, action: admin, allow: []}
+  - {resource: journal, action: approve, allow: []}
+  - {resource: invoice, action: search, allow: [ceo, finance_head, finance_staff]}
+  - {resource: statement, action: read, allow: [ceo, finance_head, finance_staff]}
+  - {resource: metric_published, action: read, allow: "*"}
+  - {resource: metric_draft, action: read, allow: [ceo, finance_head, finance_staff]}
+  - {resource: canary_doc, action: read, allow: [finance_head]}
+  # HR
+  - {resource: emp_eng_staff, action: read, allow: [eng_head, hr_head, hr_staff]}
+  - {resource: emp_sales_staff, action: read, allow: [sales_head, hr_head, hr_staff]}
+  - {resource: emp_eng_head, action: read, allow: [ceo, hr_head, hr_staff]}
+  - {resource: comp_eng_staff, action: read, allow: [hr_head]}
+  - {resource: perf_eng_staff, action: read, allow: [hr_head]}
+  - {resource: req_r1, action: read, allow: [ceo, eng_head, hr_head, hr_staff]}
+  - {resource: req_budget_r1, action: read, allow: [ceo, eng_head, finance_head, hr_head]}
+  - {resource: cand_r1, action: read, allow: [eng_head, hr_head, hr_staff]}
+  - {resource: cand_r2, action: read, allow: [hr_head]}
+  - {resource: screening_r1, action: read, allow: [eng_head, hr_head, hr_staff]}
+  # Playbooks
+  - {resource: playbook_legal, action: read, allow: [ceo, legal_head, legal_staff]}
+  - {resource: playbook_sales, action: read, allow: [ceo, sales_head, sales_staff]}
+  # Audit: only the security auditor, not even the CEO
+  - {resource: audit_log, action: read, allow: [auditor], extra: [[ceo~inactive, deny, deny-inactive]]}
+  - {resource: audit_log, action: export, allow: [auditor], obligations: {auditor: [watermark]}}
+  - {resource: audit_log, action: admin, allow: []}
+  # Traces: owner full, head of the run's dept aggregate, platform admin metadata
+  - resource: trace_sales
+    action: read
+    allow: [sales_staff, sales_head, platform_admin]
+    obligations: {sales_head: [aggregate_only], platform_admin: [metadata_only]}
+  - resource: trace_exec
+    action: read
+    allow: [exec_staff, ceo, platform_admin]
+    obligations: {ceo: [aggregate_only], platform_admin: [metadata_only]}
+  - resource: trace_no_dept
+    action: read
+    allow: [eng_staff, platform_admin]
+    obligations: {platform_admin: [metadata_only]}
+  - resource: trace_sales
+    action: export
+    allow: [sales_staff, sales_head, platform_admin]
+    obligations: {sales_staff: [watermark], sales_head: [aggregate_only, watermark], platform_admin: [metadata_only, watermark]}
+  # Admin switches and budgets
+  - {resource: switch_local, action: admin, allow: [platform_admin], extra: [[svc_metrics, deny, default-deny]]}
+  - {resource: switch_local, action: read, allow: [platform_admin]}
+  - {resource: budget_sales, action: admin, allow: [platform_admin]}
+  # Reports
+  - {resource: report_finance, action: read, allow: [ceo, finance_head]}
+  - {resource: report_eng, action: read, allow: [ceo, eng_head]}
+  - {resource: report_sales, action: read, allow: [ceo, sales_head]}
+  - {resource: report_eng, action: export, allow: [ceo, eng_head], obligations: {ceo: [watermark], eng_head: [watermark]}}
+  # HR aggregates (design-review 五, 薪酬、员工档案): company-wide only CEO and HR head; other heads
+  # see the headcount of their own department, never pay/performance aggregates
+  - resource: hr_aggregate
+    action: read
+    allow: [ceo, hr_head]
+    obligations:
+      ceo: [aggregate_only, min_group_5]
+      hr_head: [aggregate_only, min_group_5]
+  - resource: hr_agg_eng_headcount
+    action: read
+    allow: [ceo, eng_head, hr_head]
+    obligations:
+      ceo: [aggregate_only, min_group_5]
+      eng_head: [aggregate_only, min_group_5]
+      hr_head: [aggregate_only, min_group_5]
+  - resource: hr_agg_eng_pay
+    action: read
+    allow: [ceo, hr_head]
+    obligations:
+      ceo: [aggregate_only, min_group_5]
+      hr_head: [aggregate_only, min_group_5]
+  - resource: hr_agg_eng_no_topic
+    action: read
+    allow: [ceo, hr_head]
+    obligations:
+      ceo: [aggregate_only, min_group_5]
+      hr_head: [aggregate_only, min_group_5]
+  # Proposals: requester and eligible approvers read; approve follows can_approve
+  - {resource: prop_email_t3, action: read, allow: [sales_staff, sales_head, ceo]}
+  - {resource: prop_email_t3, action: approve, allow: [sales_head, ceo], extra: [[sales_head~inactive, deny, deny-inactive]]}
+  - {resource: prop_log_t2, action: approve, allow: [sales_staff, sales_head, ceo]}
+  - {resource: prop_journal_t3, action: approve, allow: [finance_head, ceo]}
+  - {resource: prop_journal_t3, action: read, allow: [finance_staff, finance_head, ceo]}
+  - {resource: prop_broken, action: read, allow: []}
+  - {resource: prop_email_t3, action: execute, allow: []}
+  # Unknown kinds are denied even with an "all" ACL
+  - {resource: unknown_kind, action: read, allow: []}
+
+tools:
+  - {agent: qa, tool: docs.search_docs, allow: "*", extra: [[svc_metrics, deny, agent-start-denied], [sales_staff~inactive, deny, deny-inactive]]}
+  - {agent: qa, tool: crm.get_account, allow: [ceo, sales_head, sales_staff], extra: [[legal_staff+crm_grant, allow, tool-crm-legal-grant]]}
+  - {agent: qa, tool: crm.search_accounts, allow: [ceo, sales_head, sales_staff], extra: [[legal_staff+crm_grant, deny, default-deny]]}
+  - {agent: qa, tool: crm.send_email, allow: []}
+  - {agent: qa, tool: web.search, allow: []}
+  - {agent: qa, tool: code.get_project_status, allow: [ceo, sales_head, sales_staff, eng_head, eng_staff]}
+  - {agent: qa, tool: code.search_tickets, allow: [ceo, eng_head, eng_staff]}
+  # published metrics are for every employee (other departments: 只看已发布的指标); the metric's label decides rows
+  - {agent: qa, tool: finance.get_metric, allow: [ceo, exec_staff, sales_head, sales_staff, eng_head, eng_staff, legal_head, legal_staff, finance_head, finance_staff, hr_head, hr_staff]}
+  - {agent: qa, tool: finance.list_metrics, allow: [ceo, exec_staff, sales_head, sales_staff, eng_head, eng_staff, legal_head, legal_staff, finance_head, finance_staff, hr_head, hr_staff]}
+  - {agent: qa, tool: finance.query_ledger, allow: []}
+  - {agent: qa, tool: hris.headcount, allow: [ceo, sales_head, eng_head, legal_head, finance_head, hr_head, hr_staff]}
+  # the regulation library is public (L1, acl all): 公开资料、法规库 其他部门 读
+  - {agent: qa, tool: legal.search_regulations, allow: [ceo, exec_staff, sales_head, sales_staff, eng_head, eng_staff, legal_head, legal_staff, finance_head, finance_staff, hr_head, hr_staff]}
+  - {agent: qa, tool: legal.contracts_expiring, allow: [ceo, legal_head, legal_staff]}
+  - {agent: legal_review, tool: legal.send_contract, allow: [ceo, legal_head, legal_staff]}
+  - {agent: legal_review, tool: crm.get_account, allow: [ceo], extra: [[legal_staff+crm_grant, allow, tool-crm-legal-grant]]}
+  - {agent: report, tool: finance.get_metric, allow: [ceo, sales_head, eng_head, legal_head, finance_head, hr_head]}
+  - {agent: report, tool: hris.headcount, allow: [ceo, sales_head, eng_head, legal_head, finance_head, hr_head]}
+  - {agent: report, tool: code.list_ci_runs, allow: [ceo, eng_head]}
+  - {agent: report, tool: crm.send_email, allow: []}
+  - {agent: sales_profile, tool: crm.send_email, allow: [ceo, sales_head, sales_staff]}
+  - {agent: sales_profile, tool: crm.update_opportunity_stage, allow: [ceo, sales_head, sales_staff]}
+  - {agent: sales_profile, tool: web.search, allow: []}
+  - {agent: sales_web, tool: web.search, allow: [ceo, sales_head, sales_staff]}
+  - {agent: sales_web, tool: web.fetch, allow: [ceo, sales_head, sales_staff]}
+  - {agent: sales_web, tool: crm.get_account, allow: []}
+  - {agent: hr_headcount, tool: hris.create_requisition, allow: [hr_head, hr_staff]}
+  - {agent: hr_headcount, tool: hris.get_employee, allow: [sales_head, eng_head, legal_head, finance_head, hr_head, hr_staff]}
+  - {agent: hr_screening, tool: hris.get_candidate, allow: [hr_head, hr_staff]}
+  - {agent: hr_screening, tool: hris.list_candidates, allow: [hr_head, hr_staff]}
+  - {agent: superagent, tool: docs.search_docs, allow: []}
+  - {agent: qa, tool: docs.drop_tables, allow: []}
+
+approve:
+  - {requester: sales_staff, domain: crm, tool: send_email, tier: 3, allow: [ceo, sales_head]}
+  - {requester: sales_staff, domain: crm, tool: log_interaction, tier: 2, allow: [ceo, sales_head, sales_staff]}
+  - {requester: sales_head, domain: crm, tool: send_email, tier: 3, allow: [ceo]}
+  - {requester: ceo, domain: crm, tool: send_email, tier: 3, allow: [sales_head], extra: [[sales_head~inactive, deny, deny-inactive]]}
+  - {requester: finance_staff, domain: finance, tool: post_journal_entry, tier: 3, allow: [ceo, finance_head]}
+  - {requester: legal_staff, domain: legal, tool: send_contract, tier: 3, allow: [ceo, legal_head]}
+  - {requester: legal_staff, domain: legal, tool: create_contract_draft, tier: 2, allow: [ceo, legal_head, legal_staff]}
+  - {requester: eng_staff, domain: code, tool: create_ticket, tier: 2, allow: [ceo, eng_head, eng_staff]}
+  - {requester: hr_staff, domain: hris, tool: create_requisition, tier: 2, allow: [ceo, hr_head, hr_staff], extra: [[svc_metrics, deny, approve-no-service]]}
+  # a proposal that understates its tier still gets four-eyes (the catalogue says send_email is tier 3)
+  - {requester: sales_staff, domain: crm, tool: send_email, tier: 2, allow: [ceo, sales_head]}
+  - {requester: sales_staff, domain: web, tool: fetch, tier: 3, allow: []}
+  - {requester: sales_staff, domain: crm, tool: get_account, tier: 2, allow: []}
+
+rag:
+  - {persona: sales_staff, purpose: qa, collections: [public, general, legal_regs, sales], max_level: 3, min_trust: null}
+  - {persona: eng_staff, purpose: qa, collections: [public, general, legal_regs, eng], max_level: 3, min_trust: null}
+  - {persona: legal_staff, purpose: qa, collections: [public, general, legal, legal_regs], max_level: 4, min_trust: null}
+  - {persona: finance_head, purpose: qa, collections: [public, general, legal_regs, finance], max_level: 4, min_trust: null}
+  - {persona: hr_staff, purpose: qa, collections: [public, general, legal_regs, hr], max_level: 4, min_trust: null}
+  - {persona: ceo, purpose: qa, collections: [public, general, legal_regs, exec], max_level: 4, min_trust: null}
+  - {persona: exec_staff, purpose: qa, collections: [public, general, legal_regs, exec], max_level: 3, min_trust: null}
+  - {persona: platform_admin, purpose: qa, collections: [public, general], max_level: 2, min_trust: null}
+  - {persona: auditor, purpose: qa, collections: [public, general], max_level: 2, min_trust: null}
+  - {persona: platform_admin, purpose: legal_review, collections: [], max_level: 2, min_trust: null}
+  - {persona: auditor, purpose: report, collections: [public, general], max_level: 2, min_trust: reviewed}
+  - {persona: ceo, purpose: report, collections: [public, general, sales, eng, legal, finance, hr, exec], max_level: 4, min_trust: reviewed}
+  - {persona: legal_head, purpose: playbook, collections: [playbooks], max_level: 4, min_trust: reviewed}
+  - {persona: legal_staff, purpose: legal_review, collections: [legal, legal_regs, playbooks], max_level: 4, min_trust: null}
+  - {persona: sales_staff, purpose: sales_research, collections: [public, sales], max_level: 3, min_trust: null}
+  - {persona: hr_staff, purpose: hr_screening, collections: [hr], max_level: 4, min_trust: null}
+  - {persona: sales_staff~inactive, purpose: qa, collections: [], max_level: 1, min_trust: null, groups: []}
+  - {persona: svc_metrics, purpose: qa, collections: [], max_level: 1, min_trust: null, groups: []}

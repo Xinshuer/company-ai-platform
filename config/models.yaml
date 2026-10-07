@@ -1,0 +1,51 @@
+# Model routes for the gateway (architecture §8, decisions D3).
+#
+# Business code only knows the route names `local` and `external`; this file decides what they
+# point at. Both call the DeepSeek API today: `local` only *plays* an on-prem model
+# (simulated_onprem). Moving `local` to a real on-prem server changes only its base_url / model
+# (and its egress entry in config/egress.yaml).
+#
+# The API key is never written here. `api_key_env` names the environment variable the backend
+# reads at call time.
+#
+# Per route:
+#   max_concurrency   in-flight calls per event loop (rule 6)
+#   queue_timeout_s   how long a call waits for a slot before GatewayBusy
+#   timeout_s         per-attempt backend timeout
+#   egress            the destination in config/egress.yaml that this route sends to
+
+routes:
+  local:
+    base_url: https://api.deepseek.com
+    model: deepseek-flash
+    api_key_env: DEEPSEEK_API_KEY
+    max_concurrency: 2
+    queue_timeout_s: 20
+    timeout_s: 90
+    simulated_onprem: true
+    egress: model.local
+  external:
+    base_url: https://api.deepseek.com
+    model: deepseek-flash
+    api_key_env: DEEPSEEK_API_KEY
+    max_concurrency: 8
+    queue_timeout_s: 5
+    timeout_s: 60
+    egress: model.external
+
+extra_body: {thinking: {type: disabled}}
+
+# Exponential backoff on 429 / 5xx / timeouts / connection errors (rule 8):
+# delay = min(max_delay_s, base_delay_s * 2 ** (attempt - 1)).
+retry:
+  max_attempts: 3
+  base_delay_s: 0.5
+  max_delay_s: 8
+
+# Upper bound for ChatRequest.max_tokens; larger requests are clamped, not refused.
+max_tokens_cap: 4096
+
+# Per department, per simulation day (clock.today()). The limits themselves live in
+# ops.budget_defaults (migration 010); this file only documents them.
+budgets:
+  default_daily_tokens: 2000000

@@ -1,0 +1,211 @@
+# Permission matrix: design-review 五, row by row (architecture §6 acceptance test).
+#
+# Columns of the design-review table: staff = 本部门基层, head = 本部门负责人, other = 其他部门,
+# ceo = CEO, platform_admin = 平台管理员. Every row covers all five columns; `cell` quotes the table.
+# Each case: persona × action × resource → allow|deny, with exact obligations and field_mask
+# (both default to []). Personas are the 14 of architecture §15, plus variants with grants
+# ("+..."), defined in tests/policy/fake_personas.py. "@persona" in ACLs/attrs = that persona's id.
+#
+# tests/security/test_permission_matrix.py checks decide(); the integration stream adds the RLS
+# side for the same cases on seeded data (labelled kinds only; unlabelled kinds are role rules).
+#
+# One deliberate reading of the table: "平台管理员: 运维，不读内容" for public material is enforced for
+# business content at L3+ (clearance L2 + an explicit deny rule). L1/L2 material whose ACL is `all`
+# (public site, handbook, published metrics) stays readable, because architecture §5.1 gives every
+# active human the `all` group and the admin a qa app limited to public + general.
+
+resources:
+  pub_page:        {kind: doc, level: 1, acl: [all]}
+  gdpr_article:    {kind: legal.regulation, level: 1, acl: [all]}
+  crm_acct_own:    {kind: crm.account, level: 3, dept: sales, acl: [user:@sales_staff, head:sales, role:ceo, grant:crm:A-0012]}
+  crm_acct_other:  {kind: crm.account, level: 3, dept: sales, acl: [user:@other_rep, head:sales, role:ceo, grant:crm:A-0020]}
+  eng_project_p1:  {kind: eng.project, level: 3, dept: eng, acl: [proj:P-01, dept:eng, head:eng, dept:sales, role:ceo]}
+  eng_ticket_p1:   {kind: eng.ticket, level: 3, dept: eng, acl: [proj:P-01, head:eng]}
+  eng_ticket_p2:   {kind: eng.ticket, level: 3, dept: eng, acl: [proj:P-02, head:eng]}
+  contract_own:    {kind: legal.contract, level: 3, dept: legal, acl: [user:@legal_staff, head:legal, role:ceo]}
+  contract_other:  {kind: legal.contract, level: 3, dept: legal, acl: [user:@other_lawyer, head:legal, role:ceo]}
+  contract_req:    {kind: legal.contract_request, level: 3, dept: legal, acl: [user:@sales_staff, head:sales, dept:legal, head:legal]}
+  matter_m1:       {kind: legal.matter, level: 4, dept: legal, acl: [matter:M-01, head:legal, grant:matter:M-01]}
+  matter_m2:       {kind: legal.matter, level: 4, dept: legal, acl: [matter:M-02, head:legal, grant:matter:M-02]}
+  journal:         {kind: fin.ledger, level: 3, dept: finance, acl: [dept:finance, head:finance, role:ceo]}
+  statement:       {kind: fin.statement, level: 4, dept: finance, acl: [head:finance, dept:finance, role:ceo]}
+  metric_published: {kind: fin.metric, level: 2, dept: finance, acl: [all], attrs: {status: published}}
+  metric_draft:    {kind: fin.metric, level: 3, dept: finance, acl: [dept:finance, head:finance, role:ceo], attrs: {status: draft}}
+  prop_journal:    {kind: proposal, level: 3, attrs: {requester_id: "@finance_staff", domain: finance, tool: post_journal_entry, tier: 3}}
+  emp_eng_staff:   {kind: hr.employee, level: 3, dept: hr, acl: [dept:hr, head:hr, mgr-of:@eng_staff]}
+  emp_sales_staff: {kind: hr.employee, level: 3, dept: hr, acl: [dept:hr, head:hr, mgr-of:@sales_staff]}
+  comp_eng_staff:  {kind: hr.compensation, level: 4, dept: hr, acl: [head:hr]}
+  perf_eng_staff:  {kind: hr.performance, level: 4, dept: hr, acl: [head:hr]}
+  hr_aggregate:    {kind: hr.aggregate, level: 3}
+  hr_agg_eng_headcount: {kind: hr.aggregate, level: 3, attrs: {dept: eng, topic: headcount}}
+  hr_agg_eng_pay:  {kind: hr.aggregate, level: 4, attrs: {dept: eng, topic: compensation}}
+  cand_r1:         {kind: hr.candidate, level: 3, dept: hr, acl: [req:R-01, head:hr], trust: untrusted}
+  cand_r2:         {kind: hr.candidate, level: 3, dept: hr, acl: [req:R-02, head:hr], trust: untrusted}
+  screening_r1:    {kind: hr.screening, level: 4, dept: hr, acl: [req:R-01, head:hr]}
+  report_finance:  {kind: report, level: 4, attrs: {domain: finance}}
+  report_eng:      {kind: report, level: 3, attrs: {domain: eng}}
+  playbook_sales:  {kind: playbook, level: 2, dept: sales, acl: [dept:sales, head:sales, role:ceo]}
+  playbook_legal:  {kind: playbook, level: 3, dept: legal, acl: [dept:legal, head:legal, role:ceo]}
+  trace_sales_own: {kind: trace, level: 3, attrs: {owner_id: "@sales_staff", dept: sales}}
+  trace_sales_peer: {kind: trace, level: 3, attrs: {owner_id: "@other_rep", dept: sales}}
+  audit_log:       {kind: audit, level: 4}
+
+rows:
+  - row: "公开资料、法规库 (L1)"
+    cases:
+      - {column: staff, cell: 读, persona: sales_staff, action: read, resource: pub_page, expect: allow}
+      - {column: staff, cell: 读, persona: legal_staff, action: search, resource: gdpr_article, expect: allow}
+      - {column: head, cell: 读, persona: legal_head, action: read, resource: gdpr_article, expect: allow}
+      - {column: other, cell: 读, persona: eng_staff, action: read, resource: gdpr_article, expect: allow}
+      - {column: ceo, cell: 读, persona: ceo, action: read, resource: pub_page, expect: allow}
+      - {column: platform_admin, cell: "运维，不读内容 (L1 public stays readable, see header)", persona: platform_admin, action: read, resource: pub_page, expect: allow}
+
+  - row: "CRM 客户、商机 (L3)"
+    cases:
+      - {column: staff, cell: 自己负责的客户, persona: sales_staff, action: read, resource: crm_acct_own, expect: allow}
+      - {column: staff, cell: 自己负责的客户, persona: sales_staff, action: read, resource: crm_acct_other, expect: deny}
+      - {column: head, cell: 全部门, persona: sales_head, action: read, resource: crm_acct_own, expect: allow}
+      - {column: head, cell: 全部门, persona: sales_head, action: read, resource: crm_acct_other, expect: allow}
+      - {column: other, cell: 法务凭工单临时查看单个客户, persona: legal_staff+crm_grant, action: read, resource: crm_acct_own, expect: allow}
+      - {column: other, cell: 法务凭工单临时查看单个客户, persona: legal_staff+crm_grant, action: read, resource: crm_acct_other, expect: deny}
+      - {column: other, cell: 法务凭工单临时查看单个客户, persona: legal_staff, action: read, resource: crm_acct_own, expect: deny}
+      - {column: other, cell: (others), persona: eng_staff, action: search, resource: crm_acct_own, expect: deny}
+      - {column: ceo, cell: 汇总，可钻取, persona: ceo, action: read, resource: crm_acct_other, expect: allow}
+      - {column: ceo, cell: 汇总，可钻取, persona: ceo, action: export, resource: crm_acct_other, expect: allow, obligations: [watermark]}
+      - {column: platform_admin, cell: 否, persona: platform_admin, action: read, resource: crm_acct_own, expect: deny}
+      - {column: platform_admin, cell: 否 (even if misconfigured), persona: platform_admin!overgranted, action: read, resource: crm_acct_own, expect: deny}
+
+  - row: "源码、工单 (L3)"
+    cases:
+      - {column: staff, cell: 所在项目, persona: eng_staff, action: read, resource: eng_ticket_p1, expect: allow}
+      - {column: staff, cell: 所在项目, persona: eng_staff, action: read, resource: eng_ticket_p2, expect: deny}
+      - {column: head, cell: 全部门, persona: eng_head, action: read, resource: eng_ticket_p2, expect: allow}
+      - {column: other, cell: 销售可看项目阶段级进度, persona: sales_staff, action: read, resource: eng_project_p1, expect: allow}
+      - {column: other, cell: 销售可看项目阶段级进度, persona: sales_staff, action: read, resource: eng_ticket_p1, expect: deny}
+      - {column: other, cell: (others), persona: finance_staff, action: read, resource: eng_project_p1, expect: deny}
+      - {column: ceo, cell: 项目级汇总, persona: ceo, action: read, resource: eng_project_p1, expect: allow}
+      - {column: ceo, cell: 项目级汇总, persona: ceo, action: read, resource: eng_ticket_p1, expect: deny}
+      - {column: platform_admin, cell: 否, persona: platform_admin, action: read, resource: eng_ticket_p1, expect: deny}
+      - {column: platform_admin, cell: 否, persona: platform_admin, action: read, resource: eng_project_p1, expect: deny}
+
+  - row: "合同库 (L3)"
+    cases:
+      - {column: staff, cell: 自己承办的, persona: legal_staff, action: read, resource: contract_own, expect: allow}
+      - {column: staff, cell: 自己承办的, persona: legal_staff, action: read, resource: contract_other, expect: deny}
+      - {column: head, cell: 全部, persona: legal_head, action: read, resource: contract_other, expect: allow}
+      - {column: other, cell: 销售可看自己提交的合同状态, persona: sales_staff, action: read, resource: contract_req, expect: allow}
+      - {column: other, cell: 销售可看自己提交的合同状态, persona: sales_staff, action: read, resource: contract_own, expect: deny}
+      - {column: other, cell: (others), persona: hr_staff, action: read, resource: contract_req, expect: deny}
+      - {column: ceo, cell: 读, persona: ceo, action: read, resource: contract_other, expect: allow}
+      - {column: platform_admin, cell: 否, persona: platform_admin, action: read, resource: contract_own, expect: deny}
+
+  - row: "诉讼与律师工作文件 (L4)"
+    cases:
+      - {column: staff, cell: 承办人, persona: legal_staff, action: read, resource: matter_m1, expect: allow}
+      - {column: staff, cell: 承办人, persona: legal_staff, action: read, resource: matter_m2, expect: deny}
+      - {column: head, cell: 读, persona: legal_head, action: read, resource: matter_m2, expect: allow}
+      - {column: other, cell: 否, persona: sales_head, action: read, resource: matter_m1, expect: deny}
+      - {column: other, cell: 否, persona: finance_head, action: read, resource: matter_m1, expect: deny}
+      - {column: ceo, cell: 需单独授权, persona: ceo, action: read, resource: matter_m1, expect: deny}
+      - {column: ceo, cell: 需单独授权, persona: ceo+matter_grant, action: read, resource: matter_m1, expect: allow}
+      - {column: ceo, cell: 需单独授权 (grant is per matter), persona: ceo+matter_grant, action: read, resource: matter_m2, expect: deny}
+      - {column: platform_admin, cell: 否, persona: platform_admin, action: read, resource: matter_m1, expect: deny}
+
+  - row: "总账、报表 (L3–L4)"
+    cases:
+      - {column: staff, cell: 读, persona: finance_staff, action: read, resource: journal, expect: allow}
+      - {column: staff, cell: 读, persona: finance_staff, action: read, resource: statement, expect: allow}
+      - {column: staff, cell: 写草稿, persona: finance_staff, action: propose, resource: journal, expect: allow}
+      - {column: staff, cell: "写草稿 (no self sign-off)", persona: finance_staff, action: approve, resource: prop_journal, expect: deny}
+      - {column: head, cell: 签核, persona: finance_head, action: approve, resource: prop_journal, expect: allow}
+      - {column: head, cell: 签核, persona: finance_head, action: read, resource: statement, expect: allow}
+      - {column: other, cell: 只看已发布的指标, persona: eng_staff, action: read, resource: metric_published, expect: allow}
+      - {column: other, cell: 只看已发布的指标, persona: eng_staff, action: read, resource: metric_draft, expect: deny}
+      - {column: other, cell: 只看已发布的指标, persona: sales_head, action: read, resource: journal, expect: deny}
+      - {column: other, cell: 只看已发布的指标, persona: sales_head, action: read, resource: statement, expect: deny}
+      - {column: ceo, cell: 读, persona: ceo, action: read, resource: statement, expect: allow}
+      - {column: ceo, cell: 读, persona: ceo, action: read, resource: journal, expect: allow}
+      - {column: platform_admin, cell: 否, persona: platform_admin, action: read, resource: journal, expect: deny}
+      - {column: platform_admin, cell: 否, persona: platform_admin, action: read, resource: statement, expect: deny}
+
+  - row: "薪酬、员工档案 (L4)"
+    cases:
+      - {column: staff, cell: 经办字段，薪资屏蔽, persona: hr_staff, action: read, resource: emp_eng_staff, expect: allow}
+      - {column: staff, cell: 经办字段，薪资屏蔽, persona: hr_staff, action: read, resource: comp_eng_staff, expect: deny}
+      - {column: staff, cell: 经办字段，薪资屏蔽, persona: hr_staff, action: read, resource: perf_eng_staff, expect: deny}
+      - {column: head, cell: 读, persona: hr_head, action: read, resource: comp_eng_staff, expect: allow}
+      - {column: head, cell: 读, persona: hr_head, action: read, resource: perf_eng_staff, expect: allow}
+      - {column: head, cell: 读, persona: hr_head, action: read, resource: hr_aggregate, expect: allow, obligations: [aggregate_only, min_group_5]}
+      - {column: other, cell: 经理可看直属下级的非薪资字段, persona: eng_head, action: read, resource: emp_eng_staff, expect: allow}
+      - {column: other, cell: 经理可看直属下级的非薪资字段, persona: eng_head, action: read, resource: comp_eng_staff, expect: deny}
+      - {column: other, cell: 经理可看直属下级的非薪资字段, persona: eng_head, action: read, resource: emp_sales_staff, expect: deny}
+      - {column: other, cell: (staff of other depts), persona: sales_staff, action: read, resource: emp_eng_staff, expect: deny}
+      - {column: other, cell: "经理可看直属下级的非薪资字段 (no company-wide HR aggregates)", persona: sales_head, action: read, resource: hr_aggregate, expect: deny}
+      - {column: other, cell: "经理可看直属下级的非薪资字段 (no company-wide HR aggregates)", persona: eng_head, action: read, resource: hr_aggregate, expect: deny}
+      - {column: other, cell: "经理可看直属下级的非薪资字段 (no company-wide HR aggregates)", persona: finance_head, action: read, resource: hr_aggregate, expect: deny}
+      - {column: other, cell: "经理可看直属下级的非薪资字段 (another dept's pay aggregate)", persona: sales_head, action: read, resource: hr_agg_eng_pay, expect: deny}
+      - {column: other, cell: "经理可看直属下级的非薪资字段 (own dept pay aggregate)", persona: eng_head, action: read, resource: hr_agg_eng_pay, expect: deny}
+      - {column: other, cell: "(own dept headcount only)", persona: eng_head, action: read, resource: hr_agg_eng_headcount, expect: allow, obligations: [aggregate_only, min_group_5]}
+      - {column: other, cell: "(own dept headcount only)", persona: sales_head, action: read, resource: hr_agg_eng_headcount, expect: deny}
+      - {column: ceo, cell: 部门级汇总（n<5 不展示）, persona: ceo, action: read, resource: hr_aggregate, expect: allow, obligations: [aggregate_only, min_group_5]}
+      - {column: ceo, cell: 部门级汇总（n<5 不展示）, persona: ceo, action: read, resource: comp_eng_staff, expect: deny}
+      - {column: ceo, cell: 部门级汇总（n<5 不展示）, persona: ceo, action: read, resource: emp_eng_staff, expect: deny}
+      - {column: platform_admin, cell: 否, persona: platform_admin, action: read, resource: emp_eng_staff, expect: deny}
+      - {column: platform_admin, cell: 否, persona: platform_admin, action: read, resource: hr_aggregate, expect: deny}
+
+  - row: "简历、候选人 (L3–L4)"
+    cases:
+      - {column: staff, cell: 经办岗位, persona: hr_staff, action: read, resource: cand_r1, expect: allow}
+      - {column: staff, cell: 经办岗位, persona: hr_staff, action: read, resource: cand_r2, expect: deny}
+      - {column: staff, cell: 经办岗位, persona: hr_staff, action: read, resource: screening_r1, expect: allow}
+      - {column: head, cell: 读, persona: hr_head, action: read, resource: cand_r2, expect: allow}
+      - {column: other, cell: 用人经理看本岗位候选人, persona: eng_head, action: read, resource: cand_r1, expect: allow}
+      - {column: other, cell: 用人经理看本岗位候选人, persona: eng_head, action: read, resource: cand_r2, expect: deny}
+      - {column: other, cell: 用人经理看本岗位候选人, persona: sales_head, action: read, resource: cand_r1, expect: deny}
+      - {column: ceo, cell: 默认否, persona: ceo, action: read, resource: cand_r1, expect: deny}
+      - {column: ceo, cell: 默认否, persona: ceo, action: read, resource: screening_r1, expect: deny}
+      - {column: platform_admin, cell: 否, persona: platform_admin, action: read, resource: cand_r1, expect: deny}
+
+  - row: "管理层报告 (继承最高)"
+    cases:
+      - {column: staff, cell: 否, persona: finance_staff, action: read, resource: report_finance, expect: deny}
+      - {column: staff, cell: 否, persona: eng_staff, action: read, resource: report_eng, expect: deny}
+      - {column: head, cell: 本领域报告, persona: finance_head, action: read, resource: report_finance, expect: allow}
+      - {column: head, cell: 本领域报告, persona: finance_head, action: read, resource: report_eng, expect: deny}
+      - {column: other, cell: 各负责人按自己的权限取数, persona: eng_head, action: read, resource: report_eng, expect: allow}
+      - {column: other, cell: 各负责人按自己的权限取数, persona: eng_head, action: read, resource: report_finance, expect: deny}
+      - {column: ceo, cell: 全部, persona: ceo, action: read, resource: report_finance, expect: allow}
+      - {column: ceo, cell: 全部, persona: ceo, action: export, resource: report_eng, expect: allow, obligations: [watermark]}
+      - {column: platform_admin, cell: 否, persona: platform_admin, action: read, resource: report_eng, expect: deny}
+
+  - row: "Playbook (按内容)"
+    cases:
+      - {column: staff, cell: 读，可提建议, persona: sales_staff, action: read, resource: playbook_sales, expect: allow}
+      - {column: staff, cell: 读，可提建议, persona: sales_staff, action: propose, resource: playbook_sales, expect: allow}
+      - {column: head, cell: 批准发布, persona: sales_head, action: read, resource: playbook_sales, expect: allow}
+      - {column: head, cell: 批准发布, persona: legal_head, action: propose, resource: playbook_legal, expect: allow}
+      - {column: other, cell: "按级别 (§5.1: playbook ACL is the owning dept)", persona: eng_staff, action: read, resource: playbook_sales, expect: deny}
+      - {column: other, cell: 按级别, persona: sales_staff, action: read, resource: playbook_legal, expect: deny}
+      - {column: ceo, cell: 读, persona: ceo, action: read, resource: playbook_legal, expect: allow}
+      - {column: platform_admin, cell: 否, persona: platform_admin, action: read, resource: playbook_legal, expect: deny}
+      - {column: platform_admin, cell: 否, persona: platform_admin, action: read, resource: playbook_sales, expect: deny}
+
+  - row: "trace 内容 (继承)"
+    cases:
+      - {column: staff, cell: "否 (others' runs)", persona: sales_staff, action: read, resource: trace_sales_peer, expect: deny}
+      - {column: staff, cell: "own runs (architecture §9: the requester sees their own runs)", persona: sales_staff, action: read, resource: trace_sales_own, expect: allow}
+      - {column: head, cell: 只看本部门聚合指标, persona: sales_head, action: read, resource: trace_sales_peer, expect: allow, obligations: [aggregate_only]}
+      - {column: other, cell: 否, persona: eng_head, action: read, resource: trace_sales_peer, expect: deny}
+      - {column: other, cell: 否, persona: finance_staff, action: read, resource: trace_sales_own, expect: deny}
+      - {column: ceo, cell: 否, persona: ceo, action: read, resource: trace_sales_peer, expect: deny}
+      - {column: platform_admin, cell: 只看脱敏元数据；排障看原文走 break-glass, persona: platform_admin, action: read, resource: trace_sales_peer, expect: allow, obligations: [metadata_only]}
+
+  - row: "审计日志"
+    cases:
+      - {column: staff, cell: 否, persona: sales_staff, action: read, resource: audit_log, expect: deny}
+      - {column: head, cell: 否, persona: finance_head, action: read, resource: audit_log, expect: deny}
+      - {column: other, cell: 否, persona: hr_staff, action: read, resource: audit_log, expect: deny}
+      - {column: ceo, cell: 否, persona: ceo, action: read, resource: audit_log, expect: deny}
+      - {column: platform_admin, cell: 否（只有安全审计员可读）, persona: platform_admin, action: read, resource: audit_log, expect: deny}
+      - {column: platform_admin, cell: 只有安全审计员可读, persona: auditor, action: read, resource: audit_log, expect: allow}
+      - {column: platform_admin, cell: 只有安全审计员可读, persona: auditor, action: export, resource: audit_log, expect: allow, obligations: [watermark]}
