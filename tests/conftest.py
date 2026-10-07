@@ -57,10 +57,14 @@ def pg():
 def seeded(pg):
     """The small synthetic company (seed 7) in the DB, with its corpus ingested into RAG."""
     from corpai import synth
-    from corpai.rag import ingest_corpus
 
     report = synth.run(seed=7, small=True)
-    ingest_corpus(settings().corpus_dir)
+    try:
+        from corpai.rag import ingest_corpus
+    except ImportError:  # before stream B1 lands
+        ingest_corpus = None
+    if ingest_corpus is not None:
+        ingest_corpus(settings().corpus_dir)
     return report
 
 

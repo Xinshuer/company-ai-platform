@@ -196,7 +196,40 @@ RLS protects against the **app role**; the owner is trusted job code. Unset sess
 | `grant:<…>` | unexpired rows in `core.grants` |
 | `svc:<job>` | service accounts |
 
-A row's `acl_groups` lists who may read it, e.g. a CRM account owned by `u0031`: `{user:u0031, head:sales, role:ceo}`.
+A row's `acl_groups` lists who may read it, e.g. a CRM account owned by `u0031`: `{user:u0031, head:sales, role:ceo, grant:crm:A-0012}`.
+
+### 5.1 Clearance and ACL assignment (the data contract between synth, policy and RLS)
+
+**Clearance** (`core.users.clearance`): CEO and every head → L4; staff in legal, finance, hr → L4; staff in sales, eng, exec → L3; platform admin, security auditor, IT support → L2 (they run the system and read no business content).
+
+**ACL groups per kind of row** (implements design-review §5). Synth writes exactly these; policy and RLS read them.
+
+| Rows | Level | `acl_groups` |
+|---|---|---|
+| public site pages, press releases, published JDs, GDPR library (`legal.regulations`) | L1 | `all` |
+| internal handbook, policies, templates (`general` collection) | L2 | `all` |
+| dept-internal docs (wiki, runbooks) | L2 | `dept:<d>`, `head:<d>`, `role:ceo` |
+| `crm.accounts`, `crm.contacts`, `crm.opportunities`, `crm.interactions`, `crm.quotes` | L3 | `user:<owner rep>`, `head:sales`, `role:ceo`, `grant:crm:<account_id>` |
+| `eng.projects` (stage-level status) | L3 | `proj:<id>`, `dept:eng`, `head:eng`, `dept:sales`, `role:ceo` |
+| `eng.tickets`, `eng.ci_runs`, repo docs | L3 | `proj:<id>`, `head:eng` |
+| `eng.vulnerabilities` | L4 | `head:eng`, `role:ceo` |
+| `legal.contracts` (full text + structured fields) | L3 | `user:<handling lawyer>`, `head:legal`, `role:ceo` |
+| `legal.contract_requests` (status only, raised by sales) | L3 | `user:<requesting rep>`, `head:sales`, `dept:legal`, `head:legal` |
+| `legal.matters` + litigation docs | L4 | `matter:<id>`, `head:legal` (CEO only through a `grant:`) |
+| `fin.journal_entries`, `fin.invoices`, `fin.budgets` | L3 | `dept:finance`, `head:finance`, `role:ceo` |
+| financial statements, funding docs | L4 | `head:finance`, `dept:finance`, `role:ceo` |
+| `hr.employees` (profile, no pay) | L3 | `dept:hr`, `head:hr`, `mgr-of:<employee_id>` |
+| `hr.compensation`, `hr.performance` | L4 | `head:hr` |
+| `hr.requisitions` (role, headcount, status) | L2 | `dept:hr`, `head:hr`, `head:<hiring dept>`, `role:ceo`, `req:<id>` |
+| `hr.requisition_budgets` | L3 | `head:hr`, `head:<hiring dept>`, `head:finance`, `role:ceo` |
+| `hr.candidates`, résumés | L3 | `req:<req_id>`, `head:hr` |
+| `hr.screenings` (evidence and decisions) | L4 | `req:<req_id>`, `head:hr` |
+| playbooks | per content (L2–L3) | `dept:<d>`, `head:<d>`, `role:ceo` |
+| canary rows/docs | L4 (whatever the host row's ACL) | — |
+
+Memberships: HR staff and the hiring manager of a requisition get `req:<id>`; engineers get `proj:<id>` for their projects; a matter's handling lawyer gets `matter:<id>`. Persona `sales_staff` owns ≥3 accounts, `eng_staff` is in ≥1 project, `legal_staff` handles ≥3 contracts and 1 matter, `hr_staff` is on ≥1 requisition.
+
+**Read decisions agree with RLS by construction**: `decide(p, READ|SEARCH, r)` for a labelled row allows iff `r.label.level <= p.clearance` and `r.label.acl_groups ∩ p.groups ≠ ∅`, unless a deny rule matches; role rules cover the unlabelled kinds (`audit`, `trace`, `admin.*`, `proposal`, `report`, `fin.metric`).
 
 **Session token**: JWT HS256, key in `$DATA/secrets/session.key` (created on first run, 0600, git-ignored). Claims `sub`, `sid`, `iat`, `exp` (8 h). Cookie `corpai_session`, HttpOnly, SameSite=Strict. The principal is **re-resolved from the directory on every request**, so deactivation takes effect at once.
 
