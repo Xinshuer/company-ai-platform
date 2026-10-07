@@ -44,8 +44,9 @@ TAX_CONTEXT = re.compile(
 CARD = re.compile(r"(?<![\d+-])(?:[2-6]\d{12,18}|[2-6]\d{3}(?:[ -]\d{4}){2,3}(?:[ -]\d{1,3})?|"
                   r"3[47]\d{2}[ -]\d{6}[ -]\d{5})(?![\d-])")
 
-# International: +<cc> (any country) or 00<cc> for the countries we trade with, then 6-12 digits.
-PHONE_INTL = re.compile(r"(?<![\w+])(?:\+[1-9]\d{0,2}|00(?:49|31|33|48|43|39|34|41|32|44|86))"
+# International: +<cc> (any country) or 00<cc> for our home country (46) and the countries we trade
+# with, then 6-12 digits.
+PHONE_INTL = re.compile(r"(?<![\w+])(?:\+[1-9]\d{0,2}|00(?:46|49|31|33|48|43|39|34|41|32|44|86))"
                         r"(?:[ \-./]?\(0\))?(?:[ \-./]?\d){6,12}(?!\d)")
 # National: leading 0 + area code, at least one separator-free run; digit count checked in code.
 PHONE_NAT = re.compile(r"(?<![\w+\-/.,])(?<!\d )0[1-9]\d{0,4}(?:[ /-]|\s?/\s?)\d{2,8}(?:[ -]\d{2,5}){0,3}(?![\w-]|\.\d)"
@@ -84,7 +85,14 @@ VULN = re.compile(r"(?i)\b(?:vulnerabilit(?:y|ies)|exploit\w*|RCE|remote code ex
 LITIGATION = re.compile(r"(?i)\b(?:lawsuits?|litigation|litigat\w+|klage(?:n|schrift)?|verklag\w*|"
                         r"rechtsstreit\w*|gerichtsverfahren)\b|诉讼|起诉")
 MATTER_ID = re.compile(r"\bM-\d{1,6}\b")
-COMPANY = re.compile(r"(?i)kestrelbyte|fleetpilot|(?<![A-Za-z0-9])kb_[a-z0-9_]{1,64}")
+# Our own names: the company ABC Tech (also "abctech" in hosts and code), the product, and the kb_
+# prefix of internal packages (kept from the former company name, Kestrelbyte). The two words of
+# "ABC Tech" may be split by a line wrap or extra spaces, or joined in CamelCase code (AbcTechClient,
+# new ABCTechApi(), getAbcTech()). A lowercase continuation is another name ("ABC Technoquill",
+# "abctechnology"), and so is an all-caps one ("ABC TECHNOQUILL").
+_ABC_TECH = (r"(?:(?<![A-Za-z0-9])(?i:abc)|(?<=[a-z0-9])A(?i:bc))[\s_-]{0,3}"
+             r"(?:TECH(?![A-Za-z0-9])|(?!TECH)(?i:tech)(?![a-z0-9]))")
+COMPANY = re.compile(_ABC_TECH + r"|(?i:fleetpilot)|(?<![A-Za-z0-9])(?i:kb_[a-z0-9_]{1,64})")
 
 _FENCE = re.compile(r"^[ \t]{0,3}(```|~~~)")
 _INDENTED = re.compile(r"^(?: {4}|\t)[ \t]*\S")

@@ -1,4 +1,4 @@
-# Kestrelbyte GmbH: company script
+# ABC Tech AB: company script
 
 > **Disclaimer.** Everything in this company is fictional: every person, company, domain, address, phone number, contract, figure and event was generated for a software demo. Domains end in `.example` (RFC 2606) and cannot resolve. Any resemblance to real people or companies is coincidental.
 
@@ -9,7 +9,8 @@ accounts, amounts); everything below is the same for every seed.
 
 ## The company
 
-- **Kestrelbyte GmbH**, Berlin, founded 2019; about 70 people; staff email `@kestrelbyte.example`.
+- **ABC Tech AB** (brand ABC Tech), head office in Stockholm, Sweden (EU), founded
+  2019; about 70 people with an engineering hub in Warsaw; staff email `@abctech.example`.
 - Product: **FleetPilot**, route planning and dispatch SaaS for logistics fleets.
 - Customers: mid-size and large logistics fleets in Germany, the Netherlands, France, Poland, Austria,
   Italy and Spain. Company names are invented compounds with a legal suffix (GmbH, B.V., S.A.S.,
@@ -25,18 +26,19 @@ accounts, amounts); everything below is the same for every seed.
 
 | Dept | People | Head |
 |---|---|---|
-| exec | 2 | Katharina Wendel (CEO) |
-| sales | 14 | Mareike Fuchs (Head of Sales) |
-| eng | 32 | Lukas Brandt (CTO) |
-| legal | 4 | Sophie Hartmann (Head of Legal) |
-| finance | 6 | Annika Vogt (CFO) |
-| hr | 5 | Clara Becker (Head of People) |
+| exec | 2 | Helena Lindberg (CEO) |
+| sales | 14 | Karin Holm (Head of Sales) |
+| eng | 32 | Anders Nyberg (CTO) |
+| legal | 4 | Sofia Wallin (Head of Legal) |
+| finance | 6 | Annika Strand (CFO) |
+| hr | 5 | Maria Engström (Head of People) |
 | it | 3 | reports to the CEO (platform admin, security auditor, IT support) |
 
 Service accounts (role `service`, dept `it`, clearance L1): `svc:ingest`, `svc:metrics`, `svc:eval`, `svc:executor`.
 
-Former employees keep their HR record (`hr.employees.left_on`, the last working day) and a
-deactivated directory account; names come from the seed:
+Staff names are Swedish (personas fixed, everyone else from the seed). Former employees keep
+their HR record (`hr.employees.left_on`, the last working day) and a deactivated directory account;
+their names come from the seed too:
 
 | User id | Dept | Title | Hired | Left (last day) |
 |---|---|---|---|---|
@@ -51,20 +53,20 @@ deactivated directory account; names come from the seed:
 
 | Persona key | User id | Name | Dept | Role | Title |
 |---|---|---|---|---|---|
-| ceo | u0001 | Katharina Wendel | exec | ceo | Chief Executive Officer |
-| exec_staff | u0002 | Jonas Albrecht | exec | employee | Chief of Staff |
-| sales_head | u0010 | Mareike Fuchs | sales | manager | Head of Sales |
-| sales_staff | u0011 | Tobias Reiner | sales | employee | Account Executive |
-| eng_head | u0020 | Lukas Brandt | eng | manager | Chief Technology Officer |
-| eng_staff | u0021 | Emre Kaya | eng | employee | Backend Engineer |
-| legal_head | u0030 | Sophie Hartmann | legal | manager | Head of Legal |
-| legal_staff | u0031 | Felix Neumann | legal | employee | Legal Counsel |
-| finance_head | u0040 | Annika Vogt | finance | manager | Chief Financial Officer |
-| finance_staff | u0041 | Paulina Nowak | finance | employee | Financial Accountant |
-| hr_head | u0050 | Clara Becker | hr | manager | Head of People |
-| hr_staff | u0051 | Lea Schröder | hr | employee | Talent Acquisition Partner |
-| platform_admin | u0060 | Daniel Okafor | it | platform_admin | Platform Administrator |
-| auditor | u0061 | Mira Jansen | it | security_auditor | Security Auditor |
+| ceo | u0001 | Helena Lindberg | exec | ceo | Chief Executive Officer |
+| exec_staff | u0002 | Johan Ekström | exec | employee | Chief of Staff |
+| sales_head | u0010 | Karin Holm | sales | manager | Head of Sales |
+| sales_staff | u0011 | Erik Lindqvist | sales | employee | Account Executive |
+| eng_head | u0020 | Anders Nyberg | eng | manager | Chief Technology Officer |
+| eng_staff | u0021 | Oskar Berg | eng | employee | Backend Engineer |
+| legal_head | u0030 | Sofia Wallin | legal | manager | Head of Legal |
+| legal_staff | u0031 | Viktor Sandberg | legal | employee | Legal Counsel |
+| finance_head | u0040 | Annika Strand | finance | manager | Chief Financial Officer |
+| finance_staff | u0041 | Linnea Dahl | finance | employee | Financial Accountant |
+| hr_head | u0050 | Maria Engström | hr | manager | Head of People |
+| hr_staff | u0051 | Elin Forsberg | hr | employee | Talent Acquisition Partner |
+| platform_admin | u0060 | Daniel Sjögren | it | platform_admin | Platform Administrator |
+| auditor | u0061 | Ida Lund | it | security_auditor | Security Auditor |
 
 Clearance: CEO and every head L4; legal, finance and HR staff L4; sales, eng and exec staff L3;
 IT (platform admin, security auditor, IT support) L2.

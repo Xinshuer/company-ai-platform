@@ -188,7 +188,7 @@ async def test_send_needs_four_eyes_and_lands_in_the_outbox(app_client, as_perso
 
     mine = (await app_client.get("/api/proposals", params={"box": "mine"})).json()
     p = next(x for x in mine if x["proposal_id"] == prop_id)
-    assert p["params"] == {"contract_id": "C-0004", "to": to, "subject": "Contract C-0004 from Kestrelbyte GmbH",
+    assert p["params"] == {"contract_id": "C-0004", "to": to, "subject": "Contract C-0004 from ABC Tech AB",
                            "body": "Please find our revised MSA attached."}
     assert p["can_approve"] is False and p["why_not"]
     self_ok = await app_client.post(f"/api/proposals/{prop_id}/approve",

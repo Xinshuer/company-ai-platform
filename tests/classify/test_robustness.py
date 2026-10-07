@@ -133,7 +133,7 @@ def test_oversized_input_fails_closed():
     "@a.",
     "0 ",
     "    x = 1\n",
-    "    import kb_core\n    x = 1\n    y = 2\nkestrelbyte\n",  # many code blocks × many identifiers
+    "    import kb_core\n    x = 1\n    y = 2\nabctech\n",  # many code blocks × many identifiers
     "DE89 ",
     "a" + chr(0x200B),                      # every character triggers the normalised second pass
     "１２３ 王伟的年薪 ",

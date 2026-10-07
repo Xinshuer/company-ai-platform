@@ -22,7 +22,7 @@ Topic = Literal[
     "termination",
     "unilateral_changes",
     "governing_law",
-    "service_levels",  # corpai: Kestrelbyte's playbook has a service-credit rule
+    "service_levels",  # corpai: ABC Tech's playbook has a service-credit rule
     "other",
 ]
 Verdict = Literal["accept", "flag", "redline"]

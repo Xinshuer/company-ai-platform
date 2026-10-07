@@ -7,7 +7,7 @@ company's internal mirror, which (like every domain here) ends in .example.
 
 from __future__ import annotations
 
-_MIRROR = "https://regs.kestrelbyte.example"
+_MIRROR = "https://regs.abctech.example"
 
 _GDPR: list[tuple[int, str, str]] = [
     (3, "Territorial scope",

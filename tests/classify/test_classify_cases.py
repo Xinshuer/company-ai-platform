@@ -104,7 +104,7 @@ def test_vulnerability_and_litigation_need_company_context():
 def test_code_block_with_company_identifier_anywhere_inside():
     plain = "```\nfor i in range(3):\n    print(i)\n```"
     assert classify_text(plain).level == Level.L2
-    ours = "```\nfor i in range(3):\n    print(i)  # see wiki.kestrelbyte.internal\n```"
+    ours = "```\nfor i in range(3):\n    print(i)  # see wiki.abctech.internal\n```"
     assert classify_text(ours).level == Level.L3
     unterminated = "```\nimport kb_auth\nkb_auth.login()"
     assert classify_text(unterminated).level == Level.L3

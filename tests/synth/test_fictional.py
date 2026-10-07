@@ -51,7 +51,7 @@ def test_columns_holding_domains(synth_small):
         for t, col in (("core.users", "email"), ("crm.contacts", "email"), ("hr.candidates", "email")):
             n = c.execute(f"SELECT count(*) AS n FROM {t} WHERE {col} NOT LIKE '%%.example'").fetchone()["n"]
             assert n == 0, t
-        staff = c.execute("SELECT count(*) AS n FROM core.users WHERE email NOT LIKE '%%@kestrelbyte.example'"
+        staff = c.execute("SELECT count(*) AS n FROM core.users WHERE email NOT LIKE '%%@abctech.example'"
                           ).fetchone()["n"]
         assert staff == 0
 
@@ -70,7 +70,7 @@ def test_company_md_is_the_rendered_script():
     text = (ROOT / "docs" / "company.md").read_text(encoding="utf-8")
     assert text == script.render_markdown(), "run: python -m corpai synth --write-company-doc"
     assert "fictional" in text.lower() and ".example" in text
-    for p in ("Kestrelbyte GmbH", "FleetPilot", "Berlin"):
+    for p in ("ABC Tech AB", "FleetPilot", "Stockholm"):
         assert p in text
     assert "\r\n" not in text
 

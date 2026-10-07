@@ -21,7 +21,7 @@ _state: tuple[re.Pattern[str] | None, re.Pattern[str] | None, int] = (None, None
 HONORIFIC = re.compile(
     r"(?<![A-Za-z])(?:Mr|Ms|Mrs|Dr|Prof|Herr|Frau)\.?[ \t]{1,3}"
     r"(?:(?:Dr|Prof)\.?[ \t]{1,3})?"
-    r"[A-ZÄÖÜ][a-zäöüßéèáàíóúñçø'’-]{1,40}(?:[ -][A-ZÄÖÜ][a-zäöüßéèáàíóúñçø'’-]{1,40})?"
+    r"[A-ZÄÖÜÅ][a-zäöüåßéèáàíóúñçø'’-]{1,40}(?:[ -][A-ZÄÖÜÅ][a-zäöüåßéèáàíóúñçø'’-]{1,40})?"
 )
 
 

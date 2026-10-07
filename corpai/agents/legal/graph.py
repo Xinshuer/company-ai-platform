@@ -50,8 +50,8 @@ from corpai.types import Level
 
 AGENT = "legal_review"
 APP = "legal_review"
-DEFAULT_SUBJECT = "Contract {cid} from Kestrelbyte GmbH"
-DEFAULT_BODY = "Please find the contract attached. Kind regards, Kestrelbyte Legal"
+DEFAULT_SUBJECT = "Contract {cid} from ABC Tech AB"
+DEFAULT_BODY = "Please find the contract attached. Kind regards, ABC Tech Legal"
 # send_contract and create_contract_draft: the only write tools this graph files, each from its own
 # node on a path without untrusted input, followed by the approval gate.
 SEND_CAPS = frozenset({"sensitive_data", "external_action"})

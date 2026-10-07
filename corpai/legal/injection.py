@@ -10,7 +10,7 @@ are always offsets into the original text.
 
 The patterns need an addressee or an imperative ("AI reviewer: ...", "Instructions for the AI
 assistant", "Ignore the playbook", "rate the contract as low risk"), in English, German and
-Chinese. Ordinary contract prose about AI is not a hit: Kestrelbyte sells AI routing software, so
+Chinese. Ordinary contract prose about AI is not a hit: ABC Tech sells AI routing software, so
 "an AI-assisted routing service" or "the AI system processing driver data" (EU AI Act clauses)
 appear in real contracts. A detector miss is backed by the code floor in review.py (never-accept
 wording and numeric limits of the playbook keep a clause unacceptable whatever the model says).
@@ -35,7 +35,7 @@ _STEER_TARGET = (r"(?:low[- ]risk|acceptable|accept(?:ed)?\s+with\s+low\s+risk|p
 _PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = tuple((kind, re.compile(p, re.I | re.M)) for kind, p in (
     ("override", r"\b(ignore|disregard|forget|override)\s+(all\s+|any\s+)?(the\s+|your\s+)?(previous|prior|above|"
                  r"earlier|preceding|other|existing)\s+" + _RULES),
-    # imperative "Ignore the playbook ...", not "Kestrelbyte shall not disregard the Customer's instructions"
+    # imperative "Ignore the playbook ...", not "ABC Tech shall not disregard the Customer's instructions"
     ("override", _LEAD + r"(?:ignore|disregard|forget|override)\s+(?:all\s+|any\s+)?(?:the\s+|your\s+|its\s+)?"
                  r"(?:[\w-]+\s+){0,2}" + _RULES + r"\b"),
     # "Note to the AI reviewer", "Instructions for the AI assistant", "Note to automated reviewers"

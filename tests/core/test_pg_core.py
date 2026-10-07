@@ -9,7 +9,7 @@ from corpai.types import Dept, Level, Principal, Role
 
 
 def _p(user_id: str, groups: set[str], clearance: Level = Level.L3, active: bool = True) -> Principal:
-    return Principal(user_id=user_id, name=user_id, email=f"{user_id}@kestrelbyte.example", dept=Dept.SALES,
+    return Principal(user_id=user_id, name=user_id, email=f"{user_id}@abctech.example", dept=Dept.SALES,
                      role=Role.EMPLOYEE, title="t", manager_id=None, clearance=clearance,
                      groups=frozenset(groups), active=active)
 

@@ -107,7 +107,7 @@ def test_overlong_session_rejected(pg):
 
 
 def _principal(uid: str, role: Role, dept: Dept, clearance: Level, groups: set[str]) -> Principal:
-    return Principal(user_id=uid, name=uid, email=f"{uid}@kestrelbyte.example", dept=dept, role=role, title="t",
+    return Principal(user_id=uid, name=uid, email=f"{uid}@abctech.example", dept=dept, role=role, title="t",
                      manager_id=None, clearance=clearance, groups=frozenset(groups))
 
 

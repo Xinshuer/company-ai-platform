@@ -128,7 +128,7 @@ def test_original_mock_pipeline_behaves_the_same_with_the_original_playbook():
 
 
 def test_vendored_settings_have_no_default_playbook():
-    """Review finding: the default used to resolve to Kestrelbyte's provider-side playbook, so the
+    """Review finding: the default used to resolve to ABC Tech's provider-side playbook, so the
     unchanged pipeline silently applied different rules (the 8.1 trap was accepted)."""
     from corpai.legal.clausecheck.pipeline import review_contract
 

@@ -26,7 +26,7 @@
   }
 
   function botMessage(m) {
-    var mark = el("span", {class: "bot-mark", "aria-hidden": "true"}, [C.icon("kestrel")]);
+    var mark = el("span", {class: "bot-mark", "aria-hidden": "true"}, [C.icon("logo")]);
     if (m.run) return el("div", {class: "msg msg-bot"}, [mark, C.runCard(m.run)]);
     if (m.error) return el("div", {class: "msg msg-bot"}, [mark, el("div", {class: "card run-card"}, [C.errorBox(m.error),
       m.error.code === "demo_not_recorded" ? el("p", {class: "small muted pad"}, t("demo_try_suggestions")) : null])]);

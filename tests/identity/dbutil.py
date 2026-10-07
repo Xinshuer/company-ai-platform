@@ -14,7 +14,7 @@ def add_user(*, dept: str = "sales", role: str = "employee", clearance: int = 3,
         c.execute("""INSERT INTO core.users (user_id, name, email, dept, role, title, manager_id, clearance,
                                              active, persona_key)
                      VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-                  (uid, f"Test {uid}", f"{uid.replace(':', '-')}@kestrelbyte.example", dept, role, title,
+                  (uid, f"Test {uid}", f"{uid.replace(':', '-')}@abctech.example", dept, role, title,
                    manager_id, clearance, active, persona_key))
     return uid
 

@@ -144,14 +144,14 @@ async def search_regulations(ctx: Context, query: str = "", limit: int = 10) -> 
 # ---- write tools: proposals only ------------------------------------------------------------
 
 async def create_contract_draft(ctx: Context, account_id: str, contract_type: str, text: str,
-                                governing_law: str = "DE") -> dict:
+                                governing_law: str = "SE") -> dict:
     """Propose a new draft contract handled by you (tier 2)."""
     async def body(col: Collector) -> dict:
         params = {"account_id": check_id("account_id", account_id),
                   "contract_type": check_choice("contract_type", contract_type, CONTRACT_TYPES),
                   "text": check_text("text", text, max_len=100000),
                   "governing_law": check_choice("governing_law", governing_law,
-                                                ("DE", "NL", "FR", "PL", "AT", "IT", "ES"))}
+                                                ("SE", "DE", "NL", "FR", "PL", "AT", "IT", "ES"))}
         p = col.auth.principal
         label = Label(level=Level.L3, dept=Dept.LEGAL,
                       acl_groups=frozenset({f"user:{p.user_id}", "head:legal", "role:ceo"}))  # §5.1 contract

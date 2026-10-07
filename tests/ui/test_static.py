@@ -498,7 +498,7 @@ def test_personas_fixture_matches_synth(fixtures):
 def _principal(spec):
     from corpai.types import Dept, Level, Principal, Role
 
-    return Principal(user_id=spec.user_id, name=spec.name, email=f"{spec.user_id}@kestrelbyte.example",
+    return Principal(user_id=spec.user_id, name=spec.name, email=f"{spec.user_id}@abctech.example",
                      dept=Dept(spec.dept), role=Role(spec.role), title=spec.title, manager_id=spec.manager_id,
                      clearance=Level.L3, groups=frozenset({"all"}))
 

@@ -7,7 +7,7 @@ window.FIXTURES.proposals = {
      "created_at": "2026-10-07T09:14:22Z",
      "requester": {
       "user_id": "u0011",
-      "name": "Tobias Reiner"
+      "name": "Erik Lindqvist"
      },
      "agent": "sales_profile",
      "domain": "crm",
@@ -19,12 +19,12 @@ window.FIXTURES.proposals = {
       "account_id": "A-0002",
       "to": "simon.jaceps@havenmeer-distributie.example",
       "cc": [
-       "tobias.reiner@kestrelbyte.example"
+       "erik.lindqvist@abctech.example"
       ],
       "subject": "FleetPilot renewal and store-delivery results",
-      "body": "Dear Mr Jaceps,\n\nthank you for the good collaboration on the store-delivery optimisation project. Ahead of the renewal on 30 November, I would like to walk you through the first results and the multi-depot options for 2027. Would a call in the week of 12 October suit you?\n\nBest regards,\nTobias Reiner\nKestrelbyte GmbH"
+      "body": "Dear Mr Jaceps,\n\nthank you for the good collaboration on the store-delivery optimisation project. Ahead of the renewal on 30 November, I would like to walk you through the first results and the multi-depot options for 2027. Would a call in the week of 12 October suit you?\n\nBest regards,\nErik Lindqvist\nABC Tech AB"
      },
-     "params_hash": "b4b446c4db6cbe1ca3974741307f6204b108cb412a88d0a4be6ac2939aff73db",
+     "params_hash": "d9b1ea48190233d230ddc91bde9349485f9bad8a9f6ef4873fc160adca639197",
      "can_approve": false,
      "why_not": "Tier 3 needs four eyes: the requester cannot approve their own proposal."
     },
@@ -33,7 +33,7 @@ window.FIXTURES.proposals = {
      "created_at": "2026-10-05T11:40:12Z",
      "requester": {
       "user_id": "u0011",
-      "name": "Tobias Reiner"
+      "name": "Erik Lindqvist"
      },
      "agent": "sales_profile",
      "domain": "crm",
@@ -56,7 +56,7 @@ window.FIXTURES.proposals = {
      "created_at": "2026-10-02T14:03:51Z",
      "requester": {
       "user_id": "u0011",
-      "name": "Tobias Reiner"
+      "name": "Erik Lindqvist"
      },
      "agent": "sales_profile",
      "domain": "crm",
@@ -69,14 +69,14 @@ window.FIXTURES.proposals = {
       "to": "chiara.ferri@portaluce-trasporti.example",
       "cc": [],
       "subject": "Multi-depot planning workshop",
-      "body": "Dear Ms Ferri,\n\nas discussed, here are three dates for the multi-depot planning workshop in Bologna: 20, 22 or 27 October. Please let me know which one works best.\n\nBest regards,\nTobias Reiner\nKestrelbyte GmbH"
+      "body": "Dear Ms Ferri,\n\nas discussed, here are three dates for the multi-depot planning workshop in Bologna: 20, 22 or 27 October. Please let me know which one works best.\n\nBest regards,\nErik Lindqvist\nABC Tech AB"
      },
-     "params_hash": "2c9300624ca7efd137888563a0a645706330cb2748f5bc0bdd127de6bbdad70f",
+     "params_hash": "75e7a4a08e7c8cabbceabbe556d77ee3b75a0c93ea6cdf0e92b074bfdea46c17",
      "can_approve": false,
      "why_not": "Already decided.",
      "approver": {
       "user_id": "u0010",
-      "name": "Mareike Fuchs"
+      "name": "Karin Holm"
      },
      "decided_at": "2026-10-02T15:20:07Z",
      "reason": "Dates agreed in the last call; wording ok.",
@@ -97,7 +97,7 @@ window.FIXTURES.proposals = {
      "created_at": "2026-10-07T09:14:22Z",
      "requester": {
       "user_id": "u0011",
-      "name": "Tobias Reiner"
+      "name": "Erik Lindqvist"
      },
      "agent": "sales_profile",
      "domain": "crm",
@@ -109,12 +109,12 @@ window.FIXTURES.proposals = {
       "account_id": "A-0002",
       "to": "simon.jaceps@havenmeer-distributie.example",
       "cc": [
-       "tobias.reiner@kestrelbyte.example"
+       "erik.lindqvist@abctech.example"
       ],
       "subject": "FleetPilot renewal and store-delivery results",
-      "body": "Dear Mr Jaceps,\n\nthank you for the good collaboration on the store-delivery optimisation project. Ahead of the renewal on 30 November, I would like to walk you through the first results and the multi-depot options for 2027. Would a call in the week of 12 October suit you?\n\nBest regards,\nTobias Reiner\nKestrelbyte GmbH"
+      "body": "Dear Mr Jaceps,\n\nthank you for the good collaboration on the store-delivery optimisation project. Ahead of the renewal on 30 November, I would like to walk you through the first results and the multi-depot options for 2027. Would a call in the week of 12 October suit you?\n\nBest regards,\nErik Lindqvist\nABC Tech AB"
      },
-     "params_hash": "b4b446c4db6cbe1ca3974741307f6204b108cb412a88d0a4be6ac2939aff73db",
+     "params_hash": "d9b1ea48190233d230ddc91bde9349485f9bad8a9f6ef4873fc160adca639197",
      "can_approve": true,
      "why_not": null
     }
@@ -128,7 +128,7 @@ window.FIXTURES.proposals = {
      "created_at": "2026-10-07T09:14:22Z",
      "requester": {
       "user_id": "u0011",
-      "name": "Tobias Reiner"
+      "name": "Erik Lindqvist"
      },
      "agent": "sales_profile",
      "domain": "crm",
@@ -140,12 +140,12 @@ window.FIXTURES.proposals = {
       "account_id": "A-0002",
       "to": "simon.jaceps@havenmeer-distributie.example",
       "cc": [
-       "tobias.reiner@kestrelbyte.example"
+       "erik.lindqvist@abctech.example"
       ],
       "subject": "FleetPilot renewal and store-delivery results",
-      "body": "Dear Mr Jaceps,\n\nthank you for the good collaboration on the store-delivery optimisation project. Ahead of the renewal on 30 November, I would like to walk you through the first results and the multi-depot options for 2027. Would a call in the week of 12 October suit you?\n\nBest regards,\nTobias Reiner\nKestrelbyte GmbH"
+      "body": "Dear Mr Jaceps,\n\nthank you for the good collaboration on the store-delivery optimisation project. Ahead of the renewal on 30 November, I would like to walk you through the first results and the multi-depot options for 2027. Would a call in the week of 12 October suit you?\n\nBest regards,\nErik Lindqvist\nABC Tech AB"
      },
-     "params_hash": "b4b446c4db6cbe1ca3974741307f6204b108cb412a88d0a4be6ac2939aff73db",
+     "params_hash": "d9b1ea48190233d230ddc91bde9349485f9bad8a9f6ef4873fc160adca639197",
      "can_approve": true,
      "why_not": null
     }

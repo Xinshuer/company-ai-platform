@@ -63,7 +63,7 @@ def holds(sample: dict, route: Route | str, level: Level | int) -> bool:
 
 
 async def ask(gateway, principal, text: str, hwm: Level = Level.L1, *, agent: str = "qa"):
-    req = ChatRequest(messages=[{"role": "system", "content": "You are Kestrelbyte's internal assistant."},
+    req = ChatRequest(messages=[{"role": "system", "content": "You are ABC Tech's internal assistant."},
                                 {"role": "user", "content": text}],
                       principal=principal, hwm=hwm, purpose="qa.answer", run_id=new_id("run"), agent=agent)
     return await gateway.chat(req)

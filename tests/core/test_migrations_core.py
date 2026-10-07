@@ -15,8 +15,8 @@ def test_migrations_idempotent(pg):
 def test_principal_row_is_the_only_way_in(pg):
     with pgmod.connect_owner() as c:
         c.execute("""INSERT INTO core.users (user_id, name, email, dept, role, title, clearance)
-                     VALUES ('u_mig1', 'Test Boss', 'boss@kestrelbyte.example', 'sales', 'manager', 'Head', 4),
-                            ('u_mig2', 'Test Rep', 'rep@kestrelbyte.example', 'sales', 'employee', 'Rep', 3)
+                     VALUES ('u_mig1', 'Test Boss', 'boss@abctech.example', 'sales', 'manager', 'Head', 4),
+                            ('u_mig2', 'Test Rep', 'rep@abctech.example', 'sales', 'employee', 'Rep', 3)
                      ON CONFLICT DO NOTHING""")
         c.execute("UPDATE core.users SET manager_id = 'u_mig1' WHERE user_id = 'u_mig2'")
         c.execute("INSERT INTO core.memberships VALUES ('u_mig2', 'proj:P-01') ON CONFLICT DO NOTHING")
@@ -41,7 +41,7 @@ def test_principal_row_is_the_only_way_in(pg):
 
 
 def test_can_read_helper(pg):
-    p = Principal(user_id="x", name="x", email="x@kestrelbyte.example", dept=Dept.ENG, role=Role.EMPLOYEE,
+    p = Principal(user_id="x", name="x", email="x@abctech.example", dept=Dept.ENG, role=Role.EMPLOYEE,
                   title="t", manager_id=None, clearance=Level.L3, groups=frozenset({"all", "dept:eng"}))
     with pgmod.principal_tx_sync(p) as conn:
         q = "SELECT core.can_read(%s::smallint, %s::text[]) AS ok"

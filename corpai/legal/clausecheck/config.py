@@ -45,7 +45,7 @@ class Settings:
     full_contract: bool = False
 
     # No default playbook. The original pointed at its own customer-side playbook, which is not
-    # vendored; defaulting to Kestrelbyte's provider-side rules (corpai/legal/data/playbook.json)
+    # vendored; defaulting to ABC Tech's provider-side rules (corpai/legal/data/playbook.json)
     # would silently change what the unchanged pipeline/mock reviewer decides. Callers pass a
     # Playbook (corpai does) or a path; pipeline.review_contract without either fails loudly.
     playbook_path: Path | None = None

@@ -16,10 +16,11 @@ from datetime import date
 from corpai.synth.personas import PERSONA_SPECS, SERVICE_ACCOUNTS
 
 COMPANY = {
-    "name": "Kestrelbyte GmbH",
-    "domain": "kestrelbyte.example",
-    "city": "Berlin",
-    "country": "DE",
+    "name": "ABC Tech AB",
+    "brand": "ABC Tech",
+    "domain": "abctech.example",
+    "city": "Stockholm",
+    "country": "SE",
     "founded": 2019,
     "product": "FleetPilot",
     "product_tagline": "route planning and dispatch SaaS for logistics fleets",
@@ -66,13 +67,13 @@ class LeaverSpec:
 # so their attrition is shown; legal has 4 people and stays suppressed) and one earlier leaver, just
 # outside that window. Leavers come after the current staff and are not counted in STAFF_PLAN.
 LEAVERS: tuple[LeaverSpec, ...] = (
-    LeaverSpec("u0190", "eng", "Backend Engineer", "u0112", "DE", date(2021, 5, 1), date(2025, 12, 31)),
+    LeaverSpec("u0190", "eng", "Backend Engineer", "u0112", "SE", date(2021, 5, 1), date(2025, 12, 31)),
     LeaverSpec("u0191", "eng", "Frontend Engineer", "u0113", "PL", date(2022, 9, 1), date(2026, 4, 30)),
-    LeaverSpec("u0192", "sales", "Account Executive", "u0010", "DE", date(2023, 2, 1), date(2026, 2, 28)),
-    LeaverSpec("u0193", "sales", "Sales Development Representative", "u0010", "DE", date(2024, 6, 1),
+    LeaverSpec("u0192", "sales", "Account Executive", "u0010", "SE", date(2023, 2, 1), date(2026, 2, 28)),
+    LeaverSpec("u0193", "sales", "Sales Development Representative", "u0010", "SE", date(2024, 6, 1),
                date(2026, 7, 31)),
-    LeaverSpec("u0194", "legal", "Paralegal", "u0030", "DE", date(2020, 3, 1), date(2026, 5, 31)),
-    LeaverSpec("u0195", "eng", "QA Engineer", "u0114", "DE", date(2020, 8, 1), date(2025, 8, 31)),
+    LeaverSpec("u0194", "legal", "Paralegal", "u0030", "SE", date(2020, 3, 1), date(2026, 5, 31)),
+    LeaverSpec("u0195", "eng", "QA Engineer", "u0114", "SE", date(2020, 8, 1), date(2025, 8, 31)),
 )
 
 # Bank before the ledger window (2025-09-30), carried forward as the opening balance, and the
@@ -268,7 +269,7 @@ REQUISITIONS: tuple[RequisitionSpec, ...] = (
                      "Fluent English and German"), False, on_hold_on=date(2026, 7, 1)),
     RequisitionSpec("R-05", "finance", "Financial Controller", 1, "filled", date(2026, 1, 12), "u0040", "u0149",
                     82_000, 79_000, (65_000, 78_000),
-                    ("Degree in accounting or finance", "Experience with HGB month-end close",
+                    ("Degree in accounting or finance", "Experience with month-end close",
                      "Advanced spreadsheet skills"), False, filled_on=date(2026, 3, 20)),
     RequisitionSpec("R-06", "eng", "Machine Learning Engineer (ETA prediction)", 1, "open", date(2026, 9, 1), "u0113",
                     "u0149", 98_000, 94_000, (75_000, 90_000),
@@ -309,9 +310,9 @@ def render_markdown() -> str:
         [[p.key, p.user_id, p.name, p.dept, p.role, p.title] for p in PERSONA_SPECS])
     depts = _md_table(
         ["Dept", "People", "Head"],
-        [["exec", "2", "Katharina Wendel (CEO)"], ["sales", "14", "Mareike Fuchs (Head of Sales)"],
-         ["eng", "32", "Lukas Brandt (CTO)"], ["legal", "4", "Sophie Hartmann (Head of Legal)"],
-         ["finance", "6", "Annika Vogt (CFO)"], ["hr", "5", "Clara Becker (Head of People)"],
+        [["exec", "2", "Helena Lindberg (CEO)"], ["sales", "14", "Karin Holm (Head of Sales)"],
+         ["eng", "32", "Anders Nyberg (CTO)"], ["legal", "4", "Sofia Wallin (Head of Legal)"],
+         ["finance", "6", "Annika Strand (CFO)"], ["hr", "5", "Maria Engström (Head of People)"],
          ["it", "3", "reports to the CEO (platform admin, security auditor, IT support)"]])
     accounts = _md_table(
         ["Id", "Account", "Country", "Industry", "Status", "Tier", "ARR (EUR)", "Story"],
@@ -333,7 +334,7 @@ def render_markdown() -> str:
                         [[m.matter_id, m.title, m.counterparty, m.handler_id, m.opened_on.isoformat()]
                          for m in MATTERS])
     timeline = "\n".join(f"- **{d.isoformat()}** {text}" for d, text in TIMELINE)
-    return f"""# Kestrelbyte GmbH: company script
+    return f"""# ABC Tech AB: company script
 
 > **Disclaimer.** {DISCLAIMER}
 
@@ -344,7 +345,8 @@ accounts, amounts); everything below is the same for every seed.
 
 ## The company
 
-- **Kestrelbyte GmbH**, Berlin, founded {COMPANY['founded']}; about 70 people; staff email `@{COMPANY['domain']}`.
+- **{COMPANY['name']}** (brand {COMPANY['brand']}), head office in {COMPANY['city']}, Sweden (EU), founded
+  {COMPANY['founded']}; about 70 people with an engineering hub in Warsaw; staff email `@{COMPANY['domain']}`.
 - Product: **FleetPilot**, {COMPANY['product_tagline']}.
 - Customers: mid-size and large logistics fleets in Germany, the Netherlands, France, Poland, Austria,
   Italy and Spain. Company names are invented compounds with a legal suffix (GmbH, B.V., S.A.S.,
@@ -362,8 +364,9 @@ accounts, amounts); everything below is the same for every seed.
 
 Service accounts (role `service`, dept `it`, clearance L1): {', '.join(f'`{s}`' for s in SERVICE_ACCOUNTS)}.
 
-Former employees keep their HR record (`hr.employees.left_on`, the last working day) and a
-deactivated directory account; names come from the seed:
+Staff names are Swedish (personas fixed, everyone else from the seed). Former employees keep
+their HR record (`hr.employees.left_on`, the last working day) and a deactivated directory account;
+their names come from the seed too:
 
 {leavers}
 

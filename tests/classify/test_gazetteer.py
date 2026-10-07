@@ -45,6 +45,19 @@ def test_regex_special_characters_are_escaped():
     assert _names_found("AxB Cee") == []
 
 
+def test_swedish_names_with_a_ring_and_umlauts():
+    """Staff names are Swedish (ABC Tech, Stockholm): å/ä/ö are part of the name, not a boundary."""
+    set_gazetteer(["Daniel Sjögren", "Maria Engström", "Åsa Ståhl"])
+    assert _names_found("Daniel Sjögren and Maria Engström met Åsa Ståhl.") == [
+        "Daniel Sjögren", "Maria Engström", "Åsa Ståhl"]
+    assert _names_found("Daniel Sjögrens team") == []  # still whole words only
+    assert _names_found("Daniel Sjogren") == []  # the ASCII-folded spelling is a different string
+    assert classify_text("Ask Maria Engström.").level == Level.L3
+    set_gazetteer([])
+    # the honorific heuristic knows Å/å too
+    assert _names_found("Herr Åkesson and Fru Ståhl") == ["Herr Åkesson"]
+
+
 def test_large_gazetteer_is_fast():
     import time
 
@@ -61,9 +74,12 @@ def test_large_gazetteer_is_fast():
 # ---- database loading ---------------------------------------------------------------------
 
 _TEST_USERS = [
-    ("u9901", "Greta Lindqvist", "greta.lindqvist@kestrelbyte.example", "employee"),
-    ("u9902", "Tomasz Wiśniewski", "tomasz.w@kestrelbyte.example", "employee"),
-    ("svc:gazetteer-test", "Nightly Sync", "svc-gazetteer@kestrelbyte.example", "service"),
+    ("u9901", "Greta Lindqvist", "greta.l@abctech.example", "employee"),
+    ("u9902", "Tomasz Wiśniewski", "tomasz.w@abctech.example", "employee"),
+    # persona names (u0060, u0050); own e-mails, so they can coexist with a seeded directory
+    ("u9903", "Daniel Sjögren", "d.sjogren.u9903@abctech.example", "employee"),
+    ("u9904", "Maria Engström", "m.engstrom.u9904@abctech.example", "employee"),
+    ("svc:gazetteer-test", "Nightly Sync", "svc-gazetteer@abctech.example", "service"),
 ]
 
 
@@ -85,8 +101,12 @@ def directory_rows(pg):
 def test_load_from_db_reads_the_directory(directory_rows):
     set_gazetteer([])
     n = load_gazetteer_from_db()
-    assert n >= 2
+    assert n >= 4
     assert _names_found("Greta Lindqvist and Tomasz Wiśniewski") == ["Greta Lindqvist", "Tomasz Wiśniewski"]
+    # Swedish names with å/ä/ö loaded from the directory are person names (L3)
+    text = "Daniel Sjögren asked Maria Engström for the rota."
+    assert _names_found(text) == ["Daniel Sjögren", "Maria Engström"]
+    assert classify_text(text).level == Level.L3
     # service accounts are not people
     assert _names_found("Nightly Sync finished") == []
 

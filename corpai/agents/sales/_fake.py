@@ -43,7 +43,7 @@ def followup_email(messages: list[dict], *, route: str, json_mode: bool) -> str:
     pb = d.get("playbook") or {}
     step = (pb.get("next_steps") or ["a short call"])[0]
     contact = d.get("contact_name") or "there"
-    body = (f"Dear {contact},\n\nthank you for your time with Kestrelbyte. As a next step I would like to "
+    body = (f"Dear {contact},\n\nthank you for your time with ABC Tech. As a next step I would like to "
             f"suggest {step}. Would one of the coming weeks suit you?\n\nKind regards")
     return json.dumps({"subject": f"Next step with FleetPilot for {d.get('account') or 'your team'}",
                        "body": body}, ensure_ascii=False)

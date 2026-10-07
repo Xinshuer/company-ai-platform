@@ -53,12 +53,12 @@ PROMPT_FIELDS = ("industry", "hq_country", "countries", "fleet_size_band", "empl
                  "last_funding_eur", "growth_signals", "tech_signals")
 
 STRATEGY_SYSTEM = (
-    "You are a sales coach at Kestrelbyte (FleetPilot route planning). Write a short follow-up strategy "
+    "You are a sales coach at ABC Tech (FleetPilot route planning). Write a short follow-up strategy "
     "for the account in the JSON: three to five sentences of plain prose. Use only the facts given. "
     "Promise only what playbook.allowed_commitments lists; name what needs approval; never mention "
     "anything in playbook.forbidden_commitments as an offer. Do not invent figures, names or dates.")
 FOLLOWUP_SYSTEM = (
-    "You draft a short, polite follow-up e-mail from a Kestrelbyte account executive to the contact "
+    "You draft a short, polite follow-up e-mail from an ABC Tech account executive to the contact "
     "in the JSON. Suggest the first of playbook.next_steps. Offer nothing outside "
     "playbook.allowed_commitments. No links, no e-mail addresses, no attachments, no prices. "
     "Answer ONLY with a JSON object {\"subject\": string, \"body\": string}.")

@@ -2,6 +2,8 @@
 
 每次发现的问题都记在这里：怎么发现的、会造成什么后果、怎么修的、怎么验证、现在的状态。按阶段分节，最新的阶段在最后。
 
+> 2026-10-07 晚，按用户要求，模拟公司从 Kestrelbyte GmbH（柏林）改名为 ABC Tech AB（瑞典斯德哥尔摩），员工都换成瑞典名字（见第十四节）。前面各节保留当时的原文，里面的公司名、城市和人名都是改名之前的。
+
 **状态**：✅ 已修复并有测试 · ⏳ 修复中 · 📌 延后（写明在哪个阶段处理）· ❎ 不修（写明原因）
 **严重度**：🔴 高（会泄露数据或破坏核心保证）· 🟠 中 · 🟡 低
 **编号**：P = 准备阶段 · C = 冻结的核心 · W = 工作流运行事故 · B = 地基开发中由各开发流自己处理的 · I = 集成 · R = 代码审查 · D = 待决定事项 · 后面阶段的前缀（MR、BI、BR、WI、WR 等）在各节开头说明
@@ -697,3 +699,47 @@
 
 - **验证**：两份规范都是 UTF-8、LF 换行，§1–§18 的节号都在；`tests/ui/test_static.py` 全部通过（112 个，其中一个核对规范里的 CSP）。`tests/synth/test_fictional.py::test_company_md_is_the_rendered_script` 失败，原因是工作区里另一项正在进行、还没提交的改动（公司改名为 ABC Tech AB，改了 `docs/company.md` 和 `corpai/synth/script.py`，测试还在找 Kestrelbyte），和这次规范核对无关。📌 改名完成后，两份规范开头和 §15 的公司名、城市也要跟着改。
 - **状态**：✅
+
+---
+
+## 十四、公司改名（Kestrelbyte GmbH，柏林 → ABC Tech AB，瑞典斯德哥尔摩；2026-10-07 晚）
+
+> 用户要求。已确定的选择：法定名称 ABC Tech AB，品牌 ABC Tech；总部斯德哥尔摩；金额仍用欧元；员工邮箱域名 `abctech.example`；员工全部换成瑞典名字，14 个演示身份的编号、角色和权限都不变。
+> 做法：两个代理并行改（后端与模拟数据；界面与演示录制），再集成、审查、修复（只修中高危，低危记下）。编号前缀 RN。
+
+### 改了什么
+- **演示身份**：u0001 CEO Helena Lindberg（原 Katharina Wendel）、u0002 Johan Ekström（Jonas Albrecht）、u0010 销售负责人 Karin Holm（Mareike Fuchs）、u0011 销售 Erik Lindqvist（Tobias Reiner）、u0020 CTO Anders Nyberg（Lukas Brandt）、u0021 Oskar Berg（Emre Kaya）、u0030 法务负责人 Sofia Wallin（Sophie Hartmann）、u0031 法务 Viktor Sandberg（Felix Neumann）、u0040 CFO Annika Strand（Annika Vogt）、u0041 Linnea Dahl（Paulina Nowak）、u0050 HR 负责人 Maria Engström（Clara Becker）、u0051 Elin Forsberg（Lea Schröder）、u0060 平台管理员 Daniel Sjögren（Daniel Okafor）、u0061 安全审计员 Ida Lund（Mira Jansen）。邮箱把 å/ä/ö 转写成 a/a/o，例如 `daniel.sjogren@abctech.example`。
+- **公司自己的内容**：官网、招聘启事、新闻稿、公司合同的抬头改成斯德哥尔摩；条款库和谈判手册的首选适用法律改为“瑞典法律、斯德哥尔摩法院”，德国法律降为备选；起草合同的默认法律改为 SE；差旅制度改按瑞典法定补贴；员工工作国家从 DE 改为 SE（薪资系数相同，工资数字不变）；其他员工和离职员工用 Faker `sv_SE` 生成名字。
+- **客户和求职者一侧不变**：德国客户、+49 联系电话、“Account Executive DACH”和德语要求、求职者的德国背景，以及反事实简历对。
+- **分类器**：本公司代码的标识从 `kestrelbyte` 改为 ABC Tech 的各种写法；电话识别补上 `0046` 前缀；称谓后的人名支持 Å；新增测试证明从数据库加载的瑞典名字（Daniel Sjögren、Maria Engström）会被识别为人名、判为 L3。
+- **演示录制**：合同文字变了，引用位置、文本哈希和提议的参数哈希都按原算法重新计算并逐个核对；C-0004 的注入仍被标出。报告录制用录制脚本重录，数字和改名前完全一样。
+- **故意不改的**：随机数种子的盐 `"kestrelbyte"`（改了之后所有金额、日期和金丝雀都会变）；`KB-` 前缀（金丝雀格式、Playbook 规则号）；迁移 020 里的一行注释（已执行的迁移有校验和，改了开发库会拒绝启动）。
+- **验证**：改名前后用同一个种子生成数据对比，只有名字、邮箱、员工国家、文字、网址和合同法律变了，金额、日期、指标、埋入问题和金丝雀都没变。用临时数据库起真实服务器冒烟：14 个新名字、页面标题 ABC Tech、问句里提到 “Karin Holm” 时判为人名并走本地、CEO 报告正常。全量测试 4621 通过；修复审查发现之后 4635 通过、2 个跳过。
+
+### 审查（7 条：1 条高危、2 条中危已修，4 条低危记下）
+
+#### RN-01 🔴 新加的分类测试用了真实公司名
+- **问题**：为了证明 “ABC Technologies” 不会被当成本公司，测试用例写了 “Is the lawsuit against ABC Technologies public?”。ABC Technologies 是真实存在的公司，还被放在“诉讼”的句子里，违反“只用虚构名称”的规则。
+- **修复**：改成虚构的 “ABC Technoquill”，另加一个全大写的用例。全仓库再搜一遍，没有别的 “ABC Technologies”。
+- **状态**：✅
+
+#### RN-02 🟠 公司标识的正则漏掉换行、双空格和驼峰写法
+- **问题**：原来的品牌是一个词，`kestrelbyte` 出现在哪里都能匹配。新名字是两个词，新正则只允许中间有一个空格。“ABC” 和 “Tech” 之间换行或有两个空格，以及 `AbcTechClient` 这类驼峰写法，都识别不出来，于是带公司名的诉讼、漏洞、代码内容会被判成 L1/L2，可能走外部。
+- **修复**：新正则允许中间最多 3 个空白或分隔符，支持驼峰和标识符中间的写法，同时不把 “ABC Technologies” 这类别的公司算进来。新增 6 个用例：换行、CRLF、双空格的诉讼句子（L4），驼峰写法的漏洞（L4）和代码（L3）。
+- **剩下的缺口**：全大写、后面紧跟大写字母的标识符（如 `ABCTECHAPI`）识别不到，这是为了不误判 “ABC TECHNOLOGIES” 做的取舍。
+- **状态**：✅
+
+#### RN-03 🟠 公司自己的财务主管招聘要求德国会计准则 HGB
+- **问题**：R-05 的硬性条件写着 “Experience with HGB month-end close”。HGB 是德国商法典，一家斯德哥尔摩的公司不会这样要求。
+- **修复**：改为 “Experience with month-end close”。没有改成 “K3 或 IFRS”，因为优秀候选人的简历写的是 HGB 经验，真实模型可能据此判为“不满足”，破坏“优秀候选人满足全部硬性条件”这条设定。候选人简历里的 HGB 保留，那是他们自己的经历。
+- **状态**：✅
+
+#### 📌 低危，记下、暂不修
+- **RN-04** 员工手册写“病假第 4 天起需要医生证明”，这是德国规定，瑞典是第 8 天；`corpai/classify/protected.py` 的注释引用德国《一般平等待遇法》（AGG），瑞典对应的是《反歧视法》。
+- **RN-05** 问答的停用词把普通词 “tech”、“abc” 也去掉了，问 “tech debt” 这类问题时可能少召回。
+- **RN-06** `KB-` 前缀（金丝雀、Playbook 规则号、界面的 `KB` 命名空间）来自旧名字的缩写，保留不改，但应该像 `kb_` 一样加一行注释说明。
+- **RN-07** 有 13 个文件原来是 CRLF 行尾，这次改成了 LF，diff 显得比实际改动大很多。看真实改动用 `git diff --ignore-cr-at-eol`；以后可以加 `.gitattributes` 统一行尾。
+
+### 其他
+- 改名后开发库要重建（`db reset --yes`、`synth`、`ingest`、`metrics refresh`），已重建。
+- 演示文稿已同步：ABC Tech AB、斯德哥尔摩，讲稿里的人名是 Erik 和 Karin。

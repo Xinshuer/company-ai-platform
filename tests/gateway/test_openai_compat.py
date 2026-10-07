@@ -26,7 +26,7 @@ def _add_user(*, active: bool = True, dept: str = "legal") -> str:
     with pgmod.connect_owner() as c:
         c.execute("""INSERT INTO core.users (user_id, name, email, dept, role, title, clearance, active)
                      VALUES (%s, %s, %s, %s, 'employee', 'Counsel', 4, %s)""",
-                  (uid, f"Test {uid}", f"{uid}@kestrelbyte.example", dept, active))
+                  (uid, f"Test {uid}", f"{uid}@abctech.example", dept, active))
     return uid
 
 

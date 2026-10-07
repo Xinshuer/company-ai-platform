@@ -115,7 +115,7 @@ def test_content_raises_the_level(gazetteer, cleanup_docs, personas):
 
 
 def test_public_flag_only_for_reviewed_public_collections(gazetteer):
-    text = "Kestrelbyte raised EUR 18,000,000 in a Series B round led by fund investors."
+    text = "ABC Tech raised EUR 18,000,000 in a Series B round led by fund investors."
     pub = _doc("x", text, collection="public", source="public.press", label=label(1, trust=Trust.REVIEWED))
     assert doc_level(pub) == Level.L1
     # the same text without the reviewed trust is not treated as published content

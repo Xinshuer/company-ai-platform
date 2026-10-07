@@ -21,6 +21,18 @@ EXPECTED = {  # key: (role, dept, clearance)
 }
 
 
+# The company is ABC Tech AB (Stockholm): fixed Swedish persona names; e-mails fold å/ä/ö to a/a/o.
+NAMES = {
+    "ceo": ("Helena Lindberg", "helena.lindberg"), "exec_staff": ("Johan Ekström", "johan.ekstrom"),
+    "sales_head": ("Karin Holm", "karin.holm"), "sales_staff": ("Erik Lindqvist", "erik.lindqvist"),
+    "eng_head": ("Anders Nyberg", "anders.nyberg"), "eng_staff": ("Oskar Berg", "oskar.berg"),
+    "legal_head": ("Sofia Wallin", "sofia.wallin"), "legal_staff": ("Viktor Sandberg", "viktor.sandberg"),
+    "finance_head": ("Annika Strand", "annika.strand"), "finance_staff": ("Linnea Dahl", "linnea.dahl"),
+    "hr_head": ("Maria Engström", "maria.engstrom"), "hr_staff": ("Elin Forsberg", "elin.forsberg"),
+    "platform_admin": ("Daniel Sjögren", "daniel.sjogren"), "auditor": ("Ida Lund", "ida.lund"),
+}
+
+
 @pytest.fixture(scope="module")
 def users(synth_small):
     with pgmod.connect_owner() as c:
@@ -42,7 +54,26 @@ def test_persona_row(users, key):
     u = users[PERSONAS[key]]
     assert (u["role"], u["dept"], u["clearance"]) == EXPECTED[key]
     assert u["persona_key"] == key and u["active"]
-    assert u["email"].endswith("@kestrelbyte.example")
+    assert (u["name"], u["email"]) == (NAMES[key][0], f"{NAMES[key][1]}@abctech.example")
+
+
+def test_staff_and_leaver_names_are_swedish():
+    """Filler staff and leavers draw from Faker sv_SE (pure generation, no database)."""
+    from faker.providers.person.sv_SE import Provider
+
+    from corpai.synth import generate
+
+    first, last = set(Provider.first_names), set(Provider.last_names)
+    users = generate(seed=7, small=True).tables["core.users"]
+    staff = [u for u in users if u["role"] != "service" and u["persona_key"] is None]
+    assert len(staff) > 50 and any(not u["active"] for u in staff)  # leavers included
+    for u in staff:
+        given, family = u["name"].split(" ", 1)
+        assert given in first and family in last, u["name"]
+        assert u["email"].isascii() and u["email"].endswith("@abctech.example"), u["email"]
+    # the head office is in Stockholm; the Warsaw hub and remote colleagues keep their countries
+    assert {u["country"] for u in users if u["persona_key"] in ("ceo", "hr_head", "platform_admin")} == {"SE"}
+    assert "DE" not in {u["country"] for u in users}
 
 
 def test_department_sizes_and_service_accounts(users):

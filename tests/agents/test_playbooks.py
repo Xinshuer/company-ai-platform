@@ -81,14 +81,14 @@ def test_id_must_match_file_and_be_safe(tmp_path):
 
 def test_level_is_never_below_the_content(tmp_path):
     _write(tmp_path, "t.leaky", {"version": 1, "status": "active", "level": "L2",
-                                 "rule": "escalate to anna.becker@kestrelbyte.example"})
+                                 "rule": "escalate to anna.becker@abctech.example"})
     pb = load_playbook("t.leaky", directory=tmp_path)
     assert pb.declared_level == Level.L2 and pb.level >= Level.L3
 
 
 def _p(dept: Dept, role: Role = Role.EMPLOYEE, *, clearance: Level = Level.L3) -> Principal:
     groups = {"all", f"dept:{dept}"} | ({f"head:{dept}"} if role is Role.MANAGER else set())
-    return Principal(user_id="u0999", name="x", email="x@kestrelbyte.example", dept=dept, role=role, title="t",
+    return Principal(user_id="u0999", name="x", email="x@abctech.example", dept=dept, role=role, title="t",
                      manager_id=None, clearance=clearance, groups=frozenset(groups))
 
 

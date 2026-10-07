@@ -146,7 +146,7 @@ window.FIXTURES.audit = {
    "run_id": "run_01m4c0h5sal6prf9d2ue",
    "details": {
     "tier": 3,
-    "params_hash": "b4b446c4db6cbe1ca3974741307f6204b108cb412a88d0a4be6ac2939aff73db"
+    "params_hash": "d9b1ea48190233d230ddc91bde9349485f9bad8a9f6ef4873fc160adca639197"
    }
   },
   {

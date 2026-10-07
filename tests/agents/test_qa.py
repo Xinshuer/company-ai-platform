@@ -106,7 +106,7 @@ def test_check_citations_keeps_hits_and_tool_sources():
 
 
 def _p(role: Role, dept: Dept, groups=("all",)) -> Principal:
-    return Principal(user_id="u0999", name="x", email="x@kestrelbyte.example", dept=dept, role=role, title="t",
+    return Principal(user_id="u0999", name="x", email="x@abctech.example", dept=dept, role=role, title="t",
                      manager_id=None, clearance=Level.L3, groups=frozenset(groups))
 
 

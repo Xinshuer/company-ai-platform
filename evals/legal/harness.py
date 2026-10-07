@@ -29,7 +29,7 @@ from corpai.legal import ReviewResult, review_contract
 from corpai.types import Principal
 
 CASES_PATH = Path(__file__).with_name("cases.json")
-HEADER = "Agreement (eval case)\n\nBetween Kestrelbyte GmbH, Berlin, Germany and the Customer.\n\n"
+HEADER = "Agreement (eval case)\n\nBetween ABC Tech AB, Stockholm, Sweden and the Customer.\n\n"
 HIGH_RISK_KINDS = frozenset({"must_flag", "trap", "injection", "missing"})
 
 

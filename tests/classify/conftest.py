@@ -6,7 +6,7 @@ import pytest
 
 from corpai.classify import names
 
-GAZETTEER = ["Anna Becker", "Jonas Weber", "Lukas Schmidt", "Marie Dubois", "Piotr Nowak", "王伟"]
+GAZETTEER = ["Anna Becker", "Jonas Weber", "Lukas Schmidt", "Marie Dubois", "Piotr Nowak", "Daniel Sjögren", "王伟"]
 
 
 @pytest.fixture(autouse=True)

@@ -26,7 +26,7 @@ def make_principal(user_id: str, role: Role = Role.EMPLOYEE, dept: Dept = Dept.S
             groups.add(_ROLE_GROUP[role])
         if role == Role.MANAGER:
             groups.add(f"head:{dept}")
-    return Principal(user_id=user_id, name=user_id, email=f"{user_id}@kestrelbyte.example", dept=dept,
+    return Principal(user_id=user_id, name=user_id, email=f"{user_id}@abctech.example", dept=dept,
                      role=role, title="t", manager_id=None, clearance=clearance,
                      groups=frozenset(groups), active=active)
 

@@ -3,7 +3,7 @@ window.FIXTURES.personas = {
   {
    "user_id": "u0001",
    "persona_key": "ceo",
-   "name": "Katharina Wendel",
+   "name": "Helena Lindberg",
    "title": "Chief Executive Officer",
    "dept": "exec",
    "role": "ceo"
@@ -11,7 +11,7 @@ window.FIXTURES.personas = {
   {
    "user_id": "u0002",
    "persona_key": "exec_staff",
-   "name": "Jonas Albrecht",
+   "name": "Johan Ekström",
    "title": "Chief of Staff",
    "dept": "exec",
    "role": "employee"
@@ -19,7 +19,7 @@ window.FIXTURES.personas = {
   {
    "user_id": "u0010",
    "persona_key": "sales_head",
-   "name": "Mareike Fuchs",
+   "name": "Karin Holm",
    "title": "Head of Sales",
    "dept": "sales",
    "role": "manager"
@@ -27,7 +27,7 @@ window.FIXTURES.personas = {
   {
    "user_id": "u0011",
    "persona_key": "sales_staff",
-   "name": "Tobias Reiner",
+   "name": "Erik Lindqvist",
    "title": "Account Executive",
    "dept": "sales",
    "role": "employee"
@@ -35,7 +35,7 @@ window.FIXTURES.personas = {
   {
    "user_id": "u0020",
    "persona_key": "eng_head",
-   "name": "Lukas Brandt",
+   "name": "Anders Nyberg",
    "title": "Chief Technology Officer",
    "dept": "eng",
    "role": "manager"
@@ -43,7 +43,7 @@ window.FIXTURES.personas = {
   {
    "user_id": "u0021",
    "persona_key": "eng_staff",
-   "name": "Emre Kaya",
+   "name": "Oskar Berg",
    "title": "Backend Engineer",
    "dept": "eng",
    "role": "employee"
@@ -51,7 +51,7 @@ window.FIXTURES.personas = {
   {
    "user_id": "u0030",
    "persona_key": "legal_head",
-   "name": "Sophie Hartmann",
+   "name": "Sofia Wallin",
    "title": "Head of Legal",
    "dept": "legal",
    "role": "manager"
@@ -59,7 +59,7 @@ window.FIXTURES.personas = {
   {
    "user_id": "u0031",
    "persona_key": "legal_staff",
-   "name": "Felix Neumann",
+   "name": "Viktor Sandberg",
    "title": "Legal Counsel",
    "dept": "legal",
    "role": "employee"
@@ -67,7 +67,7 @@ window.FIXTURES.personas = {
   {
    "user_id": "u0040",
    "persona_key": "finance_head",
-   "name": "Annika Vogt",
+   "name": "Annika Strand",
    "title": "Chief Financial Officer",
    "dept": "finance",
    "role": "manager"
@@ -75,7 +75,7 @@ window.FIXTURES.personas = {
   {
    "user_id": "u0041",
    "persona_key": "finance_staff",
-   "name": "Paulina Nowak",
+   "name": "Linnea Dahl",
    "title": "Financial Accountant",
    "dept": "finance",
    "role": "employee"
@@ -83,7 +83,7 @@ window.FIXTURES.personas = {
   {
    "user_id": "u0050",
    "persona_key": "hr_head",
-   "name": "Clara Becker",
+   "name": "Maria Engström",
    "title": "Head of People",
    "dept": "hr",
    "role": "manager"
@@ -91,7 +91,7 @@ window.FIXTURES.personas = {
   {
    "user_id": "u0051",
    "persona_key": "hr_staff",
-   "name": "Lea Schröder",
+   "name": "Elin Forsberg",
    "title": "Talent Acquisition Partner",
    "dept": "hr",
    "role": "employee"
@@ -99,7 +99,7 @@ window.FIXTURES.personas = {
   {
    "user_id": "u0060",
    "persona_key": "platform_admin",
-   "name": "Daniel Okafor",
+   "name": "Daniel Sjögren",
    "title": "Platform Administrator",
    "dept": "it",
    "role": "platform_admin"
@@ -107,7 +107,7 @@ window.FIXTURES.personas = {
   {
    "user_id": "u0061",
    "persona_key": "auditor",
-   "name": "Mira Jansen",
+   "name": "Ida Lund",
    "title": "Security Auditor",
    "dept": "it",
    "role": "security_auditor"

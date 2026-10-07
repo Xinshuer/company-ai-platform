@@ -286,9 +286,18 @@ def test_gazetteer_loads_names_from_the_seeded_tables(seeded, restore_gazetteer)
     contact = owner_rows("SELECT name FROM crm.contacts ORDER BY contact_id LIMIT 1")[0]["name"]
     candidate = owner_rows("SELECT name FROM hr.candidates ORDER BY candidate_id LIMIT 1")[0]["name"]
     assert load_gazetteer_from_db() >= len(humans)
-    for name in ("Tobias Reiner", contact, candidate):
+    for name in ("Erik Lindqvist", contact, candidate):
         found = [f.kind for f in classify_text(f"Please call {name} tomorrow about the renewal.").findings]
         assert "person_name" in found, name
+    # Swedish staff names with å/ä/ö match as whole names, wrapped across a line too, and make the text L3
+    for name in ("Daniel Sjögren", "Maria Engström", "Johan Ekström"):
+        for text in (f"Ask {name} about the rollout.", f"Ask {name.replace(' ', chr(10))} about the rollout."):
+            r = classify_text(text)
+            names = [text[f.start:f.end] for f in r.findings if f.kind == "person_name"]
+            assert names == [text[4:4 + len(name)]] and r.level == Level.L3, (text, names, r.level)
+    # e-mail local parts fold å/ä/ö to a/a/o
+    assert owner_rows("SELECT email FROM core.users WHERE user_id = 'u0060'")[0]["email"] == \
+        "daniel.sjogren@abctech.example"
 
 
 def test_owner_job_audit_and_chain_after_seeding(seeded):

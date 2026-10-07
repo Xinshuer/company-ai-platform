@@ -273,7 +273,7 @@ window.FIXTURES.sales = {
        "contact_id": "CT-00004",
        "contact_name": "Esila Beernink",
        "subject": "Next step with FleetPilot for Havenmeer Distributie B.V.",
-       "body": "Dear Esila Beernink,\n\nthank you for your time with Kestrelbyte. As a next step I would like to suggest schedule decision-maker meeting. Would one of the coming weeks suit you?\n\nKind regards",
+       "body": "Dear Esila Beernink,\n\nthank you for your time with ABC Tech. As a next step I would like to suggest schedule decision-maker meeting. Would one of the coming weeks suit you?\n\nKind regards",
        "source": "model",
        "playbook": "sales.followup@3"
       },
@@ -1834,7 +1834,7 @@ window.FIXTURES.sales = {
       "audit_seq": 11,
       "latency_ms": 0
      },
-     "input_text": "system: You are a sales coach at Kestrelbyte (FleetPilot route planning). Write a short follow-up strategy for the account in the JSON: three to five sentences of plain prose. Use only the facts given. Promise only what playbook.allowed_commitments lists; name what needs approval; never mention anything in playbook.forbidden_commitments as an offer. Do not invent figures, names or dates.\nuser: {\"account\": \"Havenmeer Distributie B.V.\", \"tier\": \"high\", \"fit\": 97, \"fit_reasons\": [\"industry:retail_distribution +22\", \"fleet:150-499 +25\", \"market:NL +20\", \"funding:growth +10\", \"signals:4g/2t +20\"], \"intent\": 67, \"intent_reasons\": [\"recency:25d +20\", \"frequency:3/90d +12\", \"sentiment:+1/-1 +10\", \"meetings:0/90d +0\", \"pipeline:negotiation +20\", \"quotes:2 live +5\"], \"profile_facts\": {\"industry\": \"retail_distribution\", \"hq_country\": \"NL\", \"countries\": [\"NL\"], \"fleet_size_band\": \"150-499\", \"employees_band\": \"250-999\", \"funding_stage\": \"growth\", \"last_funding_eur\": 20000000, \"growth_signals\": [\"fleet_expansion\", \"funding_round\", \"hiring\", \"software_tender\"], \"tech_signals\": [\"evaluating_planning_software\", \"multi_depot\"]}, \"playbook\": {\"goal\": \"Close within the quarter\", \"cadence_days\": 3, \"max_touches_per_month\": 8, \"channels\": [\"call\", \"meeting\", \"demo\", \"email\"], \"next_steps\": [\"schedule decision-maker meeting\", \"tailored demo on their depots\", \"mutual close plan\"], \"allowed_commitments\": [\"pilot of up to 60 days\", \"reference call with an existing customer\", \"standard implementation plan\", \"discount up to 10 percent\"], \"needs_approval\": [\"discount above 10 percent (head of sales)\", \"discount above 25 percent (CEO)\", \"custom SLA terms\"], \"forbidden_commitments\": [\"delivery dates for unreleased features\", \"free licences\", \"non-standard liability terms\"]}}",
+     "input_text": "system: You are a sales coach at ABC Tech (FleetPilot route planning). Write a short follow-up strategy for the account in the JSON: three to five sentences of plain prose. Use only the facts given. Promise only what playbook.allowed_commitments lists; name what needs approval; never mention anything in playbook.forbidden_commitments as an offer. Do not invent figures, names or dates.\nuser: {\"account\": \"Havenmeer Distributie B.V.\", \"tier\": \"high\", \"fit\": 97, \"fit_reasons\": [\"industry:retail_distribution +22\", \"fleet:150-499 +25\", \"market:NL +20\", \"funding:growth +10\", \"signals:4g/2t +20\"], \"intent\": 67, \"intent_reasons\": [\"recency:25d +20\", \"frequency:3/90d +12\", \"sentiment:+1/-1 +10\", \"meetings:0/90d +0\", \"pipeline:negotiation +20\", \"quotes:2 live +5\"], \"profile_facts\": {\"industry\": \"retail_distribution\", \"hq_country\": \"NL\", \"countries\": [\"NL\"], \"fleet_size_band\": \"150-499\", \"employees_band\": \"250-999\", \"funding_stage\": \"growth\", \"last_funding_eur\": 20000000, \"growth_signals\": [\"fleet_expansion\", \"funding_round\", \"hiring\", \"software_tender\"], \"tech_signals\": [\"evaluating_planning_software\", \"multi_depot\"]}, \"playbook\": {\"goal\": \"Close within the quarter\", \"cadence_days\": 3, \"max_touches_per_month\": 8, \"channels\": [\"call\", \"meeting\", \"demo\", \"email\"], \"next_steps\": [\"schedule decision-maker meeting\", \"tailored demo on their depots\", \"mutual close plan\"], \"allowed_commitments\": [\"pilot of up to 60 days\", \"reference call with an existing customer\", \"standard implementation plan\", \"discount up to 10 percent\"], \"needs_approval\": [\"discount above 10 percent (head of sales)\", \"discount above 25 percent (CEO)\", \"custom SLA terms\"], \"forbidden_commitments\": [\"delivery dates for unreleased features\", \"free licences\", \"non-standard liability terms\"]}}",
      "output_text": "[fake/local] Havenmeer Distributie B.V. is a high-tier opportunity (fit 97, intent 67). Goal: Close within the quarter. Next steps: schedule decision-maker meeting; tailored demo on their depots; mutual close plan. Contact every 3 days. You may offer: pilot of up to 60 days, reference call with an existing customer, standard implementation plan."
     }
    ]
@@ -1917,8 +1917,8 @@ window.FIXTURES.sales = {
       "audit_seq": 13,
       "latency_ms": 0
      },
-     "input_text": "system: You draft a short, polite follow-up e-mail from a Kestrelbyte account executive to the contact in the JSON. Suggest the first of playbook.next_steps. Offer nothing outside playbook.allowed_commitments. No links, no e-mail addresses, no attachments, no prices. Answer ONLY with a JSON object {\"subject\": string, \"body\": string}.\nuser: {\"account\": \"Havenmeer Distributie B.V.\", \"contact_name\": \"⟨person_name⟩\", \"contact_title\": \"Logistics Planner\", \"tier\": \"high\", \"playbook\": {\"goal\": \"Close within the quarter\", \"next_steps\": [\"schedule decision-maker meeting\", \"tailored demo on their depots\", \"mutual close plan\"], \"allowed_commitments\": [\"pilot of up to 60 days\", \"reference call with an existing customer\", \"standard implementation plan\", \"discount up to 10 percent\"], \"forbidden_commitments\": [\"delivery dates for unreleased features\", \"free licences\", \"non-standard liability terms\"], \"channels\": [\"call\", \"meeting\", \"demo\", \"email\"]}}",
-     "output_text": "{\"subject\": \"Next step with FleetPilot for Havenmeer Distributie B.V.\", \"body\": \"Dear ⟨person_name⟩,\\n\\nthank you for your time with Kestrelbyte. As a next step I would like to suggest schedule decision-maker meeting. Would one of the coming weeks suit you?\\n\\nKind regards\"}"
+     "input_text": "system: You draft a short, polite follow-up e-mail from an ABC Tech account executive to the contact in the JSON. Suggest the first of playbook.next_steps. Offer nothing outside playbook.allowed_commitments. No links, no e-mail addresses, no attachments, no prices. Answer ONLY with a JSON object {\"subject\": string, \"body\": string}.\nuser: {\"account\": \"Havenmeer Distributie B.V.\", \"contact_name\": \"⟨person_name⟩\", \"contact_title\": \"Logistics Planner\", \"tier\": \"high\", \"playbook\": {\"goal\": \"Close within the quarter\", \"next_steps\": [\"schedule decision-maker meeting\", \"tailored demo on their depots\", \"mutual close plan\"], \"allowed_commitments\": [\"pilot of up to 60 days\", \"reference call with an existing customer\", \"standard implementation plan\", \"discount up to 10 percent\"], \"forbidden_commitments\": [\"delivery dates for unreleased features\", \"free licences\", \"non-standard liability terms\"], \"channels\": [\"call\", \"meeting\", \"demo\", \"email\"]}}",
+     "output_text": "{\"subject\": \"Next step with FleetPilot for Havenmeer Distributie B.V.\", \"body\": \"Dear ⟨person_name⟩,\\n\\nthank you for your time with ABC Tech. As a next step I would like to suggest schedule decision-maker meeting. Would one of the coming weeks suit you?\\n\\nKind regards\"}"
     },
     {
      "span_id": "span_01m4bm960r8cb7232egp",
@@ -1953,7 +1953,7 @@ window.FIXTURES.sales = {
       "sources": 3,
       "decision": "allow"
      },
-     "input_text": "{\"account_id\": \"A-0002\", \"body\": \"Dear ⟨person_name⟩,\\n\\nthank you for your time with Kestrelbyte. As a next step I would like to suggest schedule decision-maker meeting. Would one of the coming weeks suit you?\\n\\nKind regards\", \"subject\": \"Next step with FleetPilot for Havenmeer Distributie B.V.\", \"to\": \"⟨email⟩\"}",
+     "input_text": "{\"account_id\": \"A-0002\", \"body\": \"Dear ⟨person_name⟩,\\n\\nthank you for your time with ABC Tech. As a next step I would like to suggest schedule decision-maker meeting. Would one of the coming weeks suit you?\\n\\nKind regards\", \"subject\": \"Next step with FleetPilot for Havenmeer Distributie B.V.\", \"to\": \"⟨email⟩\"}",
      "output_text": null
     },
     {
@@ -2253,7 +2253,7 @@ window.FIXTURES.sales = {
       "audit_seq": 43,
       "latency_ms": 0
      },
-     "input_text": "system: You are a sales coach at Kestrelbyte (FleetPilot route planning). Write a short follow-up strategy for the account in the JSON: three to five sentences of plain prose. Use only the facts given. Promise only what playbook.allowed_commitments lists; name what needs approval; never mention anything in playbook.forbidden_commitments as an offer. Do not invent figures, names or dates.\nuser: {\"account\": \"Elbstrom Paketdienst GmbH\", \"tier\": \"high\", \"fit\": 97, \"fit_reasons\": [\"industry:parcel_delivery +25\", \"fleet:150-499 +25\", \"market:DE +20\", \"funding:growth +10\", \"signals:4g/3t +17\"], \"intent\": 73, \"intent_reasons\": [\"recency:7d +25\", \"frequency:2/90d +8\", \"sentiment:+1/-1 +10\", \"meetings:2/90d +10\", \"pipeline:proposal +15\", \"quotes:1 live +5\"], \"profile_facts\": {\"industry\": \"parcel_delivery\", \"hq_country\": \"DE\", \"countries\": [\"DE\"], \"fleet_size_band\": \"150-499\", \"employees_band\": \"250-999\", \"funding_stage\": \"growth\", \"last_funding_eur\": 20000000, \"growth_signals\": [\"ev_trial\", \"fleet_expansion\", \"funding_round\", \"hiring\"], \"tech_signals\": [\"electric_fleet\", \"evaluating_planning_software\", \"multi_depot\"]}, \"playbook\": {\"goal\": \"Close within the quarter\", \"cadence_days\": 3, \"max_touches_per_month\": 8, \"channels\": [\"call\", \"meeting\", \"demo\", \"email\"], \"next_steps\": [\"schedule decision-maker meeting\", \"tailored demo on their depots\", \"mutual close plan\"], \"allowed_commitments\": [\"pilot of up to 60 days\", \"reference call with an existing customer\", \"standard implementation plan\", \"discount up to 10 percent\"], \"needs_approval\": [\"discount above 10 percent (head of sales)\", \"discount above 25 percent (CEO)\", \"custom SLA terms\"], \"forbidden_commitments\": [\"delivery dates for unreleased features\", \"free licences\", \"non-standard liability terms\"]}}",
+     "input_text": "system: You are a sales coach at ABC Tech (FleetPilot route planning). Write a short follow-up strategy for the account in the JSON: three to five sentences of plain prose. Use only the facts given. Promise only what playbook.allowed_commitments lists; name what needs approval; never mention anything in playbook.forbidden_commitments as an offer. Do not invent figures, names or dates.\nuser: {\"account\": \"Elbstrom Paketdienst GmbH\", \"tier\": \"high\", \"fit\": 97, \"fit_reasons\": [\"industry:parcel_delivery +25\", \"fleet:150-499 +25\", \"market:DE +20\", \"funding:growth +10\", \"signals:4g/3t +17\"], \"intent\": 73, \"intent_reasons\": [\"recency:7d +25\", \"frequency:2/90d +8\", \"sentiment:+1/-1 +10\", \"meetings:2/90d +10\", \"pipeline:proposal +15\", \"quotes:1 live +5\"], \"profile_facts\": {\"industry\": \"parcel_delivery\", \"hq_country\": \"DE\", \"countries\": [\"DE\"], \"fleet_size_band\": \"150-499\", \"employees_band\": \"250-999\", \"funding_stage\": \"growth\", \"last_funding_eur\": 20000000, \"growth_signals\": [\"ev_trial\", \"fleet_expansion\", \"funding_round\", \"hiring\"], \"tech_signals\": [\"electric_fleet\", \"evaluating_planning_software\", \"multi_depot\"]}, \"playbook\": {\"goal\": \"Close within the quarter\", \"cadence_days\": 3, \"max_touches_per_month\": 8, \"channels\": [\"call\", \"meeting\", \"demo\", \"email\"], \"next_steps\": [\"schedule decision-maker meeting\", \"tailored demo on their depots\", \"mutual close plan\"], \"allowed_commitments\": [\"pilot of up to 60 days\", \"reference call with an existing customer\", \"standard implementation plan\", \"discount up to 10 percent\"], \"needs_approval\": [\"discount above 10 percent (head of sales)\", \"discount above 25 percent (CEO)\", \"custom SLA terms\"], \"forbidden_commitments\": [\"delivery dates for unreleased features\", \"free licences\", \"non-standard liability terms\"]}}",
      "output_text": "[fake/local] Elbstrom Paketdienst GmbH is a high-tier opportunity (fit 97, intent 73). Goal: Close within the quarter. Next steps: schedule decision-maker meeting; tailored demo on their depots; mutual close plan. Contact every 3 days. You may offer: pilot of up to 60 days, reference call with an existing customer, standard implementation plan."
     }
    ]
@@ -2268,7 +2268,7 @@ window.FIXTURES.sales = {
       "created_at": "2026-10-07T16:48:53.881767+00:00",
       "requester": {
        "user_id": "u0011",
-       "name": "Tobias Reiner"
+       "name": "Erik Lindqvist"
       },
       "agent": "sales_profile",
       "domain": "crm",
@@ -2278,11 +2278,11 @@ window.FIXTURES.sales = {
       "summary": "E-mail to Esila Beernink <esila.beernink@havenmeer-distributie.example> (Havenmeer Distributie B.V.): Next step with FleetPilot for Havenmeer Distributie B.V.",
       "params": {
        "to": "esila.beernink@havenmeer-distributie.example",
-       "body": "Dear Esila Beernink,\n\nthank you for your time with Kestrelbyte. As a next step I would like to suggest schedule decision-maker meeting. Would one of the coming weeks suit you?\n\nKind regards",
+       "body": "Dear Esila Beernink,\n\nthank you for your time with ABC Tech. As a next step I would like to suggest schedule decision-maker meeting. Would one of the coming weeks suit you?\n\nKind regards",
        "subject": "Next step with FleetPilot for Havenmeer Distributie B.V.",
        "account_id": "A-0002"
       },
-      "params_hash": "1036566c08ee1b2b38ff2b631452d7d9ca2745ca89b5308326558607b1a5203e",
+      "params_hash": "2a5f734ee9bf4677f027262734c4909eb105a2d27a86590648667c5a722d2db1",
       "level": 3,
       "expires_at": "2026-10-14T16:48:53.881767+00:00",
       "approver_id": null,
@@ -2304,7 +2304,7 @@ window.FIXTURES.sales = {
       "created_at": "2026-10-07T16:48:53.881767+00:00",
       "requester": {
        "user_id": "u0011",
-       "name": "Tobias Reiner"
+       "name": "Erik Lindqvist"
       },
       "agent": "sales_profile",
       "domain": "crm",
@@ -2314,11 +2314,11 @@ window.FIXTURES.sales = {
       "summary": "E-mail to Esila Beernink <esila.beernink@havenmeer-distributie.example> (Havenmeer Distributie B.V.): Next step with FleetPilot for Havenmeer Distributie B.V.",
       "params": {
        "to": "esila.beernink@havenmeer-distributie.example",
-       "body": "Dear Esila Beernink,\n\nthank you for your time with Kestrelbyte. As a next step I would like to suggest schedule decision-maker meeting. Would one of the coming weeks suit you?\n\nKind regards",
+       "body": "Dear Esila Beernink,\n\nthank you for your time with ABC Tech. As a next step I would like to suggest schedule decision-maker meeting. Would one of the coming weeks suit you?\n\nKind regards",
        "subject": "Next step with FleetPilot for Havenmeer Distributie B.V.",
        "account_id": "A-0002"
       },
-      "params_hash": "1036566c08ee1b2b38ff2b631452d7d9ca2745ca89b5308326558607b1a5203e",
+      "params_hash": "2a5f734ee9bf4677f027262734c4909eb105a2d27a86590648667c5a722d2db1",
       "level": 3,
       "expires_at": "2026-10-14T16:48:53.881767+00:00",
       "approver_id": null,
@@ -2339,7 +2339,7 @@ window.FIXTURES.sales = {
       "created_at": "2026-10-07T16:48:53.881767+00:00",
       "requester": {
        "user_id": "u0011",
-       "name": "Tobias Reiner"
+       "name": "Erik Lindqvist"
       },
       "agent": "sales_profile",
       "domain": "crm",
@@ -2349,11 +2349,11 @@ window.FIXTURES.sales = {
       "summary": "E-mail to Esila Beernink <esila.beernink@havenmeer-distributie.example> (Havenmeer Distributie B.V.): Next step with FleetPilot for Havenmeer Distributie B.V.",
       "params": {
        "to": "esila.beernink@havenmeer-distributie.example",
-       "body": "Dear Esila Beernink,\n\nthank you for your time with Kestrelbyte. As a next step I would like to suggest schedule decision-maker meeting. Would one of the coming weeks suit you?\n\nKind regards",
+       "body": "Dear Esila Beernink,\n\nthank you for your time with ABC Tech. As a next step I would like to suggest schedule decision-maker meeting. Would one of the coming weeks suit you?\n\nKind regards",
        "subject": "Next step with FleetPilot for Havenmeer Distributie B.V.",
        "account_id": "A-0002"
       },
-      "params_hash": "1036566c08ee1b2b38ff2b631452d7d9ca2745ca89b5308326558607b1a5203e",
+      "params_hash": "2a5f734ee9bf4677f027262734c4909eb105a2d27a86590648667c5a722d2db1",
       "level": 3,
       "expires_at": "2026-10-14T16:48:53.881767+00:00",
       "approver_id": null,

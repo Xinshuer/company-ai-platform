@@ -10,7 +10,7 @@ window.FIXTURES.runs = {
     "app": "qa",
     "status": "done",
     "output": {
-     "text": "FleetPilot 3.0 于 2025-10-07 发布，重点是多仓库（multi-depot）优化：\n1. 一次规划可以跨多个仓库分配订单和车辆，不再按仓库分别排线；\n2. 新的优化引擎支持时间窗、车辆容量和司机班次等约束；\n3. 调度员可以在地图上手动调整，系统会实时重新计算剩余路线。\n冷链模块（温度窗约束）是单独的扩展模块。公开资料可参考：https://www.kestrelbyte.example/fleetpilot",
+     "text": "FleetPilot 3.0 于 2025-10-07 发布，重点是多仓库（multi-depot）优化：\n1. 一次规划可以跨多个仓库分配订单和车辆，不再按仓库分别排线；\n2. 新的优化引擎支持时间窗、车辆容量和司机班次等约束；\n3. 调度员可以在地图上手动调整，系统会实时重新计算剩余路线。\n冷链模块（温度窗约束）是单独的扩展模块。公开资料可参考：https://www.abctech.example/fleetpilot",
      "citations": [
       {
        "doc_id": "pub-press-2025-10-fleetpilot-3",
@@ -81,7 +81,7 @@ window.FIXTURES.runs = {
        "title": "Havenmeer Distributie B.V. (CRM)",
        "level": 3,
        "collection": "crm",
-       "snippet": "Tier key · ARR EUR 132,000 · renewal 2026-11-30 (auto-renew) · owner Tobias Reiner"
+       "snippet": "Tier key · ARR EUR 132,000 · renewal 2026-11-30 (auto-renew) · owner Erik Lindqvist"
       },
       {
        "doc_id": "sales-plan-A-0002",
@@ -230,7 +230,7 @@ window.FIXTURES.runs = {
     "app": "qa",
     "status": "done",
     "output": {
-     "text": "我没有找到你有权限查看的、关于 Havenmeer 合同续约的资料。\nCRM 客户数据和法务合同库都不在你的权限范围内，这两个查询被拒绝了（见事件时间线）。\n公开资料和内部手册里没有这家客户的合同信息。如果你需要了解续约安排，请联系客户负责人或销售负责人 Mareike Fuchs。",
+     "text": "我没有找到你有权限查看的、关于 Havenmeer 合同续约的资料。\nCRM 客户数据和法务合同库都不在你的权限范围内，这两个查询被拒绝了（见事件时间线）。\n公开资料和内部手册里没有这家客户的合同信息。如果你需要了解续约安排，请联系客户负责人或销售负责人 Karin Holm。",
      "citations": [],
      "data": {}
     },
@@ -313,7 +313,7 @@ window.FIXTURES.runs = {
        "title": "Havenmeer Distributie B.V. (CRM)",
        "level": 3,
        "collection": "crm",
-       "snippet": "Tier key · ARR EUR 132,000 · renewal 2026-11-30 (auto-renew) · owner Tobias Reiner"
+       "snippet": "Tier key · ARR EUR 132,000 · renewal 2026-11-30 (auto-renew) · owner Erik Lindqvist"
       },
       {
        "doc_id": "C-0003",

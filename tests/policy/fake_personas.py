@@ -53,7 +53,7 @@ def _row(spec: tuple, *, grants: list[str] | None = None, active: bool = True) -
     everyone = {**_PEOPLE, **_OTHERS}
     reports = sorted(s[0] for s in everyone.values() if s[5] == user_id)
     return {
-        "user_id": user_id, "name": name, "email": f"{user_id}@kestrelbyte.example", "dept": dept,
+        "user_id": user_id, "name": name, "email": f"{user_id}@abctech.example", "dept": dept,
         "role": role, "title": title, "manager_id": manager_id, "clearance": clearance, "active": active,
         "persona_key": None, "memberships": list(memberships), "grants": list(grants or []),
         "direct_reports": reports,
@@ -77,7 +77,7 @@ def _variants() -> dict[str, Principal]:
         "sales_head~inactive": principal_from_row(_row(_PEOPLE["sales_head"], active=False)),
         "ceo~inactive": principal_from_row(_row(_PEOPLE["ceo"], active=False)),
         "svc_metrics": principal_from_row({
-            "user_id": "svc:metrics", "name": "metrics job", "email": "svc-metrics@kestrelbyte.example",
+            "user_id": "svc:metrics", "name": "metrics job", "email": "svc-metrics@abctech.example",
             "dept": "it", "role": "service", "title": "Service account", "manager_id": None,
             "clearance": 4, "active": True, "memberships": [], "grants": [], "direct_reports": []}),
     }

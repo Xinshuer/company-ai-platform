@@ -43,6 +43,6 @@ def parse_draft(text: str) -> tuple[str, str] | None:
 def template(*, account: str, contact_name: str | None, next_step: str) -> tuple[str, str]:
     """A plain draft built by code from CRM names and the playbook's first next step."""
     greeting = f"Dear {contact_name}," if contact_name else "Hello,"
-    body = (f"{greeting}\n\nthank you for your time with Kestrelbyte. As a next step I would like to suggest "
+    body = (f"{greeting}\n\nthank you for your time with ABC Tech. As a next step I would like to suggest "
             f"{next_step}. Would one of the coming weeks suit you?\n\nKind regards")
     return f"Next step with FleetPilot for {account}"[:MAX_SUBJECT], body

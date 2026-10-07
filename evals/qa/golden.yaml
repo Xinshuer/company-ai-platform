@@ -57,7 +57,7 @@ questions:
     groups:
       - {personas: [eng_staff], cites: [hr-handbook-performance]}
   - id: series-b
-    question: "How much did Kestrelbyte raise in its Series B?"
+    question: "How much did ABC Tech raise in its Series B?"
     groups:
       - {personas: [legal_staff], cites: [pub-press-2026-01-series-b]}
   - id: warsaw-hub
@@ -73,7 +73,7 @@ questions:
     groups:
       - {personas: [sales_staff], cites: [pub-coldchain]}
   - id: eurofleet
-    question: "What did Kestrelbyte show at EuroFleet Expo 2026?"
+    question: "What did ABC Tech show at EuroFleet Expo 2026?"
     groups:
       - {personas: [finance_head], cites: [pub-press-2026-09-eurofleet]}
 

@@ -62,13 +62,13 @@ class Template:
         return tuple(dict.fromkeys(ct for _, _, ct in self.sections if ct))
 
 
-_PARTIES = ('Between Kestrelbyte GmbH, Berlin, Germany ("Kestrelbyte") and {customer_name}, {customer_city} '
+_PARTIES = ('Between ABC Tech AB, Stockholm, Sweden ("ABC Tech") and {customer_name}, {customer_city} '
             '("Customer").')
 TEMPLATES: dict[str, Template] = {
     "MSA": Template("Master Subscription Agreement",
                     ("customer_name", "customer_city", "fleet_size", "effective_on", "term_months"), (
         ("Definitions", "Capitalised terms have the meaning given in Schedule 1.", None),
-        ("Services", "Kestrelbyte provides FleetPilot as software-as-a-service for the Customer's fleet of about "
+        ("Services", "ABC Tech provides FleetPilot as software-as-a-service for the Customer's fleet of about "
                      "{fleet_size} vehicles, including driver app, dispatch board and API access.", None),
         ("Term and renewal", "This agreement runs from {effective_on} for an initial term of {term_months} months.",
          "auto_renewal"),
@@ -83,7 +83,7 @@ TEMPLATES: dict[str, Template] = {
     "order_form": Template("Order Form",
                            ("customer_name", "customer_city", "fleet_size", "effective_on", "term_months"), (
         ("Order", "FleetPilot Professional for {fleet_size} vehicles, billed quarterly in advance, under the "
-                  "Kestrelbyte terms of service.", None),
+                  "ABC Tech terms of service.", None),
         ("Term and renewal", "This order runs from {effective_on} for {term_months} months.", "auto_renewal"),
         ("Liability", None, "liability_cap"),
         ("Data protection", None, "data_processing"),
@@ -101,7 +101,7 @@ TEMPLATES: dict[str, Template] = {
 }
 
 _SYSTEM = (
-    "You help Kestrelbyte's legal team prepare a contract draft from an approved template. You never write "
+    "You help ABC Tech's legal team prepare a contract draft from an approved template. You never write "
     "contract text. Return only a JSON object {\"variables\": {...}, \"fallbacks\": {...}}. In \"variables\" "
     "give values only for the names listed under \"fill\", only when the lawyer's instructions state them, in "
     "the listed type; leave a variable out if you cannot tell. In \"fallbacks\" map a clause type to one of "

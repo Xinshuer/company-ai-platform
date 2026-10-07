@@ -1,4 +1,4 @@
-"""Kestrelbyte's legal playbook: Clause Check's "rules as data", from the provider's side.
+"""ABC Tech's legal playbook: Clause Check's "rules as data", from the provider's side.
 
 `data/playbook.json` uses Clause Check's PlaybookRule format (so the vendored tools serve it to
 the model unchanged) plus fields only corpai reads:

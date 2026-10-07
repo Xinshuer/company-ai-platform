@@ -42,7 +42,7 @@ def _tools(domain: str) -> list:
 def build_server(domain: str) -> MCPServer:
     """A fresh MCPServer for `domain` with every catalogue tool registered (tool names = function
     names; a test checks they equal policy.TOOL_CATALOGUE[domain])."""
-    server = MCPServer(name=f"corpai-{domain}", instructions=f"Kestrelbyte {domain} tools. Every call needs a "
+    server = MCPServer(name=f"corpai-{domain}", instructions=f"ABC Tech {domain} tools. Every call needs a "
                        "tool token; results carry a sensitivity label.")
     for fn in _tools(domain):
         server.add_tool(fn, name=fn.__name__, description=(fn.__doc__ or "").strip() or None)

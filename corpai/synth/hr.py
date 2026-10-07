@@ -54,8 +54,8 @@ COUNTERFACTUAL = [
 
 def jd_text(r: RequisitionSpec) -> str:
     reqs = "\n".join(f"- {t}" for t in r.requirements)
-    return (f"# {r.title}\n\nKestrelbyte builds FleetPilot, route planning and dispatch software for logistics fleets "
-            f"across Europe. We are about 70 people, based in Berlin with an engineering hub in Warsaw.\n\n"
+    return (f"# {r.title}\n\nABC Tech builds FleetPilot, route planning and dispatch software for logistics fleets "
+            f"across Europe. We are about 70 people, based in Stockholm with an engineering hub in Warsaw.\n\n"
             f"## The role\nYou join the {r.dept} team ({r.headcount} open position{'s' if r.headcount > 1 else ''}).\n\n"
             f"## Hard requirements\n{reqs}\n\n## What we offer\nHybrid work, 30 days of holiday, a learning budget and "
             f"a team that cares about well-run software.\n")

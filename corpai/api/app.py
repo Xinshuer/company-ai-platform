@@ -34,8 +34,8 @@ from corpai.config import ROOT
 log = logging.getLogger(__name__)
 
 UI_DIR = ROOT / "ui"
-_PLACEHOLDER = ("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Kestrelbyte AI</title>"
-                "</head><body><h1>Kestrelbyte internal AI platform</h1><p>The UI is not installed (ui/ is "
+_PLACEHOLDER = ("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>ABC Tech AI</title>"
+                "</head><body><h1>ABC Tech internal AI platform</h1><p>The UI is not installed (ui/ is "
                 "missing). The API is at <code>/api/health</code>.</p></body></html>")
 
 
@@ -177,7 +177,7 @@ def create_app(*, gateway: Any = None) -> FastAPI:
     from corpai.gateway import openai_compat
     from corpai.mcp_servers import mount_all
 
-    app = FastAPI(title="Kestrelbyte AI platform", docs_url=None, redoc_url=None, openapi_url=None)
+    app = FastAPI(title="ABC Tech AI platform", docs_url=None, redoc_url=None, openapi_url=None)
     if gateway is not None:
         app.state.gateway = gateway
     app.state.services = None

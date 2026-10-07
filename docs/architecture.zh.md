@@ -19,7 +19,7 @@
 - RLS：Postgres 行级安全；DLP：数据防泄漏检查；MCP：Agent 调用外部工具的标准协议。
 - 金丝雀（canary）：故意埋进机密数据的唯一字符串，一旦出现在外发内容里，就说明发生了泄露。
 
-本文是模拟公司 **Kestrelbyte GmbH** 内部 AI 平台的构建规范。这家公司是虚构的：总部在柏林，约 70 人，做 B2B SaaS。本文把设计评审和决定记录落实成具体的包、表和函数签名。本文和代码不一致时，要在同一次修改里把其中一方改对。
+本文是模拟公司 **ABC Tech AB** 内部 AI 平台的构建规范。这家公司是虚构的：总部在瑞典斯德哥尔摩，约 70 人，做 B2B SaaS。本文把设计评审和决定记录落实成具体的包、表和函数签名。本文和代码不一致时，要在同一次修改里把其中一方改对。
 
 > 这里的一切都是模拟的。公司、员工、客户、合同、账务、简历全部由 `corpai/synth` 生成。两条模型线路底层都调用 DeepSeek API，`local` 只是“扮演”公司内网部署的模型。
 
@@ -891,7 +891,7 @@ Agent 白名单在 `config/agents.yaml`：`agents:` 下每个 Agent 有 `descrip
 
 用 `--seed`（默认 7）生成，结果完全确定。`python -m corpai synth [--seed N] [--small] [--write-company-doc]` 调用 `corpai.synth.run(seed: int = 7, small: bool = False) -> SynthReport`：以表主人身份，在一个事务里清空（对 `corpai/synth/writer.py` 里 TABLES 列出的表执行 `TRUNCATE … CASCADE`，凡是有外键指向这些表的表也一并清空。目前这样被清空的有 `core.sessions`（所以每次 synth 都会让所有登录会话失效）、`eng.ticket_comments` 和 `hr.screening_evidence`。`legal.reviews` 故意不建外键，所以保留下来；`metrics.snapshots`、`ops.proposals`/`ops.outbox`/`ops.threads`、`lg.*`、`rag.*` 和 `audit.*` 也都保留）并重写各业务 schema、`core.users/memberships/grants` 和 `synth.planted/canaries`；再把文档语料和模拟网页写到 `settings().corpus_dir`；最后写一条 `owner_job` 审计（任务名 `synth`，详情里不放金丝雀和答案）。`synth.generate(seed, small) -> World` 是其中不做任何 I/O 的纯函数部分。然后 `python -m corpai ingest` 调用 `corpai.rag.ingest_corpus(corpus_dir) -> int`，把语料导入 RAG。`--small` 保留所有演示身份、埋入问题和金丝雀，只减少填充数据，供快速测试用。`--write-company-doc` 从 `corpai/synth/script.py` 重新生成 `docs/company.md`（有测试保证两者一致）。
 
-- **公司剧本**（`corpai/synth/script.py`，同时渲染成 `docs/company.md`）：Kestrelbyte GmbH，柏林；产品 *FleetPilot*（物流车队路线规划 SaaS）；约 70 人；时间线是截至 2026-09-30 的 12 个月；客户分布在德国、荷兰、法国、波兰、奥地利、意大利、西班牙。
+- **公司剧本**（`corpai/synth/script.py`，同时渲染成 `docs/company.md`）：ABC Tech AB，瑞典斯德哥尔摩；产品 *FleetPilot*（物流车队路线规划 SaaS）；约 70 人；时间线是截至 2026-09-30 的 12 个月；客户分布在德国、荷兰、法国、波兰、奥地利、意大利、西班牙。
 - **人员**：CEO + 幕僚长（总裁办）；销售 14 人；技术 32 人（CTO）；法务 4 人；财务 6 人（CFO）；HR 5 人；IT 3 人（平台管理员、安全审计员、IT 支持）；另有服务账号 `svc:ingest`、`svc:metrics`、`svc:eval`、`svc:executor`。
 - **演示身份**（测试和演示共用）：`PERSONAS: dict[str, str]`（键 → user_id），在 `corpai/synth/personas.py`，同时存在 `core.users.persona_key`。共 14 个：
   - 各部门一个员工、一个负责人：`ceo` u0001、`exec_staff` u0002、`sales_head` u0010、`sales_staff` u0011、`eng_head`（CTO）u0020、`eng_staff` u0021、`legal_head` u0030、`legal_staff` u0031、`finance_head`（CFO）u0040、`finance_staff` u0041、`hr_head` u0050、`hr_staff` u0051；

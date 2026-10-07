@@ -4,7 +4,7 @@
 #   kinds:     finding kinds that must be present (optional)
 #   not_kinds: finding kinds that must be absent (optional)
 # The gazetteer used by these tests is GAZETTEER in test_classify_cases.py
-# (Anna Becker, Jonas Weber, Lukas Schmidt, Marie Dubois, Piotr Nowak, 王伟).
+# (Anna Becker, Jonas Weber, Lukas Schmidt, Marie Dubois, Piotr Nowak, Daniel Sjögren, 王伟).
 
 # ---- L1: public / generic questions (en, de, zh) ---------------------------------------------
 - {id: en-deferred-revenue, text: "What is deferred revenue?", level: L1}
@@ -78,6 +78,12 @@
 - {id: fr-phone-national, text: "Téléphone 01 23 45 67 89", level: L3, kinds: [phone]}
 - {id: pl-phone, text: "Kontakt +48 22 123 45 67", level: L3, kinds: [phone]}
 - {id: at-phone, text: "Büro Wien +43 1 234 5678", level: L3, kinds: [phone]}
+# Swedish formats: ABC Tech's head office is in Stockholm
+- {id: se-phone-intl, text: "Ring växeln på +46 8 123 456 78.", level: L3, kinds: [phone]}
+- {id: se-phone-0046, text: "Telefon 0046 8 123 456 78", level: L3, kinds: [phone]}
+- {id: se-phone-national, text: "Ring mig på 08-123 456 78 i morgon.", level: L3, kinds: [phone]}
+- {id: se-phone-mobile, text: "Mobil 070-123 45 67", level: L3, kinds: [phone]}
+- {id: se-gazetteer-name, text: "Fråga Daniel Sjögren om rotationen.", level: L3, kinds: [person_name]}
 - {id: it-phone, text: "Chiamare +39 06 1234 5678", level: L3, kinds: [phone]}
 - {id: es-phone, text: "Llamar al +34 912 345 678", level: L3, kinds: [phone]}
 - {id: zh-mobile, text: "我的手机号是13812345678", level: L3, kinds: [phone]}
@@ -104,7 +110,9 @@
 - {id: zh-money-budget, text: "明年预算 120万元", level: L3, kinds: [money]}
 - {id: en-code-fleetpilot, text: "```python\nfrom fleetpilot.routing import solve\nsolve(depot='BER')\n```", level: L3, kinds: [code]}
 - {id: en-code-kb-package, text: "```\nimport kb_billing\nkb_billing.run()\n```", level: L3, kinds: [code]}
-- {id: en-code-internal-host, text: "```bash\ncurl https://api.kestrelbyte.internal/v1/routes\n```", level: L3, kinds: [code]}
+- {id: en-code-internal-host, text: "```bash\ncurl https://api.abctech.internal/v1/routes\n```", level: L3, kinds: [code]}
+- {id: en-code-company-camelcase, text: "```python\nclass AbcTechClient:\n    pass\n```", level: L3, kinds: [code]}
+- {id: en-code-company-camelcase-js, text: "```js\nconst c = new ABCTechApi();\n```", level: L3, kinds: [code]}
 - {id: en-dob-field, text: "Date of birth: 12.03.1988", level: L3, kinds: [protected_attr]}
 - {id: en-age-phrase, text: "The applicant is 34 years old.", level: L3, kinds: [protected_attr]}
 - {id: de-age-phrase, text: "Die Bewerberin ist 29 Jahre alt.", level: L3, kinds: [protected_attr]}
@@ -128,10 +136,18 @@
 - {id: en-vuln-company, text: "Is there an RCE in the FleetPilot dispatch API?", level: L4, kinds: [vulnerability]}
 - {id: en-cve-company, text: "CVE-2024-12345 affects kb_routing 2.3", level: L4, kinds: [vulnerability]}
 - {id: zh-vuln-company, text: "FleetPilot 有一个 SQL 注入漏洞", level: L4, kinds: [vulnerability]}
-- {id: de-vuln-company, text: "Schwachstelle in kestrelbyte.internal entdeckt", level: L4, kinds: [vulnerability]}
+- {id: de-vuln-company, text: "Schwachstelle in abctech.internal entdeckt", level: L4, kinds: [vulnerability]}
 - {id: en-lawsuit-matter, text: "Status of the lawsuit in matter M-0002?", level: L4, kinds: [litigation]}
-- {id: de-klage-company, text: "Die Klage gegen Kestrelbyte wurde eingereicht.", level: L4, kinds: [litigation]}
-- {id: zh-litigation, text: "Kestrelbyte 的诉讼进展如何？", level: L4, kinds: [litigation]}
+- {id: de-klage-company, text: "Die Klage gegen ABC Tech wurde eingereicht.", level: L4, kinds: [litigation]}
+- {id: zh-litigation, text: "ABC Tech 的诉讼进展如何？", level: L4, kinds: [litigation]}
+- {id: en-litigation-abctech-host, text: "Litigation hold on abctech.internal mailboxes", level: L4, kinds: [litigation]}
+- {id: de-klage-company-wrapped, text: "Die Klage gegen ABC\nTech wurde eingereicht.", level: L4, kinds: [litigation]}
+- {id: en-lawsuit-company-crlf, text: "Status of the lawsuit against ABC\r\nTech?", level: L4, kinds: [litigation]}
+- {id: en-lawsuit-company-spaces, text: "The lawsuit against ABC  Tech is ongoing.", level: L4, kinds: [litigation]}
+- {id: en-vuln-company-camelcase, text: "Is there an RCE in AbcTechGateway?", level: L4, kinds: [vulnerability]}
+# "ABC Tech" followed by more lowercase letters (or in all caps) is another, invented name: not ours
+- {id: neg-abc-technoquill, text: "Is the lawsuit against ABC Technoquill public?", level: L1, not_kinds: [litigation]}
+- {id: neg-abc-technoquill-caps, text: "Is the lawsuit against ABC TECHNOQUILL public?", level: L1, not_kinds: [litigation]}
 - {id: canary, text: "Reference KB-CANARY-0A1B2C3D in the appendix.", level: L4, kinds: [canary]}
 - {id: canary-embedded, text: "id=xKB-CANARY-DEADBEEFx", level: L4, kinds: [canary]}
 - {id: secret-openai, text: "my key is sk-abcdefghijklmnopqrstuvwxyz123456", level: L4, kinds: [secret]}

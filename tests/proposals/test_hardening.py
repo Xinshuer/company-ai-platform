@@ -29,7 +29,7 @@ def _add_sales_rep() -> str:
     owner_exec("DELETE FROM core.users WHERE user_id = %s", (uid,))
     owner_exec("INSERT INTO core.users (user_id, name, email, dept, role, title, manager_id, clearance, active)"
                " VALUES (%s, %s, %s, 'sales', 'employee', 'Account Executive', 'u0010', 3, true)",
-               (uid, f"Temp Rep {uid}", f"{uid}@kestrelbyte.example"))
+               (uid, f"Temp Rep {uid}", f"{uid}@abctech.example"))
     return uid
 
 

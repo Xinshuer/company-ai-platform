@@ -1,7 +1,8 @@
 """People: core.users, hr.employees, hr.compensation, hr.performance.
 
 Persona ids and names are fixed (personas.py); everyone else gets an id from u0100 in
-STAFF_PLAN order (so ids are the same for every seed) and a Faker name from the seed.
+STAFF_PLAN order (so ids are the same for every seed) and a Swedish Faker name (sv_SE) from the seed:
+ABC Tech is a Stockholm company, so all staff names are Swedish, wherever they work.
 """
 
 from __future__ import annotations
@@ -18,7 +19,7 @@ HEADS = {"exec": "u0001", "sales": "u0010", "eng": "u0020", "legal": "u0030", "f
 ENG_LEADS = ("u0112", "u0113", "u0114")
 HR_HEAD = "u0050"
 
-# Base salary (EUR, DE level) and bonus target by title. Non-persona salaries vary ±6 % by seed.
+# Base salary (EUR, head-office level) and bonus target by title. Non-persona salaries vary ±6 % by seed.
 _PAY: dict[str, tuple[int, float]] = {
     "Chief Executive Officer": (165_000, 25), "Chief Technology Officer": (150_000, 20),
     "Chief Financial Officer": (140_000, 20), "Head of Sales": (118_000, 40), "Head of Legal": (125_000, 15),
@@ -34,15 +35,16 @@ _PAY: dict[str, tuple[int, float]] = {
     "IT Support Specialist": (48_000, 5), "Platform Administrator": (72_000, 8),
     "Security Auditor": (76_000, 8),
 }
-_COUNTRY_PAY = {"DE": 1.0, "NL": 1.04, "PL": 0.68, "ES": 0.82, "AT": 0.98}
+_COUNTRY_PAY = {"SE": 1.0, "NL": 1.04, "PL": 0.68, "ES": 0.82, "AT": 0.98}
 
 # Warsaw hub (opened March 2026) and a few remote colleagues: fixed ids so the story is stable.
 _STAFF_COUNTRY = {**{u: "PL" for u in ("u0121", "u0122", "u0123", "u0124", "u0125", "u0126", "u0131", "u0132",
                                        "u0145")},
                   "u0104": "FR", "u0105": "AT", "u0106": "IT", "u0107": "ES", "u0102": "PL", "u0101": "NL",
                   "u0138": "NL"}
-_LOCALE = {"DE": "de_DE", "PL": "pl_PL", "NL": "nl_NL", "FR": "fr_FR", "AT": "de_AT", "IT": "it_IT",
-           "ES": "es_ES"}
+# Staff names (current staff and leavers) come from one Swedish Faker; customer contacts and
+# candidates keep their own locales (crm.py, hr.py).
+STAFF_LOCALE = "sv_SE"
 _RECENT_HIRES = {"u0121": date(2026, 3, 2), "u0122": date(2026, 3, 2), "u0123": date(2026, 3, 16),
                  "u0124": date(2026, 4, 1), "u0144": date(2026, 4, 1), "u0107": date(2026, 5, 4)}
 
@@ -83,14 +85,13 @@ def build(world: World) -> None:
                       "clearance": clearance_for(p.dept, p.role), "active": True, "persona_key": p.key,
                       "country": p.country, "hired_on": date.fromisoformat(p.hired_on)})
 
-    fakers = {cc: faker_for(seed, loc, "staff") for cc, loc in _LOCALE.items()}
+    fk = faker_for(seed, STAFF_LOCALE, "staff")
     n = FIRST_STAFF_ID
     for dept, plan in STAFF_PLAN:
         for title, count in plan:
             for _ in range(count):
                 uid = f"u{n:04d}"
-                country = _STAFF_COUNTRY.get(uid, "DE")
-                fk = fakers[country]
+                country = _STAFF_COUNTRY.get(uid, "SE")  # SE: the Stockholm head office
                 name = f"{fk.first_name()} {fk.last_name()}"
                 while name in taken_names:
                     name = f"{fk.first_name()} {fk.last_name()}"
@@ -181,11 +182,10 @@ def _employee(world: World, u: dict, part_time: bool, left_on: date | None) -> N
 
 def _leavers(seed: int, taken_emails: set[str], taken_names: set[str]) -> list[dict]:
     """Former employees: deactivated directory accounts (no groups, so RLS shows them nothing and
-    they cannot log in) with names from their own Faker stream."""
+    they cannot log in) with Swedish names from their own Faker stream."""
     out = []
-    fakers = {cc: faker_for(seed, loc, "leavers") for cc, loc in _LOCALE.items()}
+    fk = faker_for(seed, STAFF_LOCALE, "leavers")
     for lv in LEAVERS:
-        fk = fakers[lv.country]
         name = f"{fk.first_name()} {fk.last_name()}"
         while name in taken_names:
             name = f"{fk.first_name()} {fk.last_name()}"

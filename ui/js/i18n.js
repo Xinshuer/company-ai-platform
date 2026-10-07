@@ -4,7 +4,7 @@
 // Kept as one strict-JSON literal so tests/ui/test_static.py can parse it.
 window.I18N = {
  "zh": {
-  "doc_title": "Kestrelbyte AI 平台",
+  "doc_title": "ABC Tech AI 平台",
   "skip_to_content": "跳到正文",
   "brand_sub": "内部 AI 平台",
   "nav_label": "主导航",
@@ -357,7 +357,7 @@ window.I18N = {
   "admin_sub": "模拟模型线路故障。每次切换都需要理由，并写入审计日志。",
   "admin_denied": "线路开关只对平台管理员开放。",
   "admin_try_title": "试一试",
-  "admin_try_text": "打开“本地线路停用”，然后切换为销售 Tobias Reiner，在知识问答里问 Havenmeer 的续约问题：请求会直接报错，而不会改走外部线路。",
+  "admin_try_text": "打开“本地线路停用”，然后切换为销售 Erik Lindqvist，在知识问答里问 Havenmeer 的续约问题：请求会直接报错，而不会改走外部线路。",
   "sw_local_down": "本地线路停用",
   "sw_external_down": "外部线路停用",
   "sw_local_down_does": "所有本该走本地线路的请求（L3/L4 机密内容）直接返回 local_unavailable 错误。",
@@ -401,7 +401,7 @@ window.I18N = {
   "err_unavailable": "服务正在启动"
  },
  "en": {
-  "doc_title": "Kestrelbyte AI Platform",
+  "doc_title": "ABC Tech AI Platform",
   "skip_to_content": "Skip to content",
   "brand_sub": "Internal AI platform",
   "nav_label": "Main navigation",
@@ -754,7 +754,7 @@ window.I18N = {
   "admin_sub": "Simulate model route outages. Every change needs a reason and is audited.",
   "admin_denied": "Route switches are for the platform admin only.",
   "admin_try_title": "Try it",
-  "admin_try_text": "Turn on “local route down”, switch to Tobias Reiner (sales) and ask the Havenmeer renewal question in Ask: the request fails instead of going to the external route.",
+  "admin_try_text": "Turn on “local route down”, switch to Erik Lindqvist (sales) and ask the Havenmeer renewal question in Ask: the request fails instead of going to the external route.",
   "sw_local_down": "Local route down",
   "sw_external_down": "External route down",
   "sw_local_down_does": "Every request that needs the local route (L3/L4) fails with local_unavailable.",

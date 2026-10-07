@@ -1,7 +1,7 @@
 """Deterministic FakeLLM responders for the legal purposes (CORPAI_LLM=fake: tests, CI, offline demo).
 
 `legal.review` behaves like a careful model: a rule-based reviewer in the spirit of Clause Check's
-mock mode, driven by Kestrelbyte's playbook. It reads the clause from the same prompt a real model
+mock mode, driven by ABC Tech's playbook. It reads the clause from the same prompt a real model
 gets, asks for cross-referenced clauses with get_clause (so the trap case exercises the tool loop),
 and answers with schema-valid verdict JSON. It reports embedded instructions instead of obeying them.
 
@@ -140,7 +140,7 @@ def review_responder(messages: list[dict], *, route: str, json_mode: bool) -> st
 # ---- drafting -----------------------------------------------------------------------------
 
 _FALLBACK_ASKS = {
-    "governing_law": r"\b(dutch|french|polish|austrian|italian|spanish|customer'?s?) law\b|seat of the defendant",
+    "governing_law": r"\b(german|dutch|french|polish|austrian|italian|spanish|customer'?s?) law\b|seat of the defendant",
     "liability_cap": r"\b(two times|2x|twice)\b|higher cap|sub-?cap",
     "auto_renewal": r"\b(30|thirty|60|sixty)[- ]days?'? notice\b|notice of (30|thirty|60|sixty) days",
     "service_credits": r"\b(20|twenty) ?% (service )?credits?|higher service credits?",

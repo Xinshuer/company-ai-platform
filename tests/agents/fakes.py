@@ -13,7 +13,7 @@ from corpai.types import Dept, Level, Principal, Role
 
 
 def principal(user_id: str = "u0011", *, clearance: Level = Level.L3, active: bool = True,
-              email: str = "ctx-marker-7f3a@kestrelbyte.example") -> Principal:
+              email: str = "ctx-marker-7f3a@abctech.example") -> Principal:
     return Principal(user_id=user_id, name="Test User", email=email, dept=Dept.SALES, role=Role.EMPLOYEE,
                      title="Account Executive", manager_id=None, clearance=clearance,
                      groups=frozenset({"all", "dept:sales", f"user:{user_id}", "grp-marker-91c2"}), active=active)

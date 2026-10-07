@@ -25,7 +25,7 @@ from corpai.types import Level
 
 APP = "hr_headcount"
 _DIGIT = re.compile(r"\d")
-NOTE_SYSTEM = ("You summarise Kestrelbyte's open hiring for an internal reader in two sentences of plain prose. "
+NOTE_SYSTEM = ("You summarise ABC Tech's open hiring for an internal reader in two sentences of plain prose. "
                "Use only the JSON given. Do not write any numbers or digits: the figures are shown in a table "
                "next to your text. Say 'hidden' for suppressed groups and 'no permission' for denied ones.")
 CODE_NOTE = "Open roles and headcount per department are in the table; small groups are hidden."

@@ -10,7 +10,7 @@
   function r(x, y, w, h, rx) { return ["rect", {x: x, y: y, width: w, height: h, rx: rx || 0}]; }
 
   var ICONS = {
-    kestrel: {fill: true, parts: [
+    logo: {fill: true, parts: [
       p("M2.5 13.2c3.6-.4 6.6-2.6 8.6-7.7.7 3.6 3.1 5.7 7.4 6.1l3 .3-2.6 1.4c-2.3 1.2-4.6 1.8-6.9 1.9l-2.7 5.3-.7-4.9c-2.2-.2-4.2-1-6.1-2.4z"),
       c(16.6, 9.6, 0.9)
     ]},

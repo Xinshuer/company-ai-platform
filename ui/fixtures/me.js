@@ -2,7 +2,7 @@ window.FIXTURES.me = {
  "by_persona": {
   "ceo": {
    "user_id": "u0001",
-   "name": "Katharina Wendel",
+   "name": "Helena Lindberg",
    "title": "Chief Executive Officer",
    "dept": "exec",
    "role": "ceo",
@@ -48,7 +48,7 @@ window.FIXTURES.me = {
   },
   "exec_staff": {
    "user_id": "u0002",
-   "name": "Jonas Albrecht",
+   "name": "Johan Ekström",
    "title": "Chief of Staff",
    "dept": "exec",
    "role": "employee",
@@ -74,7 +74,7 @@ window.FIXTURES.me = {
   },
   "sales_head": {
    "user_id": "u0010",
-   "name": "Mareike Fuchs",
+   "name": "Karin Holm",
    "title": "Head of Sales",
    "dept": "sales",
    "role": "manager",
@@ -115,7 +115,7 @@ window.FIXTURES.me = {
   },
   "sales_staff": {
    "user_id": "u0011",
-   "name": "Tobias Reiner",
+   "name": "Erik Lindqvist",
    "title": "Account Executive",
    "dept": "sales",
    "role": "employee",
@@ -146,7 +146,7 @@ window.FIXTURES.me = {
   },
   "eng_head": {
    "user_id": "u0020",
-   "name": "Lukas Brandt",
+   "name": "Anders Nyberg",
    "title": "Chief Technology Officer",
    "dept": "eng",
    "role": "manager",
@@ -182,7 +182,7 @@ window.FIXTURES.me = {
   },
   "eng_staff": {
    "user_id": "u0021",
-   "name": "Emre Kaya",
+   "name": "Oskar Berg",
    "title": "Backend Engineer",
    "dept": "eng",
    "role": "employee",
@@ -208,7 +208,7 @@ window.FIXTURES.me = {
   },
   "legal_head": {
    "user_id": "u0030",
-   "name": "Sophie Hartmann",
+   "name": "Sofia Wallin",
    "title": "Head of Legal",
    "dept": "legal",
    "role": "manager",
@@ -249,7 +249,7 @@ window.FIXTURES.me = {
   },
   "legal_staff": {
    "user_id": "u0031",
-   "name": "Felix Neumann",
+   "name": "Viktor Sandberg",
    "title": "Legal Counsel",
    "dept": "legal",
    "role": "employee",
@@ -280,7 +280,7 @@ window.FIXTURES.me = {
   },
   "finance_head": {
    "user_id": "u0040",
-   "name": "Annika Vogt",
+   "name": "Annika Strand",
    "title": "Chief Financial Officer",
    "dept": "finance",
    "role": "manager",
@@ -316,7 +316,7 @@ window.FIXTURES.me = {
   },
   "finance_staff": {
    "user_id": "u0041",
-   "name": "Paulina Nowak",
+   "name": "Linnea Dahl",
    "title": "Financial Accountant",
    "dept": "finance",
    "role": "employee",
@@ -342,7 +342,7 @@ window.FIXTURES.me = {
   },
   "hr_head": {
    "user_id": "u0050",
-   "name": "Clara Becker",
+   "name": "Maria Engström",
    "title": "Head of People",
    "dept": "hr",
    "role": "manager",
@@ -383,7 +383,7 @@ window.FIXTURES.me = {
   },
   "hr_staff": {
    "user_id": "u0051",
-   "name": "Lea Schröder",
+   "name": "Elin Forsberg",
    "title": "Talent Acquisition Partner",
    "dept": "hr",
    "role": "employee",
@@ -419,7 +419,7 @@ window.FIXTURES.me = {
   },
   "platform_admin": {
    "user_id": "u0060",
-   "name": "Daniel Okafor",
+   "name": "Daniel Sjögren",
    "title": "Platform Administrator",
    "dept": "it",
    "role": "platform_admin",
@@ -440,7 +440,7 @@ window.FIXTURES.me = {
   },
   "auditor": {
    "user_id": "u0061",
-   "name": "Mira Jansen",
+   "name": "Ida Lund",
    "title": "Security Auditor",
    "dept": "it",
    "role": "security_auditor",

@@ -306,7 +306,7 @@ async def _store(principal: Principal, run_id: str, result: ReviewResult) -> Non
 
 async def review_contract(principal: Principal, *, text: str, contract_id: str | None, run_id: str,
                           gateway: Any = None, store: bool = True) -> ReviewResult:
-    """Review a contract clause by clause against Kestrelbyte's playbook. See the module docstring.
+    """Review a contract clause by clause against ABC Tech's playbook. See the module docstring.
 
     Raises PermissionError (may not start legal_review; contract not visible), ValueError (bad
     input), and the gateway's errors (LocalUnavailable, BudgetExceeded, ...) unchanged.

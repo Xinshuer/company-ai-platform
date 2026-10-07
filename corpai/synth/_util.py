@@ -25,13 +25,17 @@ START = date(2025, 10, 1)
 END = date(2026, 9, 30)
 SIM_TODAY = date(2026, 10, 1)
 
-STAFF_DOMAIN = "kestrelbyte.example"
+STAFF_DOMAIN = "abctech.example"
+# Salt of every random stream and canary. It is the company's former name (Kestrelbyte, renamed
+# ABC Tech on 2026-10-07) and stays as it is: a new salt would change every generated amount,
+# date and canary, and the same seed must keep giving the same company.
+_SALT = "kestrelbyte"
 CENT = Decimal("0.01")
 
 
 def rng_for(seed: int, topic: str) -> random.Random:
     # str seeds go through sha512 in random.seed (version 2): stable across processes and platforms
-    return random.Random(f"kestrelbyte:{seed}:{topic}")
+    return random.Random(f"{_SALT}:{seed}:{topic}")
 
 
 def faker_for(seed: int, locale: str, topic: str) -> Faker:
@@ -43,7 +47,7 @@ def faker_for(seed: int, locale: str, topic: str) -> Faker:
 
 def canary(seed: int, index: int) -> str:
     """KB-CANARY-XXXXXXXX: 8 uppercase hex chars derived from the seed (classify treats it as L4)."""
-    h = hashlib.sha256(f"kestrelbyte-canary:{seed}:{index}".encode()).hexdigest()[:8].upper()
+    h = hashlib.sha256(f"{_SALT}-canary:{seed}:{index}".encode()).hexdigest()[:8].upper()
     return f"KB-CANARY-{h}"
 
 
