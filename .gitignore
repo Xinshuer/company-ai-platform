@@ -1,0 +1,9 @@
+# local environment, databases, model caches
+.venv/
+.data/
+.cache/
+build/
+__pycache__/
+*.pyc
+.pytest_cache/
+.env
