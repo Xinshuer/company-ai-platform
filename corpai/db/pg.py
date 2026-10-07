@@ -119,7 +119,12 @@ def connect_app(*, autocommit: bool = False) -> psycopg.Connection:
 
 # ---- principal transactions -------------------------------------------------------------
 
-def _session_vars(principal: Principal, run_id: str | None) -> list[tuple[str, str]]:
+SESSION_VARS = ("app.user_id", "app.role", "app.dept", "app.groups", "app.clearance", "app.run_id")
+
+
+def session_vars(principal: Principal, run_id: str | None = None) -> list[tuple[str, str]]:
+    """The (name, value) pairs RLS reads. Public so other connection holders (the per-run
+    checkpoint connection) set exactly what principal_tx sets."""
     for g in principal.groups:
         if "," in g:
             raise ValueError(f"ACL group names must not contain commas: {g!r}")
@@ -193,3 +198,6 @@ def principal_tx_sync(principal: Principal, *, run_id: str | None = None) -> Ite
             for name, value in _session_vars(principal, run_id):
                 conn.execute(_SET, (name, value))
             yield conn
+
+
+_session_vars = session_vars  # kept for callers written before it became public

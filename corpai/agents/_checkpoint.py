@@ -49,17 +49,13 @@ async def setup_schema() -> None:
         await conn.execute("GRANT SELECT ON lg.checkpoint_migrations TO corpai_app")
 
 
-_VARS = ("app.user_id", "app.role", "app.dept", "app.groups", "app.clearance", "app.run_id")
+_VARS = pg.SESSION_VARS
 
 
 def _session_vars(p: Principal, run_id: str | None) -> list[tuple[str, str]]:
-    """The same variables principal_tx sets (corpai/db/pg.py); deactivated users get no groups and
+    """Exactly what principal_tx sets (pg.session_vars); deactivated users get no groups and
     clearance 0, so RLS (and ops.thread_is_mine) shows them nothing."""
-    if any("," in g for g in p.groups):
-        raise ValueError("ACL group names must not contain commas")
-    groups, clearance = ("", "0") if not p.active else (",".join(sorted(p.groups)), str(int(p.clearance)))
-    return [("app.user_id", p.user_id), ("app.role", str(p.role)), ("app.dept", str(p.dept)),
-            ("app.groups", groups), ("app.clearance", clearance), ("app.run_id", run_id or "")]
+    return pg.session_vars(p, run_id)
 
 
 async def _wipe(conn: AsyncConnection) -> None:

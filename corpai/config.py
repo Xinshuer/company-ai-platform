@@ -27,6 +27,7 @@ class Settings:
     demo_login: bool
     api_base: str
     sim_today: date
+    checkpoint_ttl_days: int = 30
 
     @property
     def pg_dir(self) -> Path:
@@ -62,7 +63,16 @@ def _load() -> Settings:
         demo_login=os.environ.get("CORPAI_DEMO_LOGIN", "1") == "1",
         api_base=os.environ.get("CORPAI_API_BASE", "http://127.0.0.1:8000").rstrip("/"),
         sim_today=date.fromisoformat(os.environ.get("CORPAI_SIM_TODAY", "2026-10-01")),
+        checkpoint_ttl_days=_positive_int(os.environ.get("CORPAI_CHECKPOINT_TTL_DAYS"), 30),
     )
+
+
+def _positive_int(raw: str | None, default: int) -> int:
+    try:
+        n = int(raw) if raw else default
+    except ValueError:
+        return default
+    return n if n >= 1 else default
 
 
 @functools.cache

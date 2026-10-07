@@ -17,7 +17,8 @@ import pytest
 
 _ROOT = Path(__file__).resolve().parent.parent
 os.environ["CORPAI_LLM"] = "fake"
-os.environ["CORPAI_EMBED"] = "fake"
+# CORPAI_TEST_FASTEMBED=1 opts a run into the real embedding model (tests/embed/test_fastembed.py)
+os.environ["CORPAI_EMBED"] = "fastembed" if os.environ.get("CORPAI_TEST_FASTEMBED") == "1" else "fake"
 os.environ.pop("DEEPSEEK_API_KEY", None)
 os.environ.setdefault("CORPAI_DATA_DIR", str(_ROOT / ".data" / "test" / str(os.getpid())))
 os.environ["CORPAI_DEMO_LOGIN"] = "1"

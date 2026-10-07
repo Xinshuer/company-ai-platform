@@ -7,19 +7,15 @@ N defaults to CORPAI_CHECKPOINT_TTL_DAYS or 30. An owner job, so it is audited (
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 
-DEFAULT_TTL_DAYS = 30
+
 
 
 def ttl_days() -> int:
-    raw = os.environ.get("CORPAI_CHECKPOINT_TTL_DAYS", "")
-    try:
-        n = int(raw) if raw else DEFAULT_TTL_DAYS
-    except ValueError:
-        n = DEFAULT_TTL_DAYS
-    return n if n >= 1 else DEFAULT_TTL_DAYS
+    from corpai.config import settings
+
+    return settings().checkpoint_ttl_days
 
 
 def main(argv: list[str]) -> int:
