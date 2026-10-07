@@ -209,3 +209,21 @@ rows:
       - {column: platform_admin, cell: 否（只有安全审计员可读）, persona: platform_admin, action: read, resource: audit_log, expect: deny}
       - {column: platform_admin, cell: 只有安全审计员可读, persona: auditor, action: read, resource: audit_log, expect: allow}
       - {column: platform_admin, cell: 只有安全审计员可读, persona: auditor, action: export, resource: audit_log, expect: allow, obligations: [watermark]}
+
+# 简历、候选人 · 用人经理看本岗位候选人 (issues-log D-05): the tool side of the row above. A hiring
+# manager (holding req:<id>; the fabricated eng_head holds req:R-01) may use hris.list_candidates and
+# hris.get_candidate; RLS limits rows to that requisition. Checked by tests/hr/test_hiring_manager_rule.py
+# through the requested read-only agent `hr_candidates` (tools list_requisitions, list_candidates,
+# get_candidate; started by employees, managers and the CEO). `rule` is the deciding rule id.
+hiring_manager_tools:
+  - {persona: eng_head, tool: hris.list_candidates, expect: allow, rule: tool-hris-hiring-manager}
+  - {persona: eng_head, tool: hris.get_candidate, expect: allow, rule: tool-hris-hiring-manager}
+  - {persona: eng_head, tool: hris.create_requisition, expect: deny, rule: agent-allowlist}
+  - {persona: hr_staff, tool: hris.list_candidates, expect: allow, rule: tool-hris-hr}
+  - {persona: hr_head, tool: hris.get_candidate, expect: allow, rule: tool-hris-hr}
+  - {persona: sales_head, tool: hris.list_candidates, expect: deny, rule: default-deny}
+  - {persona: ceo, tool: hris.get_candidate, expect: deny, rule: default-deny}
+  - {persona: eng_staff, tool: hris.list_candidates, expect: deny, rule: default-deny}
+  - {persona: finance_head, tool: hris.get_candidate, expect: deny, rule: default-deny}
+  - {persona: platform_admin, tool: hris.list_candidates, expect: deny, rule: agent-start-denied}
+  - {persona: auditor, tool: hris.get_candidate, expect: deny, rule: agent-start-denied}

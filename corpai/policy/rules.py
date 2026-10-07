@@ -168,6 +168,14 @@ def _legal_with_crm_grant(p: Principal, agent: str) -> bool:
     return _in_dept(Dept.LEGAL)(p, agent) and any(g.startswith("grant:crm:") for g in p.groups)
 
 
+def _hiring_manager(p: Principal, agent: str) -> bool:
+    # design-review 五 简历、候选人: 用人经理看本岗位候选人 (issues-log D-05). Holding req:<id> is the
+    # hiring relation (§5.1 memberships: the requisition's hiring manager and its recruiter). Hiring
+    # managers are often team leads rather than department heads, so the relation decides, not the
+    # role. RLS on hr.candidates (acl req:<id>, head:hr) limits rows to their own requisitions.
+    return _human_not_ops(p, agent) and any(g.startswith("req:") for g in p.groups)
+
+
 def _sales_web(p: Principal, agent: str) -> bool:
     # Web content is untrusted: only the isolated sub-agent with no other tools may touch it.
     return agent == "sales_web" and _either(_in_dept(Dept.SALES), _ceo)(p, agent)
@@ -195,6 +203,8 @@ TOOL_RULES: list[ToolRule] = [
              "heads see headcount, requisitions and their direct reports (RLS limits rows)"),
     ToolRule("tool-hris-ceo", "hris", _f("headcount", "list_requisitions"), _ceo,
              "the CEO sees headcount and requisitions"),
+    ToolRule("tool-hris-hiring-manager", "hris", _f("list_candidates", "get_candidate"), _hiring_manager,
+             "a hiring manager sees the candidates of their own requisitions (RLS: req:<id>)"),
     ToolRule("tool-legal-dept-ceo", "legal", None, _either(_in_dept(Dept.LEGAL), _ceo),
              "legal tools belong to legal; the CEO may use them"),
     ToolRule("tool-legal-regulations-all", "legal", _f("search_regulations"), _human_not_ops,

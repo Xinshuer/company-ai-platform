@@ -22,6 +22,7 @@ EVENTS: frozenset[str] = frozenset({
     "login", "demo_login", "policy_decision", "tool_call", "retrieval", "model_call",
     "route_decision", "proposal_created", "proposal_approved", "proposal_rejected",
     "proposal_executed", "export", "outage_switch", "budget_exceeded", "break_glass", "owner_job",
+    "audit_read",  # the security auditor's own reads of the log (GET /api/audit; migration 101)
 })
 ROUTES: frozenset[str] = frozenset({"local", "external"})
 

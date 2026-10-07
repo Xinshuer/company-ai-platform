@@ -203,6 +203,9 @@ async def test_read_meta_denied_for_others(pg, tracer, alice, mkp):
 async def test_dept_stats_aggregates_without_text(pg, tracer, alice, mkp):
     since = clock.now_utc() - timedelta(seconds=1)
     await _one(tracer, alice, Level.L3)
+    # migration 102: a row needs >= 5 spans from >= 5 distinct people, so add four more sales staff
+    for i in range(2, 6):
+        await _one(tracer, mkp(f"u091{i}", Role.EMPLOYEE, Dept.SALES, Level.L3), Level.L3)
     eng = mkp("u0040", Role.EMPLOYEE, Dept.ENG, Level.L3)
     await _one(tracer, eng, Level.L2, kind="retrieval")
 
@@ -222,8 +225,10 @@ async def test_dept_stats_agrees_with_decide(pg, tracer, mkp):
     from corpai.types import Action, Label, Resource
 
     since = clock.now_utc() - timedelta(seconds=1)
-    for uid, dept in (("u0031", Dept.SALES), ("u0035", Dept.LEGAL), ("u0036", Dept.HR), ("u0002", Dept.EXEC)):
-        await _one(tracer, mkp(uid, Role.EMPLOYEE, dept, Level.L3), Level.L3)
+    # five people per department: migration 102 hides rows with fewer than 5 spans or 5 distinct people
+    for d, dept in enumerate((Dept.SALES, Dept.LEGAL, Dept.HR, Dept.EXEC), start=2):
+        for i in range(1, 6):
+            await _one(tracer, mkp(f"u09{d}{i}", Role.EMPLOYEE, dept, Level.L3), Level.L3)
     ceo = mkp("u0001", Role.CEO, Dept.EXEC, Level.L4,
               groups={"all", "dept:exec", "user:u0001", "role:ceo", "head:exec"})
     sales_head = mkp("u0030", Role.MANAGER, Dept.SALES, Level.L4)
@@ -240,6 +245,19 @@ async def test_dept_stats_agrees_with_decide(pg, tracer, mkp):
     with pgmod.principal_tx_sync(bare_ceo) as c:
         with pytest.raises(psycopg.errors.InsufficientPrivilege):
             c.execute("SELECT * FROM trace.dept_stats(%s)", (since,))
+
+
+async def test_dept_stats_hides_groups_under_five_people(pg, tracer, mkp):
+    """Migration 102: four people with many spans, or one person with many spans, stay hidden."""
+    since = clock.now_utc() - timedelta(seconds=1)
+    for i in range(1, 5):
+        for _ in range(2):
+            await _one(tracer, mkp(f"u098{i}", Role.EMPLOYEE, Dept.FINANCE, Level.L3), Level.L3)
+    one = mkp("u0989", Role.EMPLOYEE, Dept.FINANCE, Level.L3)
+    for _ in range(6):
+        await _one(tracer, one, Level.L2, kind="retrieval")
+    finance_head = mkp("u0040", Role.MANAGER, Dept.FINANCE, Level.L4)
+    assert await dept_stats(finance_head, since) == []
 
 
 async def test_dept_stats_denied_for_staff_admin_and_forged_heads(pg, mkp):

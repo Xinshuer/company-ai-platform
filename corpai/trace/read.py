@@ -42,6 +42,8 @@ async def dept_stats(principal: Principal, since: datetime) -> list[dict]:
 
     The same rule as decide(p, READ, trace) (trace-head-aggregate: head:<dept> of the run's dept),
     so the CEO, head of exec, gets exec's counts and nothing company-wide (design-review 五).
+    Rows with fewer than 5 spans or fewer than 5 distinct people are not returned (migration 102),
+    so a small department's statistics do not point at one person.
     """
     from corpai.db import pg
 

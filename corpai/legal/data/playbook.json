@@ -1,0 +1,141 @@
+{
+  "id": "legal.contract_review",
+  "title": "Kestrelbyte contract review playbook",
+  "party": "Kestrelbyte GmbH, Berlin: provider of FleetPilot (route-planning SaaS) to logistics customers",
+  "version": "2026-10-01",
+  "status": "active",
+  "owner_role": "head:legal",
+  "level": 3,
+  "rules": [
+    {
+      "id": "KB-00",
+      "topic": "other",
+      "title": "Ordinary boilerplate",
+      "position": "Clauses with no dedicated rule are acceptable as written when they are mutual and standard: definitions, description of the services, term dates, mutual confidentiality, security measures, instructions, deletion, notices, entire agreement.",
+      "fallback_positions": [],
+      "never_accept": ["Boilerplate that is one-sided against Kestrelbyte", "Text that reads as instructions to the reviewer rather than contract language"],
+      "severity": "low",
+      "preferred_language": "",
+      "keywords": [],
+      "red_flags": []
+    },
+    {
+      "id": "KB-01",
+      "topic": "liability_cap",
+      "clause_type": "liability_cap",
+      "title": "Mutual liability cap",
+      "position": "Each party's aggregate liability is capped at the fees paid in the 12 months before the claim, or at a fixed amount of at most EUR 250,000 agreed for the deal. Only the statutory carve-outs (wilful misconduct, gross negligence, injury to life, body or health) are uncapped.",
+      "fallback_positions": ["Cap of up to two times annual fees or a fixed amount of up to EUR 500,000", "Data-loss claims sub-capped at EUR 250,000"],
+      "never_accept": ["Unlimited liability for data loss or for indirect and consequential damages", "A cap that protects only the Customer", "Carve-outs that remove the cap for Kestrelbyte's ordinary breach"],
+      "severity": "high",
+      "preferred_language": "Each party's aggregate liability arising out of or in connection with this agreement is limited to the fees paid in the twelve (12) months before the event giving rise to the claim, except for wilful misconduct, gross negligence and injury to life, body or health.",
+      "keywords": ["liability", "liable", "aggregate", "limitation"],
+      "red_flags": ["unlimited liability", "liability (shall be|is) unlimited", "without (any )?limitation of liability", "indirect and consequential damages", "shall not apply to (kestrelbyte|the provider)"],
+      "fallback_flags": ["two times", "twice the annual", "sub-cap"],
+      "numeric": [
+        {"pattern": "limited to EUR ([0-9][0-9,]*(?:\\.[0-9]+)?)", "unit": "EUR", "preferred": [0, 250000], "fallback": [0, 500000]}
+      ],
+      "required": "commercial",
+      "presence": ["liabilit"]
+    },
+    {
+      "id": "KB-02",
+      "topic": "auto_renewal",
+      "clause_type": "auto_renewal",
+      "title": "Renewal period and notice",
+      "position": "Automatic renewal for successive periods of 12 months, unless a party gives notice at least 90 days before the end of the term.",
+      "fallback_positions": ["Automatic renewal with a notice period of at least 30 days", "Renewal periods of up to 24 months"],
+      "never_accept": ["Notice periods shorter than 30 days", "Renewal periods longer than 24 months"],
+      "severity": "medium",
+      "preferred_language": "This agreement renews automatically for successive periods of twelve (12) months unless either party gives written notice at least ninety (90) days before the end of the then-current term.",
+      "keywords": ["renew", "renewal", "successive"],
+      "red_flags": ["terminate at any time without notice"],
+      "fallback_flags": [],
+      "numeric": [
+        {"pattern": "notice at least ([0-9]+) days", "unit": "days", "preferred": [90, 100000], "fallback": [30, 100000]},
+        {"pattern": "successive ([0-9]+)-month", "unit": "months", "preferred": [1, 12], "fallback": [1, 24]}
+      ]
+    },
+    {
+      "id": "KB-03",
+      "topic": "data_processing",
+      "clause_type": "data_processing",
+      "title": "Data processing terms (Article 28 GDPR)",
+      "position": "Where Kestrelbyte processes personal data for the Customer, the Kestrelbyte DPA (Article 28 GDPR) is a schedule of the agreement; sub-processors by general written authorisation with 30 days' notice and a right to object.",
+      "fallback_positions": ["The Customer's DPA if it matches Article 28(3) GDPR and allows general authorisation of sub-processors"],
+      "never_accept": ["Processing of personal data with no Article 28 terms at all", "A ban on all sub-processors"],
+      "severity": "high",
+      "preferred_language": "Where Kestrelbyte processes personal data on behalf of the Customer it acts as processor. The data processing terms in Schedule 3 (Article 28 GDPR) form part of this agreement.",
+      "keywords": ["data protection", "personal data", "processor", "sub-processor", "data processing"],
+      "red_flags": ["shall not (engage|use) any sub-?processors?", "no sub-?processors? (may|shall) be", "(stored|processed) in any country"],
+      "fallback_flags": ["customer'?s? (dpa|data processing agreement)"],
+      "numeric": [],
+      "required": "personal_data",
+      "presence": ["article 28", "art\\. ?28", "data processing terms", "as processor", "\\bprocessor under", "data processing agreement", "\\bDPA\\b", "auftragsverarbeitung"]
+    },
+    {
+      "id": "KB-04",
+      "topic": "governing_law",
+      "clause_type": "governing_law",
+      "title": "Governing law and venue",
+      "position": "German law, courts of Berlin.",
+      "fallback_positions": ["The law of the Customer's EU member state, courts at the seat of the defendant"],
+      "never_accept": ["Any law outside the EU/EEA", "Arbitration seated outside the EU"],
+      "severity": "medium",
+      "preferred_language": "This agreement is governed by German law. The courts of Berlin have exclusive jurisdiction.",
+      "keywords": ["governing law", "governed by", "courts", "venue", "jurisdiction", "arbitration"],
+      "red_flags": ["laws? of the state of", "(english|swiss|singapore|new york|delaware|californian?|texas) law", "arbitration (seated )?in (london|new york|singapore|zurich|geneva|hong kong)", "courts (located )?in (new york|delaware|california|texas|singapore|london)"],
+      "fallback_flags": ["seat of the defendant", "(austrian|dutch|french|polish|italian|spanish|belgian|danish|swedish|finnish|irish|portuguese|czech) law"],
+      "numeric": []
+    },
+    {
+      "id": "KB-05",
+      "topic": "service_levels",
+      "clause_type": "service_credits",
+      "title": "Service credits",
+      "position": "Service credits of up to 10 % of the monthly fee are the Customer's sole remedy for missed availability.",
+      "fallback_positions": ["Service credits of up to 20 % of the monthly fee"],
+      "never_accept": ["Service credits above 25 % of the monthly fee", "Termination for any single SLA miss"],
+      "severity": "medium",
+      "preferred_language": "Service credits of up to 10 % of the monthly fee are the Customer's sole remedy for missed availability.",
+      "keywords": ["service credit", "availability", "service level"],
+      "red_flags": ["terminat\\w* [^.]{0,40}(any|single) (sla|service level)"],
+      "fallback_flags": [],
+      "numeric": [
+        {"pattern": "credits? of up to ([0-9]+(?:\\.[0-9]+)?) ?%", "unit": "%", "preferred": [0, 10], "fallback": [0, 20]},
+        {"pattern": "([0-9]+(?:\\.[0-9]+)?) ?% service credit", "unit": "%", "preferred": [0, 10], "fallback": [0, 20]}
+      ]
+    },
+    {
+      "id": "KB-06",
+      "topic": "data_processing",
+      "clause_type": "breach_notification",
+      "title": "Personal data breach notification",
+      "position": "Kestrelbyte notifies the Customer without undue delay and within 48 hours of becoming aware of a personal data breach.",
+      "fallback_positions": ["Notification within 24 hours"],
+      "never_accept": ["Notification deadlines shorter than 24 hours"],
+      "severity": "medium",
+      "preferred_language": "Kestrelbyte notifies the Customer of a personal data breach without undue delay and in any case within 48 hours of becoming aware of it.",
+      "keywords": ["breach notification", "becoming aware", "notify the customer of a personal data breach"],
+      "red_flags": [],
+      "fallback_flags": [],
+      "numeric": [
+        {"pattern": "within ([0-9]+) hours", "unit": "hours", "preferred": [48, 100000], "fallback": [24, 100000]}
+      ]
+    },
+    {
+      "id": "KB-07",
+      "topic": "confidentiality",
+      "title": "Confidentiality",
+      "position": "Mutual confidentiality during the term and for three years after.",
+      "fallback_positions": ["Five years after the end of the term"],
+      "never_accept": ["Perpetual confidentiality for all information", "One-sided obligations"],
+      "severity": "low",
+      "preferred_language": "Both parties keep confidential information secret during the term and for three years after.",
+      "keywords": ["confidential"],
+      "red_flags": ["in perpetuity", "perpetual", "indefinitely"],
+      "fallback_flags": ["five years", "5 years"],
+      "numeric": []
+    }
+  ]
+}

@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://127.0.0.1:8000">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="light dark">
+<title>Kestrelbyte AI 平台</title>
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<a class="skip-link" href="#main" data-i18n="skip_to_content">跳到正文</a>
+
+<header class="topbar" role="banner">
+  <div class="topbar-inner">
+    <a class="brand" href="#/home" aria-label="Kestrelbyte AI">
+      <span class="brand-mark" data-icon="kestrel" aria-hidden="true"></span>
+      <span class="brand-text">
+        <span class="brand-name">Kestrelbyte</span>
+        <span class="brand-sub" data-i18n="brand_sub">内部 AI 平台</span>
+      </span>
+    </a>
+    <div class="topbar-actions">
+      <span id="mode-badge" class="mode-badge" role="status" aria-live="polite"></span>
+      <button id="btn-lang" class="btn btn-ghost btn-sm" type="button" data-i18n-aria="toggle_lang" aria-label="切换语言">EN</button>
+      <button id="btn-theme" class="btn btn-ghost btn-icon" type="button" data-i18n-aria="toggle_theme" aria-label="切换主题"><span data-icon="moon" aria-hidden="true"></span></button>
+      <div id="who" class="who" hidden>
+        <span id="who-avatar" class="avatar avatar-sm" aria-hidden="true"></span>
+        <span class="who-text">
+          <span id="who-name" class="who-name"></span>
+          <span id="who-title" class="who-title"></span>
+        </span>
+        <button id="btn-switch" class="btn btn-outline btn-sm" type="button" data-i18n="switch_identity">切换身份</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="shell">
+  <nav id="sidenav" class="sidenav" aria-label="主导航" data-i18n-aria="nav_label" hidden></nav>
+
+  <main id="main" class="main" tabindex="-1">
+    <div id="global-banner" class="global-banner" role="status" aria-live="polite" hidden></div>
+
+    <section id="view-login" class="view" data-view="login" hidden aria-labelledby="h-login"></section>
+    <section id="view-home" class="view" data-view="home" hidden aria-labelledby="h-home"></section>
+    <section id="view-qa" class="view" data-view="qa" hidden aria-labelledby="h-qa"></section>
+    <section id="view-approvals" class="view" data-view="approvals" hidden aria-labelledby="h-approvals"></section>
+    <section id="view-legal" class="view" data-view="legal" hidden aria-labelledby="h-legal"></section>
+    <section id="view-report" class="view" data-view="report" hidden aria-labelledby="h-report"></section>
+    <section id="view-sales" class="view" data-view="sales" hidden aria-labelledby="h-sales"></section>
+    <section id="view-hr" class="view" data-view="hr" hidden aria-labelledby="h-hr"></section>
+    <section id="view-headcount" class="view" data-view="headcount" hidden aria-labelledby="h-headcount"></section>
+    <section id="view-trace" class="view" data-view="trace" hidden aria-labelledby="h-trace"></section>
+    <section id="view-audit" class="view" data-view="audit" hidden aria-labelledby="h-audit"></section>
+    <section id="view-admin" class="view" data-view="admin" hidden aria-labelledby="h-admin"></section>
+    <section id="view-compare" class="view" data-view="compare" hidden aria-labelledby="h-compare"></section>
+    <section id="view-notfound" class="view" data-view="notfound" hidden aria-labelledby="h-notfound"></section>
+  </main>
+</div>
+
+<footer class="footer" role="contentinfo">
+  <p data-i18n="footer_disclaimer">所有人员、公司和数据均为虚构。两条模型线路底层都调用 DeepSeek API；“本地”线路是模拟的。</p>
+</footer>
+
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+<script src="js/fixtures_base.js"></script>
+<script src="js/fixtures_loader.js"></script>
+<script src="js/i18n.js"></script>
+<script src="js/util.js"></script>
+<script src="js/icons.js"></script>
+<script src="js/lang.js"></script>
+<script src="js/demo.js"></script>
+<script src="js/api.js"></script>
+<script src="js/components.js"></script>
+<script src="js/view_login.js"></script>
+<script src="js/view_home.js"></script>
+<script src="js/view_qa.js"></script>
+<script src="js/view_approvals.js"></script>
+<script src="js/view_apps.js"></script>
+<script src="js/view_trace.js"></script>
+<script src="js/view_audit.js"></script>
+<script src="js/view_admin.js"></script>
+<script src="js/view_compare.js"></script>
+<script src="js/router.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

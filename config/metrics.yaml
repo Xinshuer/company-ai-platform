@@ -1,0 +1,530 @@
+# The metric layer (design-review 二.8, decisions D7). Read by corpai.metrics.definitions.
+#
+# Every number in a management report comes from one of these definitions: SQL computes it, the CFO
+# signs it, publishing widens the audience. A model never computes a figure.
+#
+# Rules the loader enforces (corpai/metrics/definitions.py, tests/metrics/test_definitions.py):
+#   - at most 30 metrics; ids are snake_case and unique
+#   - sql is one SELECT/WITH statement over the business schemas listed in `sources` (fin, crm, eng,
+#     legal, hr, core.users); never synth.*, audit.*, ops.*, metrics.* or rag.*
+#   - sql returns the declared dims columns, `value` and, when min_group > 1, `n` (the number of
+#     people a value is derived from); a row whose dims are all NULL is the total
+#   - dims only from the aggregate allowlist (dept, stage, tier, project_id): no person-level metric (D7)
+#   - anything derived from individual people (hr.employees, core.users) has min_group >= 5;
+#     hr.compensation and hr.performance are never a source
+#   - level >= the source default level of every source (config/sources.yaml)
+#   - draft_acl may only narrow the finance ACL
+#
+# Query parameters (psycopg named parameters) for a period P ("YYYY-MM" or "YYYY-Qn"):
+#   %(start)s       first day of P                     %(end)s        first day after P (exclusive)
+#   %(as_of)s       = end: balances are taken at the start of this day (the reporting date)
+#   %(periods)s     the months of P as text[] ('2026-07', ...), matching fin.*.period
+#   %(next_start)s / %(next_end)s   the calendar month after the reporting date's month
+#   %(ttm_start)s   %(end)s minus twelve months (trailing-twelve-month windows)
+#   %(days)s        number of days in P
+#
+# visible_to = the published audience:
+#   company     {all}
+#   management  {role:ceo, head:<every dept>, dept:finance}
+#   dept        {dept:<d>, head:<d>, role:ceo, dept:finance}; <d> = the row's dept dimension or the metric's
+#               `dept`; a total row of a per-dept metric falls back to management
+#   [templates] explicit groups, "{dept}" replaced as above
+# Drafts and signed rows carry the finance ACL {dept:finance, head:finance, role:ceo} (or draft_acl).
+
+version: 1
+workflows:
+  standard: [draft, signed, published]   # refresh job → CFO signs → CFO publishes (metrics.sign/publish)
+defaults:
+  workflow: standard
+  grain: [month, quarter]
+  min_group: 1
+  refresh: monthly, after the month-end close (python -m corpai metrics refresh --period YYYY-MM)
+  draft_acl: ["dept:finance", "head:finance", "role:ceo"]
+  published_level: 2
+
+metrics:
+
+  # ---------------------------------------------------------------- revenue and margin
+  - id: revenue_recognised
+    name_zh: 已确认收入
+    name_en: Recognised revenue
+    definition: Revenue recognised in the general ledger in the period (subscription and professional services).
+    formula: sum(credit - debit) of posted journal lines on revenue accounts (4000, 4100) in the period's months
+    unit: EUR
+    dims: []
+    sources: [fin.journal_entries, fin.chart_of_accounts]
+    owner_role: head:finance
+    level: 3
+    visible_to: company
+    sql: |
+      SELECT coalesce(sum(j.credit_eur - j.debit_eur), 0) AS value
+      FROM fin.journal_entries j
+      JOIN fin.chart_of_accounts a ON a.account_code = j.account_code
+      WHERE a.type = 'revenue' AND j.status = 'posted' AND j.period = ANY (%(periods)s)
+
+  - id: arr
+    name_zh: 年度经常性收入（ARR）
+    name_en: Annual recurring revenue (ARR)
+    definition: Contracted annual recurring revenue of current customers as recorded in the CRM when the snapshot is computed (the CRM keeps no history).
+    formula: sum(crm.accounts.arr_eur) where status = 'customer'
+    unit: EUR
+    dims: []
+    sources: [crm.accounts]
+    owner_role: head:sales
+    level: 3
+    visible_to: company
+    sql: |
+      SELECT coalesce(sum(arr_eur), 0) AS value FROM crm.accounts WHERE status = 'customer'
+
+  - id: customers_active
+    name_zh: 在约客户数
+    name_en: Active customers
+    definition: Number of accounts with status customer in the CRM when the snapshot is computed.
+    formula: count(crm.accounts) where status = 'customer'
+    unit: count
+    dims: []
+    sources: [crm.accounts]
+    owner_role: head:sales
+    level: 3
+    visible_to: company
+    sql: |
+      SELECT count(*) AS value FROM crm.accounts WHERE status = 'customer'
+
+  - id: gross_margin_pct
+    name_zh: 毛利率
+    name_en: Gross margin
+    definition: Share of recognised revenue left after the cost of delivering the service (cloud hosting, account 6200).
+    formula: (revenue - cloud hosting) / revenue * 100, posted lines in the period; undefined without revenue
+    unit: pct
+    dims: []
+    sources: [fin.journal_entries, fin.chart_of_accounts]
+    owner_role: head:finance
+    level: 3
+    visible_to: company
+    sql: |
+      WITH r AS (
+        SELECT coalesce(sum(CASE WHEN a.type = 'revenue' THEN j.credit_eur - j.debit_eur END), 0) AS rev,
+               coalesce(sum(CASE WHEN j.account_code = '6200' THEN j.debit_eur - j.credit_eur END), 0) AS cogs
+        FROM fin.journal_entries j
+        JOIN fin.chart_of_accounts a ON a.account_code = j.account_code
+        WHERE j.status = 'posted' AND j.period = ANY (%(periods)s)
+      )
+      SELECT CASE WHEN rev > 0 THEN round((rev - cogs) / rev * 100, 4) END AS value FROM r
+
+  # ---------------------------------------------------------------- operating expenses vs budget
+  # Per-dept opex includes the dept's aggregate payroll, so in a small dept it would reveal pay:
+  # n = the dept's headcount and min_group 5 hide exec (2), it (3) and legal (4).
+  - id: opex_actual
+    name_zh: 运营费用（实际）
+    name_en: Operating expenses (actual)
+    definition: Posted operating expenses by cost centre (dept), payroll included.
+    formula: sum(debit - credit) of posted journal lines on expense accounts (6xxx) by dept in the period
+    unit: EUR
+    dims: [dept]
+    sources: [fin.journal_entries, fin.chart_of_accounts, hr.employees]
+    owner_role: head:finance
+    level: 3
+    min_group: 5
+    visible_to: dept
+    sql: |
+      WITH act AS (
+        SELECT j.dept, sum(j.debit_eur - j.credit_eur) AS amount
+        FROM fin.journal_entries j
+        JOIN fin.chart_of_accounts a ON a.account_code = j.account_code
+        WHERE a.type = 'expense' AND j.status = 'posted' AND j.period = ANY (%(periods)s)
+        GROUP BY j.dept
+      ), hc AS (
+        SELECT e.dept, count(*) AS n FROM hr.employees e WHERE e.hired_on < %(end)s GROUP BY e.dept
+      )
+      SELECT a.dept, a.amount AS value, coalesce(h.n, 0) AS n FROM act a LEFT JOIN hc h ON h.dept = a.dept
+      UNION ALL
+      SELECT NULL, sum(a.amount), (SELECT coalesce(sum(n), 0) FROM hc) FROM act a
+
+  - id: opex_budget
+    name_zh: 运营费用（预算）
+    name_en: Operating expenses (budget)
+    definition: Approved operating budget by dept for the period.
+    formula: sum(fin.budgets.budget_eur) by dept over the period's months
+    unit: EUR
+    dims: [dept]
+    sources: [fin.budgets, hr.employees]
+    owner_role: head:finance
+    level: 3
+    min_group: 5
+    visible_to: dept
+    sql: |
+      WITH bud AS (
+        SELECT b.dept, sum(b.budget_eur) AS amount FROM fin.budgets b
+        WHERE b.period = ANY (%(periods)s) GROUP BY b.dept
+      ), hc AS (
+        SELECT e.dept, count(*) AS n FROM hr.employees e WHERE e.hired_on < %(end)s GROUP BY e.dept
+      )
+      SELECT b.dept, b.amount AS value, coalesce(h.n, 0) AS n FROM bud b LEFT JOIN hc h ON h.dept = b.dept
+      UNION ALL
+      SELECT NULL, sum(b.amount), (SELECT coalesce(sum(n), 0) FROM hc) FROM bud b
+
+  - id: opex_variance_pct
+    name_zh: 运营费用超预算比例
+    name_en: Opex variance vs budget
+    definition: How far posted operating expenses are above (positive) or below (negative) budget.
+    formula: (opex_actual / opex_budget - 1) * 100 by dept; undefined without budget
+    unit: pct
+    dims: [dept]
+    sources: [fin.journal_entries, fin.chart_of_accounts, fin.budgets, hr.employees]
+    owner_role: head:finance
+    level: 3
+    min_group: 5
+    visible_to: dept
+    sql: |
+      WITH act AS (
+        SELECT j.dept, sum(j.debit_eur - j.credit_eur) AS amount
+        FROM fin.journal_entries j
+        JOIN fin.chart_of_accounts a ON a.account_code = j.account_code
+        WHERE a.type = 'expense' AND j.status = 'posted' AND j.period = ANY (%(periods)s)
+        GROUP BY j.dept
+      ), bud AS (
+        SELECT b.dept, sum(b.budget_eur) AS amount FROM fin.budgets b
+        WHERE b.period = ANY (%(periods)s) GROUP BY b.dept
+      ), hc AS (
+        SELECT e.dept, count(*) AS n FROM hr.employees e WHERE e.hired_on < %(end)s GROUP BY e.dept
+      ), rows AS (
+        SELECT b.dept, coalesce(a.amount, 0) AS actual, b.amount AS budget, coalesce(h.n, 0) AS n
+        FROM bud b LEFT JOIN act a ON a.dept = b.dept LEFT JOIN hc h ON h.dept = b.dept
+      )
+      SELECT dept, CASE WHEN budget > 0 THEN round((actual / budget - 1) * 100, 4) END AS value, n FROM rows
+      UNION ALL
+      SELECT NULL, CASE WHEN sum(budget) > 0 THEN round((sum(actual) / sum(budget) - 1) * 100, 4) END,
+             (SELECT coalesce(sum(n), 0) FROM hc)
+      FROM rows
+
+  # ---------------------------------------------------------------- cash and receivables
+  - id: cash_net_flow
+    name_zh: 净现金流（银行）
+    name_en: Net cash flow (bank)
+    definition: Net movement on the bank account in the period; negative means cash burn. The ledger holds no opening balance, so this is a flow, not a balance.
+    formula: sum(debit - credit) of posted journal lines on account 1800 in the period's months
+    unit: EUR
+    dims: []
+    sources: [fin.journal_entries]
+    owner_role: head:finance
+    level: 3
+    visible_to: management
+    sql: |
+      SELECT coalesce(sum(j.debit_eur - j.credit_eur), 0) AS value
+      FROM fin.journal_entries j
+      WHERE j.account_code = '1800' AND j.status = 'posted' AND j.period = ANY (%(periods)s)
+
+  - id: ar_overdue_total
+    name_zh: 逾期应收账款
+    name_en: Overdue receivables
+    definition: Invoices issued before the reporting date, past their due date and unpaid on the reporting date.
+    formula: sum(amount_eur) of invoices with issued_on < as_of, due_on < as_of and (paid_on is null or paid_on >= as_of)
+    unit: EUR
+    dims: []
+    sources: [fin.invoices]
+    owner_role: head:finance
+    level: 3
+    visible_to: management
+    sql: |
+      SELECT coalesce(sum(i.amount_eur), 0) AS value FROM fin.invoices i
+      WHERE i.issued_on < %(as_of)s AND i.due_on < %(as_of)s
+        AND (i.paid_on IS NULL OR i.paid_on >= %(as_of)s)
+
+  - id: ar_overdue_60d
+    name_zh: 逾期超过 60 天的应收账款
+    name_en: Receivables more than 60 days overdue
+    definition: The part of overdue receivables whose due date lies more than 60 days before the reporting date.
+    formula: as ar_overdue_total, with as_of - due_on > 60
+    unit: EUR
+    dims: []
+    sources: [fin.invoices]
+    owner_role: head:finance
+    level: 3
+    visible_to: management
+    sql: |
+      SELECT coalesce(sum(i.amount_eur), 0) AS value FROM fin.invoices i
+      WHERE i.issued_on < %(as_of)s AND (%(as_of)s::date - i.due_on) > 60
+        AND (i.paid_on IS NULL OR i.paid_on >= %(as_of)s)
+
+  - id: ar_overdue_by_tier
+    name_zh: 按客户层级的逾期应收
+    name_en: Overdue receivables by customer tier
+    definition: Overdue receivables grouped by the customer's CRM tier (strategic, key, standard). Never by person.
+    formula: as ar_overdue_total, grouped by crm.accounts.tier
+    unit: EUR
+    dims: [tier]
+    sources: [fin.invoices, crm.accounts]
+    owner_role: head:finance
+    level: 3
+    visible_to: management
+    sql: |
+      SELECT a.tier, coalesce(sum(i.amount_eur), 0) AS value
+      FROM crm.accounts a
+      LEFT JOIN fin.invoices i ON i.customer_account_id = a.account_id
+        AND i.issued_on < %(as_of)s AND i.due_on < %(as_of)s
+        AND (i.paid_on IS NULL OR i.paid_on >= %(as_of)s)
+      GROUP BY a.tier
+
+  - id: dso_days
+    name_zh: 应收账款周转天数（DSO）
+    name_en: Days sales outstanding (DSO)
+    definition: Open receivables on the reporting date divided by revenue recognised in the period, times the days in the period.
+    formula: open AR(as_of) / revenue(period) * days(period); undefined without revenue
+    unit: days
+    dims: []
+    sources: [fin.invoices, fin.journal_entries, fin.chart_of_accounts]
+    owner_role: head:finance
+    level: 3
+    visible_to: management
+    sql: |
+      WITH ar AS (
+        SELECT coalesce(sum(i.amount_eur), 0) AS open_ar FROM fin.invoices i
+        WHERE i.issued_on < %(as_of)s AND (i.paid_on IS NULL OR i.paid_on >= %(as_of)s)
+      ), rev AS (
+        SELECT coalesce(sum(j.credit_eur - j.debit_eur), 0) AS amount
+        FROM fin.journal_entries j
+        JOIN fin.chart_of_accounts a ON a.account_code = j.account_code
+        WHERE a.type = 'revenue' AND j.status = 'posted' AND j.period = ANY (%(periods)s)
+      )
+      SELECT CASE WHEN rev.amount > 0 THEN round(ar.open_ar / rev.amount * %(days)s, 4) END AS value
+      FROM ar, rev
+
+  # ---------------------------------------------------------------- sales
+  - id: pipeline_value
+    name_zh: 销售管道金额
+    name_en: Pipeline value
+    definition: Amount of open opportunities by stage when the snapshot is computed.
+    formula: sum(crm.opportunities.amount_eur) where stage not closed, by stage
+    unit: EUR
+    dims: [stage]
+    sources: [crm.opportunities]
+    owner_role: head:sales
+    level: 3
+    dept: sales
+    visible_to: dept
+    sql: |
+      SELECT o.stage, sum(o.amount_eur) AS value FROM crm.opportunities o
+      WHERE o.stage IN ('prospecting', 'qualification', 'proposal', 'negotiation')
+      GROUP BY GROUPING SETS ((o.stage), ())
+
+  - id: win_rate_pct
+    name_zh: 赢单率（近 12 个月）
+    name_en: Win rate (trailing 12 months)
+    definition: Won opportunities as a share of all opportunities closed in the twelve months up to the end of the period.
+    formula: count(closed_won) / count(closed_won or closed_lost) * 100, close_date in [ttm_start, end)
+    unit: pct
+    dims: []
+    sources: [crm.opportunities]
+    owner_role: head:sales
+    level: 3
+    dept: sales
+    visible_to: dept
+    sql: |
+      SELECT CASE WHEN count(*) > 0
+                  THEN round(count(*) FILTER (WHERE o.stage = 'closed_won')::numeric / count(*) * 100, 4) END AS value
+      FROM crm.opportunities o
+      WHERE o.stage IN ('closed_won', 'closed_lost')
+        AND o.close_date >= %(ttm_start)s AND o.close_date < %(end)s
+
+  - id: bookings
+    name_zh: 新签合同额
+    name_en: Bookings
+    definition: Amount of opportunities won with a close date in the period.
+    formula: sum(amount_eur) of closed_won opportunities with close_date in [start, end)
+    unit: EUR
+    dims: []
+    sources: [crm.opportunities]
+    owner_role: head:sales
+    level: 3
+    dept: sales
+    visible_to: dept
+    sql: |
+      SELECT coalesce(sum(o.amount_eur), 0) AS value FROM crm.opportunities o
+      WHERE o.stage = 'closed_won' AND o.close_date >= %(start)s AND o.close_date < %(end)s
+
+  # ---------------------------------------------------------------- people (aggregates only, D7)
+  - id: headcount
+    name_zh: 人数
+    name_en: Headcount
+    definition: Employees on record hired before the end of the period, by dept. Departments under five people are not shown. The HR table has no leaving date yet, so employees who have left are still counted.
+    formula: count(hr.employees) with hired_on < end, by dept
+    unit: count
+    dims: [dept]
+    sources: [hr.employees]
+    owner_role: head:hr
+    level: 3
+    min_group: 5
+    visible_to: ["dept:{dept}", "head:{dept}", "role:ceo", "dept:finance", "head:hr"]
+    sql: |
+      SELECT e.dept, count(*) AS value, count(*) AS n FROM hr.employees e
+      WHERE e.hired_on < %(end)s
+      GROUP BY GROUPING SETS ((e.dept), ())
+
+  - id: attrition_pct
+    name_zh: 已停用员工账号占比（当前状态）
+    name_en: Deactivated employee accounts (current state)
+    definition: Share of employees hired before the end of the period whose directory account is deactivated at the time the snapshot is computed, by dept only and only for groups of five or more. This is not an attrition rate and has no time window. The HR table has no leaving date, so a deactivation for any reason (a leaver, a lockout, the admin demo switch) counts, in every period, past ones included. Replace it with leavers by leaving date once hr.employees records one.
+    formula: count(employees hired before end whose core.users.active = false now) / count(employees hired before end) * 100, by dept
+    unit: pct
+    dims: [dept]
+    sources: [hr.employees, core.users]
+    owner_role: head:hr
+    level: 4
+    min_group: 5
+    visible_to: ["dept:{dept}", "head:{dept}", "role:ceo", "dept:finance", "head:hr"]
+    sql: |
+      SELECT e.dept,
+             CASE WHEN count(*) > 0
+                  THEN round(count(*) FILTER (WHERE u.active IS FALSE)::numeric / count(*) * 100, 4) END AS value,
+             count(*) AS n
+      FROM hr.employees e
+      LEFT JOIN core.users u ON u.user_id = e.employee_id
+      WHERE e.hired_on < %(end)s
+      GROUP BY GROUPING SETS ((e.dept), ())
+
+  - id: open_requisitions
+    name_zh: 在招岗位数
+    name_en: Open positions
+    definition: Positions on open requisitions opened before the end of the period, by hiring dept (roles and headcount are internal, L2).
+    formula: sum(hr.requisitions.headcount) where status = 'open' and opened_on < end, by dept
+    unit: count
+    dims: [dept]
+    sources: [hr.requisitions]
+    owner_role: head:hr
+    level: 2
+    visible_to: company
+    sql: |
+      SELECT r.dept, sum(r.headcount) AS value FROM hr.requisitions r
+      WHERE r.status = 'open' AND r.opened_on < %(end)s
+      GROUP BY GROUPING SETS ((r.dept), ())
+
+  # Requisition budgets are L3 for the hiring head, HR, finance heads and the CEO. A one-position
+  # requisition's budget is close to one future salary, so these never go to a whole department and
+  # their drafts skip finance staff.
+  - id: hiring_budget_approved
+    name_zh: 招聘预算（已批准）
+    name_en: Hiring budget (approved)
+    definition: Approved first-year cost of requisitions that are open or on hold when the snapshot is computed (the current status, not the status at the end of the period), by hiring dept.
+    formula: sum(hr.requisition_budgets.approved_budget_eur) for requisitions open or on hold, by dept
+    unit: EUR
+    dims: [dept]
+    sources: [hr.requisitions, hr.requisition_budgets]
+    owner_role: head:hr
+    level: 3
+    draft_acl: ["head:finance", "role:ceo"]
+    visible_to: ["head:{dept}", "head:hr", "head:finance", "role:ceo"]
+    sql: |
+      SELECT r.dept, sum(b.approved_budget_eur) AS value
+      FROM hr.requisitions r JOIN hr.requisition_budgets b ON b.req_id = r.req_id
+      WHERE r.status IN ('open', 'on_hold') AND r.opened_on < %(end)s
+      GROUP BY GROUPING SETS ((r.dept), ())
+
+  - id: hiring_cost_projected
+    name_zh: 招聘成本（预计）
+    name_en: Hiring cost (projected)
+    definition: Projected first-year cost of requisitions that are open or on hold when the snapshot is computed (the current status, not the status at the end of the period), by hiring dept.
+    formula: sum(hr.requisition_budgets.projected_cost_eur) for requisitions open or on hold, by dept
+    unit: EUR
+    dims: [dept]
+    sources: [hr.requisitions, hr.requisition_budgets]
+    owner_role: head:hr
+    level: 3
+    draft_acl: ["head:finance", "role:ceo"]
+    visible_to: ["head:{dept}", "head:hr", "head:finance", "role:ceo"]
+    sql: |
+      SELECT r.dept, sum(b.projected_cost_eur) AS value
+      FROM hr.requisitions r JOIN hr.requisition_budgets b ON b.req_id = r.req_id
+      WHERE r.status IN ('open', 'on_hold') AND r.opened_on < %(end)s
+      GROUP BY GROUPING SETS ((r.dept), ())
+
+  - id: hiring_variance_pct
+    name_zh: 招聘成本超预算比例
+    name_en: Hiring cost vs budget
+    definition: How far the projected cost of requisitions open or on hold when the snapshot is computed is above (positive) or below budget.
+    formula: (projected / approved - 1) * 100, by dept
+    unit: pct
+    dims: [dept]
+    sources: [hr.requisitions, hr.requisition_budgets]
+    owner_role: head:hr
+    level: 3
+    draft_acl: ["head:finance", "role:ceo"]
+    visible_to: ["head:{dept}", "head:hr", "head:finance", "role:ceo"]
+    sql: |
+      SELECT r.dept,
+             CASE WHEN sum(b.approved_budget_eur) > 0
+                  THEN round((sum(b.projected_cost_eur) / sum(b.approved_budget_eur) - 1) * 100, 4) END AS value
+      FROM hr.requisitions r JOIN hr.requisition_budgets b ON b.req_id = r.req_id
+      WHERE r.status IN ('open', 'on_hold') AND r.opened_on < %(end)s
+      GROUP BY GROUPING SETS ((r.dept), ())
+
+  # ---------------------------------------------------------------- engineering (project level, never per person)
+  - id: projects_by_stage
+    name_zh: 各阶段项目数
+    name_en: Projects by stage
+    definition: Number of delivery projects in each stage (requirements, approved, development, testing, release, operations) when the snapshot is computed.
+    formula: count(eng.projects) by stage
+    unit: count
+    dims: [stage]
+    sources: [eng.projects]
+    owner_role: head:eng
+    level: 3
+    dept: eng
+    visible_to: ["dept:{dept}", "head:{dept}", "role:ceo", "dept:finance", "dept:sales", "head:sales"]
+    sql: |
+      SELECT p.stage, count(*) AS value FROM eng.projects p
+      GROUP BY GROUPING SETS ((p.stage), ())
+
+  - id: ci_pass_rate_pct
+    name_zh: CI 通过率
+    name_en: CI pass rate
+    definition: Share of CI runs that passed in the period, by project.
+    formula: count(passed) / count(*) * 100 of eng.ci_runs with started_at in [start, end), by project
+    unit: pct
+    dims: [project_id]
+    sources: [eng.ci_runs]
+    owner_role: head:eng
+    level: 3
+    dept: eng
+    visible_to: dept
+    sql: |
+      SELECT c.project_id,
+             CASE WHEN count(*) > 0
+                  THEN round(count(*) FILTER (WHERE c.status = 'passed')::numeric / count(*) * 100, 4) END AS value
+      FROM eng.ci_runs c
+      WHERE (c.started_at AT TIME ZONE 'UTC')::date >= %(start)s AND (c.started_at AT TIME ZONE 'UTC')::date < %(end)s
+      GROUP BY GROUPING SETS ((c.project_id), ())
+
+  # ---------------------------------------------------------------- legal
+  - id: contracts_expiring_next_month
+    name_zh: 下月到期合同数
+    name_en: Contracts expiring next month
+    definition: Signed contracts whose expiry date falls in the calendar month after the reporting date's month.
+    formula: count(legal.contracts) with status = 'signed' and expires_on in [next_start, next_end)
+    unit: count
+    dims: []
+    sources: [legal.contracts]
+    owner_role: head:legal
+    level: 3
+    dept: legal
+    visible_to: ["dept:{dept}", "head:{dept}", "role:ceo", "dept:finance", "head:sales"]
+    sql: |
+      SELECT count(*) AS value FROM legal.contracts c
+      WHERE c.status = 'signed' AND c.expires_on >= %(next_start)s AND c.expires_on < %(next_end)s
+
+  - id: contracts_missing_dpa
+    name_zh: 缺少数据处理条款的合同数
+    name_en: Contracts missing data processing terms
+    definition: Signed contracts that cover personal data processing but have neither a DPA clause nor a separate signed DPA with the same customer (GDPR Art. 28).
+    formula: count(signed contracts with processes_personal_data and not has_dpa_clause and no signed DPA for the account)
+    unit: count
+    dims: []
+    sources: [legal.contracts]
+    owner_role: head:legal
+    level: 3
+    dept: legal
+    visible_to: dept
+    sql: |
+      SELECT count(*) AS value FROM legal.contracts c
+      WHERE c.status = 'signed' AND c.processes_personal_data AND NOT c.has_dpa_clause
+        AND NOT EXISTS (SELECT 1 FROM legal.contracts d
+                        WHERE d.account_id = c.account_id AND d.contract_type = 'DPA' AND d.status = 'signed')

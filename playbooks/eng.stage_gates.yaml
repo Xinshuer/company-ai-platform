@@ -1,0 +1,47 @@
+# Engineering stage gates for FleetPilot projects (需求 → 立项 → 开发 → 测试 → 上线 → 运维).
+# One document per version: v1 is retired, v2 is in force, v3 is a draft under review by the CTO.
+# load_playbook("eng.stage_gates") returns v2; drafts and retired versions are never used by a graph.
+id: eng.stage_gates
+title: Project stage gates
+dept: eng
+owner_role: manager
+version: 1
+status: retired
+level: L2
+eval_set: null
+body:
+  gates:
+    需求: {exit: [requirements reviewed by product]}
+    开发: {exit: [code review done]}
+    上线: {exit: [release notes written]}
+---
+id: eng.stage_gates
+title: Project stage gates
+dept: eng
+owner_role: manager
+version: 2
+status: active
+level: L2
+eval_set: evals/eng
+body:
+  gates:
+    需求: {exit: [requirements reviewed by product and sales engineering]}
+    立项: {exit: [scope, owner and target quarter agreed by the CTO]}
+    开发: {exit: [code review done, unit tests green]}
+    测试: {exit: [CI green on the release branch for 3 consecutive runs, no open blocker tickets]}
+    上线: {exit: [release notes written, rollback plan tested, customer success informed]}
+    运维: {exit: [on-call runbook updated, error budget tracked weekly]}
+  escalation: a project stuck in 测试 for more than 30 days while CI is red goes to the CTO's weekly review
+---
+id: eng.stage_gates
+title: Project stage gates
+dept: eng
+owner_role: manager
+version: 3
+status: draft
+level: L2
+eval_set: evals/eng
+body:
+  gates:
+    测试: {exit: [CI green on the release branch for 5 consecutive runs, no open blocker or critical tickets]}
+  note: draft — stricter testing gate proposed, not yet in force

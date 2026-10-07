@@ -1,0 +1,42 @@
+# Sales follow-up playbook by tier (design-review 三 Playbook: 销售 — 低、中、高意向各自的跟进策略、
+# 触达频率、可以承诺的内容). Rules as data: the strategy node gets the entry for the account's tier and
+# may promise only what `allowed_commitments` lists. L3 because discount limits are commercial secrets,
+# so any model call that reads it runs on the local route.
+id: sales.followup
+title: Follow-up strategy by fit and intent tier
+dept: sales
+owner_role: manager        # the head of sales owns and approves changes
+owner_group: head:sales
+version: 3
+status: active             # draft | active | retired
+level: L3
+eval_set: evals/sales
+tiers:
+  high:
+    goal: Close within the quarter
+    cadence_days: 3
+    max_touches_per_month: 8
+    channels: [call, meeting, demo, email]
+    next_steps: [schedule decision-maker meeting, tailored demo on their depots, mutual close plan]
+    allowed_commitments: [pilot of up to 60 days, reference call with an existing customer, standard implementation plan,
+                          discount up to 10 percent]
+    needs_approval: [discount above 10 percent (head of sales), discount above 25 percent (CEO), custom SLA terms]
+    forbidden_commitments: [delivery dates for unreleased features, free licences, non-standard liability terms]
+  medium:
+    goal: Qualify the need and a budget date
+    cadence_days: 10
+    max_touches_per_month: 4
+    channels: [email, call]
+    next_steps: [discovery call on route planning pain points, share a relevant case study]
+    allowed_commitments: [product walkthrough, case study, standard price list]
+    needs_approval: [any discount]
+    forbidden_commitments: [delivery dates for unreleased features, free licences, pilots]
+  low:
+    goal: Stay visible without pressure
+    cadence_days: 45
+    max_touches_per_month: 1
+    channels: [email]
+    next_steps: [quarterly newsletter, invite to a webinar]
+    allowed_commitments: [newsletter, webinar invitation]
+    needs_approval: [any discount, any call outreach beyond one per quarter]
+    forbidden_commitments: [pricing, pilots, delivery dates]

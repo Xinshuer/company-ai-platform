@@ -237,8 +237,13 @@ tools:
   - {agent: sales_web, tool: crm.get_account, allow: []}
   - {agent: hr_headcount, tool: hris.create_requisition, allow: [hr_head, hr_staff]}
   - {agent: hr_headcount, tool: hris.get_employee, allow: [sales_head, eng_head, legal_head, finance_head, hr_head, hr_staff]}
-  - {agent: hr_screening, tool: hris.get_candidate, allow: [hr_head, hr_staff]}
-  - {agent: hr_screening, tool: hris.list_candidates, allow: [hr_head, hr_staff]}
+  # D6: only HR screens. The hiring manager (eng_head holds req:R-01) passes the new tool rule
+  # tool-hris-hiring-manager but cannot start hr_screening; their read-only candidate view needs its own
+  # agent (core change request; tested in tests/hr/test_hiring_manager_rule.py).
+  - {agent: hr_screening, tool: hris.get_candidate, allow: [hr_head, hr_staff], extra: [[eng_head, deny, agent-start-denied]]}
+  - {agent: hr_screening, tool: hris.list_candidates, allow: [hr_head, hr_staff], extra: [[eng_head, deny, agent-start-denied]]}
+  - {agent: hr_screening, tool: hris.create_requisition, allow: []}
+  - {agent: hr_headcount, tool: hris.list_candidates, allow: []}
   - {agent: superagent, tool: docs.search_docs, allow: []}
   - {agent: qa, tool: docs.drop_tables, allow: []}
 
