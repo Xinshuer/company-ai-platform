@@ -1,0 +1,185 @@
+# Q&A golden set (design-review 二.13; architecture §16 M1 "same question, different people").
+#
+# Questions come from the synthetic company's corpus and systems (corpai/synth, docs/company.md).
+# For each question, one or more groups of personas with:
+#   cites    doc ids (or tool sources such as crm.account:A-0002); at least one must be cited
+#   never    glob patterns that must never be cited for these personas (no permission)
+# On top of the listed `never`, every citation of every run is checked against the cited record's
+# own ACL and level (owner-side), so nothing a persona may not read can pass unnoticed.
+#
+# Fake model (default): each group must pass. Live model (CORPAI_LLM=live): hit rate over all
+# groups >= 0.8 and zero permission leaks (evals/qa/test_qa_golden.py).
+
+questions:
+  # ---- company-wide documents (public site, handbooks, policies) ---------------------------------
+  - id: product-overview
+    question: "What does FleetPilot do?"
+    groups:
+      - {personas: [sales_staff, auditor], cites: [pub-fleetpilot]}
+  - id: product-overview-zh
+    question: "FleetPilot 是做什么的？"
+    groups:
+      - {personas: [hr_staff], cites: [pub-fleetpilot, pub-press-2025-10-fleetpilot-3]}
+  - id: travel-policy
+    question: "What is our travel policy for train journeys?"
+    groups:
+      - {personas: [finance_staff, platform_admin], cites: [gen-travel-policy]}
+  - id: expense-claims
+    question: "How do I submit an expense claim and by when?"
+    groups:
+      - {personas: [legal_staff], cites: [gen-expense-policy]}
+  - id: remote-work
+    question: "What does the remote work policy allow?"
+    groups:
+      - {personas: [hr_head], cites: [gen-remote-work-policy]}
+  - id: data-protection-policy
+    question: "What does our data protection policy say about handling personal data?"
+    groups:
+      - {personas: [auditor], cites: [gen-data-protection-policy]}
+  - id: ai-usage
+    question: "What are the AI usage guideline rules for using AI tools at work?"
+    groups:
+      - {personas: [eng_staff], cites: [gen-ai-usage-guideline]}
+  - id: code-of-conduct
+    question: "What does the code of conduct say about gifts?"
+    groups:
+      - {personas: [sales_head], cites: [gen-code-of-conduct]}
+  - id: annual-leave
+    question: "How does leave and absence work, and how many holidays do I get?"
+    groups:
+      - {personas: [hr_staff], cites: [hr-handbook-leave]}
+  - id: onboarding
+    question: "What happens during onboarding in my first week?"
+    groups:
+      - {personas: [exec_staff], cites: [hr-handbook-onboarding]}
+  - id: performance-reviews-handbook
+    question: "How do performance reviews work according to the HR handbook?"
+    groups:
+      - {personas: [eng_staff], cites: [hr-handbook-performance]}
+  - id: series-b
+    question: "How much did Kestrelbyte raise in its Series B?"
+    groups:
+      - {personas: [legal_staff], cites: [pub-press-2026-01-series-b]}
+  - id: warsaw-hub
+    question: "When did the Warsaw engineering hub open?"
+    groups:
+      - {personas: [ceo], cites: [pub-press-2026-03-warsaw-hub]}
+  - id: sre-job
+    question: "Is there an open Site Reliability Engineer job?"
+    groups:
+      - {personas: [eng_staff], cites: [pub-jd-R-02]}
+  - id: cold-chain-module
+    question: "What does the FleetPilot cold-chain module do?"
+    groups:
+      - {personas: [sales_staff], cites: [pub-coldchain]}
+  - id: eurofleet
+    question: "What did Kestrelbyte show at EuroFleet Expo 2026?"
+    groups:
+      - {personas: [finance_head], cites: [pub-press-2026-09-eurofleet]}
+
+  # ---- the regulation library (legal_regs: every employee; ops roles search public/general only)
+  - id: gdpr-art-28
+    question: "What does GDPR Article 28 require of processors?"
+    groups:
+      - {personas: [legal_staff, sales_staff], cites: [GDPR-Art-28]}
+      - {personas: [auditor, platform_admin], never: ["GDPR-*", "legal.regulation:*"]}
+  - id: gdpr-art-22
+    question: "What does GDPR say about automated decision-making and profiling?"
+    groups:
+      - {personas: [hr_staff], cites: [GDPR-Art-22, "legal.regulation:GDPR-Art-22"]}
+  - id: gdpr-breach-notification
+    question: "When must a personal data breach be notified to the supervisory authority under GDPR?"
+    groups:
+      - {personas: [eng_head], cites: [GDPR-Art-33, "legal.regulation:GDPR-Art-33"]}
+  - id: ai-act-employment
+    question: "Is AI in employment and workers management high-risk under the EU AI Act?"
+    groups:
+      - {personas: [hr_head], cites: [AI-Act-Annex-III-4]}
+
+  # ---- department documents: same question, different people ---------------------------------
+  - id: battle-card
+    question: "What are our battle cards against Tourenmeister Cloud?"
+    groups:
+      - {personas: [sales_staff, sales_head], cites: [sales-battlecard-tourenmeister]}
+      - {personas: [eng_staff, ceo], never: ["sales-*"]}
+  - id: account-plan-havenmeer
+    question: "What does the account plan for Havenmeer say?"
+    groups:
+      - {personas: [sales_staff], cites: [sales-plan-A-0002],
+         never: [sales-plan-A-0001, sales-plan-A-0003, sales-plan-A-0007]}
+      - {personas: [sales_head], cites: [sales-plan-A-0002]}
+      - {personas: [legal_staff], never: ["sales-*"]}
+  - id: quarterly-statement
+    question: "What is in the quarterly statement 2026-Q2?"
+    groups:
+      - {personas: [finance_staff, finance_head], cites: [fin-statement-2026-Q2]}
+      - {personas: [sales_head, ceo], never: ["fin-*"]}
+  - id: funding-memo
+    question: "What does the funding memo say about runway and the next round?"
+    groups:
+      - {personas: [finance_head], cites: [fin-funding-memo-2026]}
+      - {personas: [hr_head], never: ["fin-*"]}
+  - id: month-end-close
+    question: "What is the month-end close procedure?"
+    groups:
+      - {personas: [finance_staff], cites: [fin-month-end-close]}
+      - {personas: [legal_staff], never: ["fin-*"]}
+  - id: board-update
+    question: "What did the board update Q2 2026 say?"
+    groups:
+      - {personas: [ceo], cites: [exec-board-update-2026-Q2]}
+      - {personas: [exec_staff], never: ["exec-*"]}
+  - id: on-call
+    question: "What is the on-call rotation?"
+    groups:
+      - {personas: [eng_staff], cites: [eng-wiki-oncall]}
+      - {personas: [sales_staff], never: ["eng-*"]}
+  - id: outage-postmortem
+    question: "What happened in the routing API outage post-mortem of 2026-04-22?"
+    groups:
+      - {personas: [eng_staff], cites: [eng-postmortem-2026-04-22]}
+      - {personas: [sales_head], never: ["eng-*"]}
+  - id: interview-guide
+    question: "How do we run the structured interview?"
+    groups:
+      - {personas: [hr_staff, hr_head], cites: [hr-interview-guide]}
+      - {personas: [eng_head], never: [hr-interview-guide]}
+  - id: contract-c0006
+    question: "Summarise contract C-0006 with Donauzeile"
+    groups:
+      - {personas: [legal_head], cites: [C-0006]}
+      - {personas: [legal_staff, sales_head], never: [C-0006]}
+  - id: matter-m02-memo
+    question: "What is in Memo M-02 about the Routenwerk patent assertion letter?"
+    groups:
+      - {personas: [legal_head], cites: [legal-M-02-memo]}
+      - {personas: [legal_staff, ceo], never: [legal-M-02-memo]}
+  - id: geo-utils-readme
+    question: "Summarise the fp-geo-utils README"
+    groups:
+      - {personas: [eng_head], cites: [eng-P-03-geo-utils-readme]}
+      - {personas: [eng_staff], never: ["eng-P-03-*"]}
+  - id: multidepot-readme
+    question: "What does the fp-multidepot README say about release signing?"
+    groups:
+      - {personas: [eng_head], cites: [eng-P-01-readme]}
+      - {personas: [eng_staff], never: [eng-P-01-readme]}
+
+  # ---- structured systems through the read tools ------------------------------------------------
+  - id: customer-accounts
+    question: "Which customer accounts need attention?"
+    groups:
+      - {personas: [sales_staff], cites: ["crm.account:A-0002", "crm.account:A-0004"],
+         never: ["crm.account:A-0001", "crm.account:A-0003"]}
+      - {personas: [sales_head], cites: ["crm.account:A-0001"]}
+      - {personas: [eng_staff], never: ["crm.*"]}
+  - id: contracts-expiring
+    question: "Which contracts are expiring soon?"
+    groups:
+      - {personas: [legal_staff, ceo], cites: ["legal.contract:C-0003"]}
+      - {personas: [sales_staff], never: ["legal.contract:*"]}
+  - id: project-status
+    question: "What is the status of our projects?"
+    groups:
+      - {personas: [eng_staff, sales_staff], cites: ["eng.project:P-01", "eng.project:P-02"]}
+      - {personas: [finance_staff], never: ["eng.project:*"]}

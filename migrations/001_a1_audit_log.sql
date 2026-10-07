@@ -25,7 +25,12 @@ CREATE TABLE IF NOT EXISTS audit.log (
                 'login', 'demo_login', 'policy_decision', 'tool_call', 'retrieval', 'model_call',
                 'route_decision', 'proposal_created', 'proposal_approved', 'proposal_rejected',
                 'proposal_executed', 'export', 'outage_switch', 'budget_exceeded', 'break_glass',
-                'owner_job')),
+                'owner_job',
+                -- the security auditor's own reads of the log (GET /api/audit)
+                'audit_read',
+                -- human acts that deserve their own event (issues-log D-13): the CFO's sign-off and
+                -- publication of metrics, AI screening evidence and the HR person's decision
+                'metric_signed', 'metric_published', 'hr_screening', 'hr_decision')),
   action      text,
   resource    text,
   decision    text,

@@ -19,8 +19,11 @@ python -m corpai serve          # API + MCP servers + UI on http://127.0.0.1:800
 python -m corpai demo-record    # (live) record UI fixtures from real runs
 python -m pytest                # all tests, fake LLM, fake embedder
 python -m pytest -m security    # permission matrix, routing canaries, chaos, red team
-python -m pytest -m eval        # eval suites (fake by default; CORPAI_LLM=live for real numbers)
+python -m pytest -m eval        # eval suites, fake model (testpaths include tests/, so this never goes live)
+CORPAI_LLM=live CORPAI_EVAL_RUNS=3 python -m pytest evals/legal -m eval   # live evals: name eval paths only
 ```
+
+Live evals call the real DeepSeek API and cost money. A run is live only when `CORPAI_LLM=live` **and** every path on the command line lies under `evals/` (for example `evals`, `evals/legal`, `evals/qa`). With no paths, or with any path outside `evals/`, the session stays on the fake model and the API key is removed from the process. The pytest header says which mode the session is in.
 
 ## Async and Windows
 
@@ -50,7 +53,7 @@ python -m pytest -m eval        # eval suites (fake by default; CORPAI_LLM=live 
 
 ## Tests
 
-- `tests/conftest.py` (core, frozen) provides:
+- `tests/conftest.py` (core, frozen) provides the fixtures below. The root `conftest.py` registers it once as a global plugin (issues-log D-11), so `evals/` uses the very same fixtures and one database, whichever order the directories are collected in (`pytest tests evals` or `pytest evals tests`). Do not copy these fixtures into `evals/*/conftest.py`; those files hold eval-only fixtures.
   - forces `CORPAI_LLM=fake`, `CORPAI_EMBED=fake`, and removes `DEEPSEEK_API_KEY` from `os.environ` for the whole run;
   - `pg` (session): a fresh pgserver under `.data/test/<pid>` (so parallel pytest runs never collide), all migrations applied, stopped with `pg_ctl` and deleted at the end;
   - `seeded` (session): `synth --small --seed 7` + ingest, once per session;

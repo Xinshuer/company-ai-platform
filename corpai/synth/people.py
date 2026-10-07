@@ -11,7 +11,7 @@ from datetime import date
 from corpai.synth import labels
 from corpai.synth._util import STAFF_DOMAIN, World, ascii_fold, canary, faker_for, label, money, rng_for, weighted
 from corpai.synth.personas import PERSONA_SPECS, SERVICE_ACCOUNTS
-from corpai.synth.script import FIRST_STAFF_ID, STAFF_PLAN
+from corpai.synth.script import FIRST_STAFF_ID, LEAVERS, STAFF_PLAN
 
 HEADS = {"exec": "u0001", "sales": "u0010", "eng": "u0020", "legal": "u0030", "finance": "u0040",
          "hr": "u0050", "it": "u0060"}
@@ -106,6 +106,9 @@ def build(world: World) -> None:
                               "country": country, "hired_on": hired})
                 n += 1
 
+    leavers = _leavers(seed, taken_emails, taken_names)
+    users.extend(leavers)
+
     for svc in SERVICE_ACCOUNTS:
         job = svc.split(":", 1)[1]
         users.append({"user_id": svc, "name": f"{job} service", "email": f"svc-{job}@{STAFF_DOMAIN}", "dept": "it",
@@ -114,18 +117,18 @@ def build(world: World) -> None:
                       "country": None, "hired_on": None})
 
     world.tables["core.users"] = users
-    humans = [u for u in users if u["role"] != "service"]
+    left_on = {lv.user_id: lv.left_on for lv in LEAVERS}
+    # Leavers draw from their own random stream below, so adding them changed nothing for current staff.
+    humans = [u for u in users if u["role"] != "service" and u["user_id"] not in left_on]
 
     for u in humans:
         uid = u["user_id"]
         part_time = uid not in HEADS.values() and rng.random() < 0.08
-        world.add("hr.employees", {
-            "employee_id": uid, "name": u["name"], "dept": u["dept"], "title": u["title"],
-            "manager_id": u["manager_id"], "country": u["country"], "hired_on": u["hired_on"],
-            "employment_type": "part_time" if part_time else "full_time",
-            "fte": money(0.8 if part_time else 1.0),
-            # `dept` is the employee's department and doubles as the label dept column
-            **label(3, u["dept"], HR_HEAD, labels.hr_employee(uid), subjects=[uid])})
+        _employee(world, u, part_time, None)
+
+    lrng = rng_for(seed, "leavers")
+    for u in leavers:
+        _employee(world, u, False, left_on[u["user_id"]])
 
     lvl, acl = labels.HR_RESTRICTED
     for u in humans:
@@ -139,6 +142,14 @@ def build(world: World) -> None:
             "employee_id": uid, "base_salary_eur": salary, "bonus_target_pct": money(bonus),
             "effective_on": max(u["hired_on"], date(2026, 1, 1)),
             **label(lvl, "hr", HR_HEAD, acl, subjects=[uid])})
+    for u in leavers:
+        # the last pay record before leaving: payroll (fin.py) stops after left_on
+        base, bonus = _PAY[u["title"]]
+        salary = money(round(base * _COUNTRY_PAY.get(u["country"], 1.0) * lrng.uniform(0.94, 1.06) / 100) * 100)
+        world.add("hr.compensation", {
+            "employee_id": u["user_id"], "base_salary_eur": salary, "bonus_target_pct": money(bonus),
+            "effective_on": max(u["hired_on"], date(2025, 1, 1)),
+            **label(lvl, "hr", HR_HEAD, acl, subjects=[u["user_id"]])})
 
     perf_canary = canary(seed, 5)
     for u in humans:
@@ -154,6 +165,36 @@ def build(world: World) -> None:
                                        "level": lvl})
             world.add("hr.performance", {"employee_id": uid, "period": per, "rating": rating, "summary": summary,
                                          **label(lvl, "hr", HR_HEAD, acl, subjects=[uid])})
+
+
+def _employee(world: World, u: dict, part_time: bool, left_on: date | None) -> None:
+    uid = u["user_id"]
+    world.add("hr.employees", {
+        "employee_id": uid, "name": u["name"], "dept": u["dept"], "title": u["title"],
+        "manager_id": u["manager_id"], "country": u["country"], "hired_on": u["hired_on"],
+        "left_on": left_on,  # last working day; NULL while employed (issues-log D-12)
+        "employment_type": "part_time" if part_time else "full_time",
+        "fte": money(0.8 if part_time else 1.0),
+        # `dept` is the employee's department and doubles as the label dept column
+        **label(3, u["dept"], HR_HEAD, labels.hr_employee(uid), subjects=[uid])})
+
+
+def _leavers(seed: int, taken_emails: set[str], taken_names: set[str]) -> list[dict]:
+    """Former employees: deactivated directory accounts (no groups, so RLS shows them nothing and
+    they cannot log in) with names from their own Faker stream."""
+    out = []
+    fakers = {cc: faker_for(seed, loc, "leavers") for cc, loc in _LOCALE.items()}
+    for lv in LEAVERS:
+        fk = fakers[lv.country]
+        name = f"{fk.first_name()} {fk.last_name()}"
+        while name in taken_names:
+            name = f"{fk.first_name()} {fk.last_name()}"
+        taken_names.add(name)
+        out.append({"user_id": lv.user_id, "name": name, "email": _email(name, taken_emails), "dept": lv.dept,
+                    "role": "employee", "title": lv.title, "manager_id": lv.manager_id,
+                    "clearance": clearance_for(lv.dept, "employee"), "active": False, "persona_key": None,
+                    "country": lv.country, "hired_on": lv.hired_on})
+    return out
 
 
 _STRENGTHS = ["reliable delivery against commitments", "clear written communication", "strong ownership of incidents",

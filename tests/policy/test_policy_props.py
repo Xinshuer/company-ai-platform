@@ -120,7 +120,8 @@ def test_proposal_view_from_bad_attrs():
 
 # ---- agents.yaml -------------------------------------------------------------------------------
 
-REQUIRED_AGENTS = {"qa", "legal_review", "report", "sales_profile", "sales_web", "hr_headcount", "hr_screening"}
+REQUIRED_AGENTS = {"qa", "legal_review", "report", "sales_profile", "sales_web", "hr_headcount", "hr_screening",
+                   "hr_candidates"}
 WRITE_TOOLS = {f"{d}.{t}" for d, tools in TOOL_CATALOGUE.items() for t, tier in tools.items() if tier > ToolTier.READ}
 WEB_TOOLS = {"web.search", "web.fetch"}
 
@@ -147,8 +148,9 @@ def test_web_is_isolated_in_sales_web():
 
 def test_rule_of_two_in_allowlists():
     specs = policy.load_agents()
-    # Untrusted-input agents hold no write or outbound tools (design-review 二.6).
-    for name in ("sales_web", "hr_screening"):
+    # Untrusted-input agents hold no write or outbound tools (design-review 二.6): web pages and
+    # résumés (hr_candidates serves résumé text through hris.get_candidate).
+    for name in ("sales_web", "hr_screening", "hr_candidates"):
         assert not (specs[name].tools & WRITE_TOOLS), name
     # The report agent aggregates everything: no writes, no web.
     assert not (specs["report"].tools & (WRITE_TOOLS | WEB_TOOLS))
@@ -164,12 +166,14 @@ def test_bad_agent_config_rejected():
         agents_mod._spec("x", {"tools": ["docs.get_doc"], "start": {"roles": ["wizard"]}})
 
 
+# hr_candidates (D-14) is open to every employee, head and the CEO: its tools and RLS limit it to
+# the caller's own requisitions, so opening it shows the rest an explicit "no requisitions" result.
 @pytest.mark.parametrize("key,apps", [
-    ("sales_staff", ["qa", "sales_profile"]),
-    ("legal_staff", ["qa", "legal_review"]),
-    ("hr_staff", ["qa", "hr_headcount", "hr_screening"]),
-    ("eng_head", ["qa", "report", "hr_headcount"]),
-    ("ceo", ["qa", "legal_review", "report", "sales_profile", "hr_headcount"]),
+    ("sales_staff", ["qa", "sales_profile", "hr_candidates"]),
+    ("legal_staff", ["qa", "legal_review", "hr_candidates"]),
+    ("hr_staff", ["qa", "hr_headcount", "hr_screening", "hr_candidates"]),
+    ("eng_head", ["qa", "report", "hr_headcount", "hr_candidates"]),
+    ("ceo", ["qa", "legal_review", "report", "sales_profile", "hr_headcount", "hr_candidates"]),
     ("platform_admin", ["qa"]),
     ("auditor", ["qa"]),
     ("svc_metrics", []),

@@ -48,6 +48,38 @@ STAFF_PLAN: tuple[tuple[str, tuple[tuple[str, int], ...]], ...] = (
 )
 FIRST_STAFF_ID = 100
 
+
+@dataclass(frozen=True)
+class LeaverSpec:
+    """A former employee (issues-log D-12). HR keeps the record with `left_on` (the last working
+    day); the directory account stays, deactivated. Fixed ids so every seed has the same leavers."""
+    user_id: str
+    dept: str
+    title: str
+    manager_id: str
+    country: str
+    hired_on: date
+    left_on: date
+
+
+# Five leavers in the trailing twelve months up to 2026-09-30 (eng and sales are departments of 5+,
+# so their attrition is shown; legal has 4 people and stays suppressed) and one earlier leaver, just
+# outside that window. Leavers come after the current staff and are not counted in STAFF_PLAN.
+LEAVERS: tuple[LeaverSpec, ...] = (
+    LeaverSpec("u0190", "eng", "Backend Engineer", "u0112", "DE", date(2021, 5, 1), date(2025, 12, 31)),
+    LeaverSpec("u0191", "eng", "Frontend Engineer", "u0113", "PL", date(2022, 9, 1), date(2026, 4, 30)),
+    LeaverSpec("u0192", "sales", "Account Executive", "u0010", "DE", date(2023, 2, 1), date(2026, 2, 28)),
+    LeaverSpec("u0193", "sales", "Sales Development Representative", "u0010", "DE", date(2024, 6, 1),
+               date(2026, 7, 31)),
+    LeaverSpec("u0194", "legal", "Paralegal", "u0030", "DE", date(2020, 3, 1), date(2026, 5, 31)),
+    LeaverSpec("u0195", "eng", "QA Engineer", "u0114", "DE", date(2020, 8, 1), date(2025, 8, 31)),
+)
+
+# Bank before the ledger window (2025-09-30), carried forward as the opening balance, and the
+# Series B cash (the 2026-01-20 announcement in TIMELINE; the money arrived ten days later).
+OPENING_BANK_BALANCE_EUR = 3_200_000
+SERIES_B = (date(2026, 1, 30), 18_000_000, "Brightwater Ventures")
+
 # Account executives who own CRM accounts (u0011 = persona sales_staff, u0100-u0107 from STAFF_PLAN).
 ACCOUNT_OWNERS = ("u0011", "u0100", "u0101", "u0102", "u0103", "u0104", "u0105", "u0106", "u0107")
 
@@ -194,6 +226,20 @@ class RequisitionSpec:
     comp_band: tuple[int, int]
     requirements: tuple[str, ...]
     published: bool
+    # status history (issues-log D-12): the day the current status began, so a metric for an earlier
+    # period can use the status at that period's end. None = never in that status.
+    on_hold_on: date | None = None
+    filled_on: date | None = None
+    closed_on: date | None = None
+
+    def status_on(self, d: date) -> str | None:
+        """The status at the start of day `d` (None: not opened yet). Mirrors the SQL in config/metrics.yaml."""
+        if d <= self.opened_on:
+            return None
+        for status, since in (("filled", self.filled_on), ("closed", self.closed_on), ("on_hold", self.on_hold_on)):
+            if since is not None and since < d:
+                return status
+        return "open"
 
 
 # R-02 is the planted hiring_over_budget case (projected cost 13.7 % above the approved budget).
@@ -219,11 +265,11 @@ REQUISITIONS: tuple[RequisitionSpec, ...] = (
                     92_000, 90_000, (75_000, 90_000),
                     ("Qualified lawyer in an EU member state",
                      "At least 2 years advising on GDPR",
-                     "Fluent English and German"), False),
+                     "Fluent English and German"), False, on_hold_on=date(2026, 7, 1)),
     RequisitionSpec("R-05", "finance", "Financial Controller", 1, "filled", date(2026, 1, 12), "u0040", "u0149",
                     82_000, 79_000, (65_000, 78_000),
                     ("Degree in accounting or finance", "Experience with HGB month-end close",
-                     "Advanced spreadsheet skills"), False),
+                     "Advanced spreadsheet skills"), False, filled_on=date(2026, 3, 20)),
     RequisitionSpec("R-06", "eng", "Machine Learning Engineer (ETA prediction)", 1, "open", date(2026, 9, 1), "u0113",
                     "u0149", 98_000, 94_000, (75_000, 90_000),
                     ("At least 3 years building and deploying machine learning models",
@@ -276,9 +322,13 @@ def render_markdown() -> str:
         [[p.project_id, p.name, p.customer_account_id or "internal", p.stage, p.stage_since.isoformat(), p.health]
          for p in PROJECTS])
     reqs = _md_table(
-        ["Id", "Dept", "Role", "Headcount", "Status", "Approved budget", "Projected cost"],
-        [[r.req_id, r.dept, r.title, str(r.headcount), r.status, f"{r.approved_budget_eur:,}",
+        ["Id", "Dept", "Role", "Headcount", "Status", "Opened", "Status since", "Approved budget", "Projected cost"],
+        [[r.req_id, r.dept, r.title, str(r.headcount), r.status, r.opened_on.isoformat(),
+          (r.on_hold_on or r.filled_on or r.closed_on or r.opened_on).isoformat(), f"{r.approved_budget_eur:,}",
           f"{r.projected_cost_eur:,}"] for r in REQUISITIONS])
+    leavers = _md_table(
+        ["User id", "Dept", "Title", "Hired", "Left (last day)"],
+        [[lv.user_id, lv.dept, lv.title, lv.hired_on.isoformat(), lv.left_on.isoformat()] for lv in LEAVERS])
     matters = _md_table(["Id", "Matter", "Counterparty", "Handler", "Opened"],
                         [[m.matter_id, m.title, m.counterparty, m.handler_id, m.opened_on.isoformat()]
                          for m in MATTERS])
@@ -302,12 +352,20 @@ accounts, amounts); everything below is the same for every seed.
 - Jurisdiction: {COMPANY['legal_basis']}. Personal data stays on the `local` model route
   (decisions D2).
 - Simulation window: 2025-10-01 to 2026-09-30; the simulation date is **2026-10-01**.
+- Bank: EUR {OPENING_BANK_BALANCE_EUR:,} opening balance posted on 2025-09-30 and carried forward; the Series B (EUR {SERIES_B[1]:,},
+  {SERIES_B[2]}) reached the bank on {SERIES_B[0].isoformat()}. Both are ledger entries, so the bank
+  balance on any day is the sum of the bank account's postings.
 
 ## Departments
 
 {depts}
 
 Service accounts (role `service`, dept `it`, clearance L1): {', '.join(f'`{s}`' for s in SERVICE_ACCOUNTS)}.
+
+Former employees keep their HR record (`hr.employees.left_on`, the last working day) and a
+deactivated directory account; names come from the seed:
+
+{leavers}
 
 ## Personas (fixed ids and names for every seed)
 

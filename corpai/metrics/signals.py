@@ -207,15 +207,20 @@ async def _hiring_over_budget(conn: psycopg.AsyncConnection, as_of: date) -> Sig
     denied = await _denied(conn, ("hr.requisition_budgets", "hr.requisitions"))
     if "hr.requisition_budgets" in denied:
         return _no_permission(kind, as_of, ("hr.requisition_budgets",))
-    # Only requisitions still being hired for (open / on hold), like the hiring_* metrics: a filled or
-    # closed requisition is history, not a current hiring issue. When the requisition row is hidden
-    # from this reader (RLS), its status is unknown: it is kept, and says so, rather than dropped.
+    # Only requisitions still being hired for (open / on hold) on the as_of date, like the hiring_*
+    # metrics at a period's end: a filled or closed requisition is history, not a current hiring
+    # issue. The status comes from the status dates (issues-log D-12), so an earlier as_of sees the
+    # status of that day. When the requisition row is hidden from this reader (RLS), its status is
+    # unknown: it is kept, and says so, rather than dropped.
     cur = await conn.execute(
-        "SELECT b.req_id, b.approved_budget_eur, b.projected_cost_eur, b.level, r.dept, r.title, r.status, "
+        "SELECT b.req_id, b.approved_budget_eur, b.projected_cost_eur, b.level, r.dept, r.title, "
+        "CASE WHEN r.req_id IS NULL THEN NULL WHEN r.filled_on < %(d)s THEN 'filled' "
+        "     WHEN r.closed_on < %(d)s THEN 'closed' WHEN r.on_hold_on < %(d)s THEN 'on_hold' ELSE 'open' END AS status, "
         "r.level AS req_level, (r.req_id IS NOT NULL) AS req_visible "
         "FROM hr.requisition_budgets b LEFT JOIN hr.requisitions r ON r.req_id = b.req_id "
         "WHERE b.projected_cost_eur > b.approved_budget_eur "
-        "AND (r.req_id IS NULL OR r.status IN ('open', 'on_hold')) ORDER BY b.req_id")
+        "AND (r.req_id IS NULL OR (r.opened_on < %(d)s AND NOT coalesce(r.filled_on < %(d)s, false) "
+        "                          AND NOT coalesce(r.closed_on < %(d)s, false))) ORDER BY b.req_id", {"d": as_of})
     rows = await cur.fetchall()
     findings = [{
         "ref": r["req_id"], "req_id": r["req_id"], "dept": r["dept"], "title": r["title"], "status": r["status"],

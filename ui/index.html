@@ -52,6 +52,8 @@
     <section id="view-sales" class="view" data-view="sales" hidden aria-labelledby="h-sales"></section>
     <section id="view-hr" class="view" data-view="hr" hidden aria-labelledby="h-hr"></section>
     <section id="view-headcount" class="view" data-view="headcount" hidden aria-labelledby="h-headcount"></section>
+    <section id="view-candidates" class="view" data-view="candidates" hidden aria-labelledby="h-candidates"></section>
+    <section id="view-metrics" class="view" data-view="metrics" hidden aria-labelledby="h-metrics"></section>
     <section id="view-trace" class="view" data-view="trace" hidden aria-labelledby="h-trace"></section>
     <section id="view-audit" class="view" data-view="audit" hidden aria-labelledby="h-audit"></section>
     <section id="view-admin" class="view" data-view="admin" hidden aria-labelledby="h-admin"></section>
@@ -72,7 +74,17 @@
 <script src="js/util.js"></script>
 <script src="js/icons.js"></script>
 <script src="js/lang.js"></script>
+<!-- milestone strings, merged into the dictionary by KB.lang.extend -->
+<script src="js/i18n_legal.js"></script>
+<script src="js/i18n_report.js"></script>
+<script src="js/i18n_sales.js"></script>
+<script src="js/i18n_hr.js"></script>
 <script src="js/demo.js"></script>
+<!-- milestone demo behaviour, registered with KB.demo.register -->
+<script src="js/demo_legal.js"></script>
+<script src="js/demo_report.js"></script>
+<script src="js/demo_sales.js"></script>
+<script src="js/demo_hr.js"></script>
 <script src="js/api.js"></script>
 <script src="js/components.js"></script>
 <script src="js/view_login.js"></script>
@@ -80,6 +92,12 @@
 <script src="js/view_qa.js"></script>
 <script src="js/view_approvals.js"></script>
 <script src="js/view_apps.js"></script>
+<!-- milestone pages (one file per milestone app area) -->
+<script src="js/view_legal.js"></script>
+<script src="js/view_report.js"></script>
+<script src="js/view_metrics.js"></script>
+<script src="js/view_sales.js"></script>
+<script src="js/view_hr.js"></script>
 <script src="js/view_trace.js"></script>
 <script src="js/view_audit.js"></script>
 <script src="js/view_admin.js"></script>

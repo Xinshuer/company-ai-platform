@@ -1,0 +1,269 @@
+# Routing samples: design-review 四.3 ("路由示例") as executable cases.
+# Run by tests/security/test_routing_samples.py (every row must hold) and by
+# evals/routing/test_routing_robustness.py (the same rows with obfuscated text).
+#
+# Each sample is one request as the platform sees it:
+#   text      what the person typed (placeholders: {contact:<account id>} = that account's first CRM
+#             contact, {candidate:<id>} = a candidate's name, {employee:<user id>} = a staff name)
+#   sources   data sources the code attaches to the request (retrieved chunks, tool envelopes,
+#             playbooks), named as in config/sources.yaml; the runtime raises the hwm to their
+#             level before the model call (rule 4: default by source, raised by content)
+#   playbook  `legal` (corpai.legal playbook) or a corpai.playbooks id: its own level joins the hwm
+#   level     the table's level; route: the table's route
+#
+# What "hold" means: route == the table's route; for local rows the level the gateway computed is at
+# least the table's level (the floor); for external rows it is at most L2 (the table's L1/L2 is
+# the ceiling of what may leave). The gateway decides; the test only reads the result.
+#
+# known_gap: a row that does not hold today, with the change request that would fix it. The test
+#            marks it as an expected failure while it fails; once the gap is closed it passes and
+#            the marker should be removed.
+
+samples:
+  # ---- 销售 sales ---------------------------------------------------------------------------
+  - id: sales-company-public
+    row: 销售 | 只用公司名查官网、融资、新闻 | L1 | external
+    persona: sales_staff
+    text: "Look up Elbstrom Paketdienst GmbH: its website, recent funding and news."
+    level: 1
+    route: external
+  - id: sales-company-public-pages
+    row: 销售 | 只用公司名查官网、融资、新闻 (the public web pages themselves) | L1 | external
+    persona: sales_staff
+    text: "Summarise these public pages about Elbstrom Paketdienst GmbH."
+    sources: [web.page]
+    level: 1
+    route: external
+  - id: sales-contact-profile
+    row: 销售 | 给某位具体联系人建画像、判断意向 | L3 | local
+    persona: sales_staff
+    text: "Build a profile of {contact:A-0002} at Havenmeer Distributie and judge how likely they are to buy."
+    level: 3
+    route: local
+  - id: sales-contact-from-crm
+    row: 销售 | 给某位具体联系人建画像、判断意向 (the CRM record) | L3 | local
+    persona: sales_staff
+    text: "Judge this contact's buying intent from the CRM record."
+    sources: [crm.contact]
+    level: 3
+    route: local
+  - id: sales-quotes-strategy
+    row: 销售 | 结合历史报价和折扣给跟进策略 | L3 | local
+    persona: sales_head
+    text: "Our last quote to Havenmeer was EUR 412,000 with an 18% discount and our floor is 22%. Suggest a follow-up strategy."
+    level: 3
+    route: local
+  - id: sales-quotes-strategy-playbook
+    row: 销售 | 结合历史报价和折扣给跟进策略 (playbook + CRM opportunities) | L3 | local
+    persona: sales_head
+    text: "Suggest a follow-up strategy for this account."
+    sources: [crm.opportunity]
+    playbook: sales.followup
+    level: 3
+    route: local
+
+  # ---- 技术 engineering ---------------------------------------------------------------------
+  - id: eng-generic-question
+    row: 技术 | 通用编程问题，不贴公司代码 | L2 | external
+    persona: eng_staff
+    text: "How do I write a binary search in Python?"
+    level: 2
+    route: external
+  - id: eng-generic-snippet
+    row: 技术 | 通用编程问题，不贴公司代码 (a generic snippet) | L2 | external
+    persona: eng_staff
+    text: "Why does this loop never end?\n```python\ni = 0\nwhile i < 10:\n    print(i)\n```"
+    level: 2
+    route: external
+  - id: eng-company-code
+    row: 技术 | 解释或重构公司代码 | L3 | local
+    persona: eng_staff
+    text: "Explain this function:\n```python\nfrom fleetpilot.planner import solve\n\ndef plan_routes(depots, vehicles):\n    return solve(depots, vehicles, max_iter=500)\n```"
+    level: 3
+    route: local
+  - id: eng-company-code-from-repo
+    row: 技术 | 解释或重构公司代码 (code retrieved from the repo) | L3 | local
+    persona: eng_staff
+    text: "Refactor the planner module for readability."
+    sources: [eng.repo]
+    level: 3
+    route: local
+  - id: eng-log-with-phone
+    row: 技术 | 带用户手机号的日志 | L3 | local
+    persona: eng_staff
+    text: "Why does this log line fail? 2026-09-30T08:12 user +49 151 2345 6789 login failed"
+    level: 3
+    route: local
+  - id: eng-vulnerability
+    row: 技术 | 分析安全漏洞 | L4 | local
+    persona: eng_head
+    text: "Analyse the SQL injection vulnerability in the FleetPilot routing API /v2/plans endpoint and how to fix it."
+    level: 4
+    route: local
+  - id: eng-vulnerability-report
+    row: 技术 | 分析安全漏洞 (the stored vulnerability report) | L4 | local
+    persona: eng_head
+    text: "Summarise this report and the fix plan."
+    sources: [eng.vuln]
+    level: 4
+    route: local
+
+  # ---- 法务 legal ---------------------------------------------------------------------------
+  - id: legal-gdpr-question
+    row: 法务 | 查 GDPR 条文和监管指南 | L1 | external
+    persona: legal_staff
+    text: "What does GDPR Article 28 require of processors?"
+    level: 1
+    route: external
+  - id: legal-gdpr-library
+    row: 法务 | 查 GDPR 条文和监管指南 (the regulation library) | L1 | external
+    persona: legal_staff
+    text: "What does GDPR Article 28 require of processors?"
+    sources: [legal.regulation]
+    level: 1
+    route: external
+  - id: legal-clause-from-library
+    row: 法务 | 问“符合 GDPR 吗”，同时粘贴客户合同条款 (clause from the contract library) | L3 | local
+    persona: legal_staff
+    text: "Does clause 9 of this contract comply with GDPR?"
+    sources: [legal.contract]
+    level: 3
+    route: local
+  - id: legal-clause-pasted-commercial
+    row: 法务 | 问“符合 GDPR 吗”，同时粘贴客户合同条款 (pasted, with prices) | L3 | local
+    persona: legal_staff
+    text: "Does this clause comply with GDPR? 'Fees are invoiced monthly at EUR 4,200 per depot. The Processor may process driver location data.'"
+    level: 3
+    route: local
+  - id: legal-clause-pasted-plain
+    row: 法务 | 问“符合 GDPR 吗”，同时粘贴客户合同条款 (pasted, no names or prices) | L3 | local
+    persona: legal_staff
+    text: "Does this clause comply with GDPR? 'The Processor may process driver location data of Wartopol Spedycja Sp. z o.o.; its liability is capped at EUR 250,000.'"
+    level: 3
+    route: local
+  - id: legal-playbook-review
+    row: 法务 | 按 Playbook 初审合同 (Playbook 本身就是 L3) | L3 | local
+    persona: legal_staff
+    text: "Review this NDA clause against our positions: 'Confidentiality lasts two years.'"
+    playbook: legal
+    level: 3
+    route: local
+  - id: legal-litigation
+    row: 法务 | 整理诉讼材料 | L4 | local
+    persona: legal_head
+    text: "Organise the litigation file for matter M-02: the Routenwerk patent assertion and our defence."
+    level: 4
+    route: local
+  - id: legal-litigation-memo
+    row: 法务 | 整理诉讼材料 (the matter memo) | L4 | local
+    persona: legal_head
+    text: "Summarise the counsel memo."
+    sources: [legal.matter]
+    level: 4
+    route: local
+
+  # ---- 财务 finance -------------------------------------------------------------------------
+  - id: finance-concept
+    row: 财务 | “什么是递延收入” | L1 | external
+    persona: finance_staff
+    text: "What is deferred revenue?"
+    level: 1
+    route: external
+  - id: finance-expense-lines
+    row: 财务 | 汇总本月费用明细 (ledger lines) | L3 | local
+    persona: finance_staff
+    text: "Summarise this month's expense lines by department."
+    sources: [fin.journal_entries]
+    level: 3
+    route: local
+  - id: finance-expense-budget
+    row: 财务 | 汇总本月费用明细 (typed in) | L3 | local
+    persona: finance_staff
+    text: "Summarise this month's expenses against budget: travel EUR 12,400, EuroFleet booth EUR 85,000."
+    level: 3
+    route: local
+  - id: finance-statement
+    row: 财务 | 生成季度财务报表 | L4 | local
+    persona: finance_head
+    text: "Generate the quarterly financial statement for 2026-Q3."
+    sources: [fin.statement]
+    level: 4
+    route: local
+
+  # ---- HR -------------------------------------------------------------------------------------
+  - id: hr-public-jd
+    row: HR | 起草公开 JD（不含薪资预算） | L2 | external
+    persona: hr_staff
+    text: "Draft a public job description for a Site Reliability Engineer."
+    level: 2
+    route: external
+  - id: hr-requisition-counts
+    row: HR | 汇总编制需求 (only roles and headcount) | L2 | external
+    persona: hr_head
+    text: "Summarise open roles: R-01 Senior Backend Engineer (2), R-02 Site Reliability Engineer (1)."
+    sources: [hr.requisitions]
+    level: 2
+    route: external
+  - id: hr-requisition-budgets
+    row: HR | 汇总编制需求 (with salary budgets) | L3 | local
+    persona: hr_head
+    text: "Summarise open roles with their approved budgets and projected cost."
+    sources: [hr.requisitions, hr.requisition_budget]
+    level: 3
+    route: local
+  - id: hr-resume-screening
+    row: HR | 初筛简历 | L3 | local
+    persona: hr_staff
+    text: "Screen this CV against R-01: {candidate:CAND-001}, six years of backend Python, MSc Computer Science."
+    level: 3
+    route: local
+  - id: hr-screening-conclusion
+    row: HR | 初筛简历（筛选结论 L4） | L4 | local
+    persona: hr_staff
+    text: "Summarise the screening evidence for this candidate."
+    sources: [hr.screening_evidence]
+    level: 4
+    route: local
+  - id: hr-salary-performance
+    row: HR | 整理薪资和绩效 | L4 | local
+    persona: hr_head
+    text: "Compile pay and ratings: {employee:u0118}, base salary EUR 61,000, performance rating 'exceeds expectations'."
+    level: 4
+    route: local
+
+  # ---- 管理层 management ----------------------------------------------------------------------
+  - id: exec-industry-trends
+    row: 管理层 | 行业趋势研究（不带内部数据） | L1 | external
+    persona: ceo
+    text: "What are the main trends in EU logistics software this year?"
+    level: 1
+    route: external
+  - id: exec-headcount-projects
+    row: 管理层 | 各部门人数、项目进度汇总（去掉个人信息） | L3 | local
+    persona: ceo
+    text: "Summarise project progress and headcount by department."
+    sources: [eng.project, hr.employees]
+    level: 3
+    route: local
+  - id: exec-business-report
+    row: 管理层 | 含财务和薪资的经营报告 | L4 | local
+    persona: ceo
+    text: "Write the quarterly business report: revenue EUR 4.2m, salaries EUR 2.1m."
+    level: 4
+    route: local
+  - id: exec-business-report-sources
+    row: 管理层 | 含财务和薪资的经营报告 (statements and compensation) | L4 | local
+    persona: ceo
+    text: "Write the quarterly business report."
+    sources: [fin.statement, hr.compensation]
+    level: 4
+    route: local
+
+  # ---- 任意 any: missing label ------------------------------------------------------------------
+  - id: any-missing-label
+    row: 任意 | 标签缺失 | 未知 | local
+    persona: sales_staff
+    text: "Summarise this record."
+    sources: [ops.unlisted_system]
+    level: 4
+    route: local

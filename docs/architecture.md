@@ -189,7 +189,7 @@ RLS protects against the **app role**; the owner is trusted job code. Unset sess
 
 **Owner-only tables** (`audit.log`, `core.users/memberships/grants/sessions`, `ops.*`, `synth.*`) have RLS on, no policy and no grants for `corpai_app`. The app reaches them only through `SECURITY DEFINER` functions (`SET search_path`, `EXECUTE` revoked from `PUBLIC`, granted to `corpai_app` one by one). Functions that act for a principal take the caller's identity from the session variables, never from a parameter (`ops.consume_budget(p_dept, …)` takes the dept only to check that it equals `app.dept`). The pre-principal identity functions are the exception: `core.principal_row(p_user_id)` and `core.session_open/session_check/session_revoke(p_sid, p_user_id)` run before a principal exists, so they take the user id as a parameter (`session_revoke` acts only on that exact (sid, user) pair). A privileged function checks the role **and** the matching `role:<x>` (or `head:<d>`) group **and**, where it changes state, `cur_clearance() > 0`, so a forged `app.role` or a deactivated principal is refused.
 
-**Migrations**: `migrations/NNN_<stream>_<name>.sql` (e.g. `001_a1_audit_log.sql`, `021_a3_sessions.sql`, `040_synth_crm.sql`), applied in order by `corpai/db/migrate.py`, recorded in `core.schema_migrations`. Number ranges per stream: 000 core (schemas + `core.can_read` etc.), 001–009 A1 (001 audit, 002 trace), 010–019 A4 (010 ops: switches, budgets, egress log), 020 core (directory: `core.users`, `core.memberships`, `core.grants`, `core.principal_row()`), 021–029 A3 (021 sessions, 022 personas), 030–039 B1, 040–059 A5 (040 crm, 041 eng, 042 legal, 043 fin, 044 hr, 045 eval), 060–069 B2, 070–079 M3, 080–089 M2, 090–099 M4. Migrations are plain SQL and idempotent where cheap (`IF NOT EXISTS`, `CREATE OR REPLACE`). Each file runs in its own transaction and is recorded with its sha256 in `core.schema_migrations`. Editing a file that was already applied raises `MigrationError`: add a new migration, or reset a dev database with `python -m corpai db reset --yes`. Every migration that creates a table also writes its `GRANT`s and RLS policy in the same file.
+**Migrations**: `migrations/NNN_<stream>_<name>.sql` (e.g. `001_a1_audit_log.sql`, `021_a3_sessions.sql`, `040_synth_crm.sql`), applied in order by `corpai/db/migrate.py`, recorded in `core.schema_migrations`. Number ranges per stream: 000 core (schemas + `core.can_read` etc.), 001–009 A1 (001 audit, 002 trace), 010–019 A4 (010 ops: switches, budgets, egress log), 020 core (directory: `core.users`, `core.memberships`, `core.grants`, `core.principal_row()`), 021–029 A3 (021 sessions, 022 personas), 030–039 B1, 040–059 A5 (040 crm, 041 eng, 042 legal, 043 fin, 044 hr, 045 eval), 060–069 B2, 070–079 M3, 080–089 M2, 090–099 M4, 100–109 B3 (`ops.threads`, `audit_read`, trace minimum group). Migrations are plain SQL and idempotent where cheap (`IF NOT EXISTS`, `CREATE OR REPLACE`). Each file runs in its own transaction and is recorded with its sha256 in `core.schema_migrations`. Editing a file that was already applied raises `MigrationError`: add a new migration, or reset a dev database with `python -m corpai db reset --yes`. (The wiring phase edited 001, 044, 062, 070, 091 and 101 in place, before any real deployment: a dev database from before it needs `db reset --yes`, then `synth` and `ingest`.) Every migration that creates a table also writes its `GRANT`s and RLS policy in the same file.
 
 ## 5. Identity, groups and tokens (A3)
 
@@ -458,7 +458,7 @@ def read_anchors(path=None) -> list[Anchor];  def write_anchor(conn=None, *, pat
 
 Writes go through the `SECURITY DEFINER` function `audit.append(p_event, p_actor, p_act_chain, p_action, p_resource, p_decision, p_reason, p_route, p_level smallint, p_approval_id, p_run_id, p_details jsonb) -> bigint`; `corpai_app` has `EXECUTE` on `audit.append` and `audit.read_log` only, and no rights on the table, the sequence or `audit.verify_chain`. Audit writes use their own autocommit connection, so a denial is recorded even if the business transaction rolls back. Only the security auditor reads it: `audit.read_log(after_seq, lim)` requires `cur_role() = 'security_auditor'` and `role:security_auditor` in the groups (API `GET /api/audit`).
 
-Event names: `login`, `demo_login`, `policy_decision`, `tool_call`, `retrieval`, `model_call`, `route_decision`, `proposal_created`, `proposal_approved`, `proposal_rejected`, `proposal_executed`, `export`, `outage_switch`, `budget_exceeded`, `break_glass`, `owner_job` (a CHECK constraint enforces the list).
+Event names: `login`, `demo_login`, `policy_decision`, `tool_call`, `retrieval`, `model_call`, `route_decision`, `proposal_created`, `proposal_approved`, `proposal_rejected`, `proposal_executed`, `export`, `outage_switch`, `budget_exceeded`, `break_glass`, `owner_job`, `audit_read` (the security auditor's reads, written by `GET /api/audit`), and four human acts with their own event (issues-log D-13): `metric_signed` / `metric_published` (actions `metrics.sign` / `metrics.publish`, the head of finance), `hr_screening` (action `hr.screen_candidate`: evidence stored) and `hr_decision` (action `hr.record_decision`: the HR person's decision). Refusals of these four acts use the same events with decision `deny`. A CHECK constraint in migrations 001 and 101 enforces the list; `tests/audit/test_events.py` checks that the Python list, both migrations and the live database agree.
 
 `trace.spans`: `span_id, run_id, parent_id, name, kind (node|llm|tool|retrieval|policy), user_id, dept, level, started_at, ended_at, status (running|ok|error), attrs jsonb, input_text, output_text`; a CHECK forbids any text on L4 spans. The only write path is `trace.write_span(...)` (SECURITY DEFINER): the owner comes from `app.user_id`/`app.dept`, not a parameter; a span is inserted at start with metadata only and updated once at end; its identity and owner never change, its level only goes up, an ended span is frozen, and credential-like attr keys are refused. `Span.set_attr` (Python, not `trace.write_span`) limits each attr value to 4096 bytes of JSON and each key to 64 characters.
 
@@ -479,10 +479,8 @@ async def read_meta(principal: Principal, run_id: str) -> list[dict]    # platfo
 async def dept_stats(principal: Principal, since: datetime) -> list[dict]   # keys dept, kind, route (attrs.route), level, status, n
 ```
 
-Open for phase B/M:
-- An `audit_read` event for the auditor's own reads of the log.
-- A minimum group size for `dept_stats` (small departments such as legal).
-- `subject_ids` on `trace.spans` for GDPR erasure.
+Done in phase B: the `audit_read` event; a minimum group of 5 people for `dept_stats` (migration 102).
+Still open (issues-log D-04): `subject_ids` on `trace.spans` for GDPR erasure.
 
 ## 10. RAG (B1)
 
@@ -584,10 +582,14 @@ async def approval_gate(rt, proposal_id) -> dict      # interrupt({"type": "appr
 - The graph's first node sets `sensitivity_hwm = max(classify_text(user input), ctx.user_level)`. Each helper returns a state update raising the hwm; `llm()` reads `state["sensitivity_hwm"]` and passes it to the gateway. Nothing lowers it; a new thread is the only reset.
 - Checkpointer: `AsyncPostgresSaver` on schema `lg` (connection `search_path=lg`), `setup()` at startup by the owner. Checkpoints older than `config.checkpoint_ttl_days` are pruned by `python -m corpai prune`.
 - Thread ownership: `ops.threads(thread_id, owner_id, agent, created_at)`. Resume after an approval re-resolves the **owner's** principal from the directory and passes a fresh `RunContext`.
-- Router (`agents/router.py`): code, not a model. The UI picks an app (`qa`, `legal_review`, `report`, `sales_profile`, `hr_headcount`, `hr_screening`); the router checks the principal may start the agent (`policy.may_start`, `config/agents.yaml`) and builds the graph.
+- Router (`agents/router.py`): code, not a model. The UI picks an app (`qa`, `legal_review`, `report`, `sales_profile`, `hr_headcount`, `hr_screening`, `hr_candidates`); the router checks the principal may start the agent (`policy.may_start`, `config/agents.yaml`) and builds the graph. `MILESTONE_APPS` maps each milestone app to its module (`corpai.agents.legal`, `.report`, `.sales`, `.hr`); a module exports `build_graph` / `build_<app>_graph` and `initial_state` / `<app>_initial_state`. `router.app_ready(app)` is true once the module exports a graph; `/api/me` lists only ready apps.
+- The user's raised level is a floor everywhere, sub-agents included: the first node of every graph raises the hwm to `max(classify_text(input), ctx.user_level)`, and the sales_web extraction passes `ctx.user_level` as its hwm (above L1 the gateway ignores `public_only`, so it runs local). A raise that must survive a failing model call (`hr_screening`'s intake) sits in its own node, so it is checkpointed before the call.
+- `ops.threads(thread_id, owner_id, agent, app, created_at)`: one lock per thread in the process (a second run on a busy thread gets 400); the checkpoint tables have RLS "thread owned by the current user". The API lifespan loads the gazetteer; the runner re-checks its fingerprint before every run and fails closed (everything local) when loading fails.
+- `ChatRequest.public_only=True` is set only by code, when every prompt field is byte-for-byte published content and the hwm is L1 (the sales_web extraction).
+- A graph may wait for a person with its own interrupt type (`hr_screening`: `{"type": "hr_decision", ...}`). Today such a run reports status `done` with `output.data.awaiting_decision = true`; the decision route resumes it with a value built by code.
 - **Rule of Two**: each node declares `capabilities ⊆ {"untrusted_input", "sensitive_data", "external_action"}` with a decorator `@node(caps={...})`. `tests/security/test_rule_of_two.py` walks every graph and fails when a path holds all three without an `approval_gate` between.
 
-Agent allowlists live in `config/agents.yaml` (`agents:` → per agent `description`, `apps`, `purpose` (its `rag_filter` purpose or null), `start: {roles, depts}`, `tools` as `domain.tool`, optional `subagent_of`): `qa`, `legal_review`, `report`, `sales_profile`, `sales_web` (sub-agent of `sales_profile`, `web.search`/`web.fetch` only), `hr_headcount`, `hr_screening`. A user may start an agent if their role is in `roles` or their dept in `depts`; `depts` never admit ops roles or service accounts, and service accounts start nothing. Unknown tool names fail at load.
+Agent allowlists live in `config/agents.yaml` (`agents:` → per agent `description`, `apps`, `purpose` (its `rag_filter` purpose or null), `start: {roles, depts}`, `tools` as `domain.tool`, optional `subagent_of`): `qa`, `legal_review`, `report`, `sales_profile`, `sales_web` (sub-agent of `sales_profile`, `web.search`/`web.fetch` only), `hr_headcount`, `hr_screening`, `hr_candidates` (D-14: employees, managers and the CEO; `hris.list_requisitions`, `hris.list_candidates`, `hris.get_candidate` only; candidates only for the caller's own `req:<id>` requisitions, everything else an explicit denial). Each milestone agent has a per-node wiring note in the YAML comments (which node holds which tool); it is enforced by each graph's Rule-of-Two test, not by the loader. A user may start an agent if their role is in `roles` or their dept in `depts`; `depts` never admit ops roles or service accounts, and service accounts start nothing. Unknown tool names fail at load.
 
 ## 13. API (B3, extended by milestones)
 
@@ -609,11 +611,23 @@ Agent allowlists live in `config/agents.yaml` (`agents:` → per agent `descript
 | — | `/mcp/<domain>/mcp` | MCP servers |
 | GET | `/` | the UI (live mode) |
 
-Milestone routes go in `corpai/api/routes_<area>.py` and are included by `create_app()`. The lifespan installs the app pool (`pg.install_app_pool`) and loads the gazetteer (§7).
+Milestone routes go in `corpai/api/routes_<area>.py` and are included by `create_app()`. The lifespan installs the app pool (`pg.install_app_pool`) and loads the gazetteer (§7). Every milestone route first checks that the caller may start the app (an explicit, audited 403 otherwise) and reads through the MCP tools as that app's agent:
 
-Open for phase B/M:
-- Include `openai_compat.router` in `create_app()` and build `/api/admin/switches` on `ops.read_switches`/`ops.set_switch` (B3).
-- Call `load_gazetteer_from_db()` in the lifespan (B3).
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/legal/contracts` | structured fields of the contracts the caller may read (RLS), no text |
+| GET | `/api/legal/reviews?contract_id=`, `/api/legal/reviews/{id}` | saved reviews (`list_reviews` / `get_review`); a review the caller cannot read → 404 |
+| POST | `/api/legal/uploads` | `{text, filename}` (≤ 200k chars) → `{upload_id}`; kept in memory per user for 2 h; only the uploader can review it |
+| POST | `/api/reports/{run_id}/export` | `{thread_id}` → `{filename, content, sha256, level, domain, bytes}`; the text is read back from the caller's own checkpoint; watermark level = run level; audited `export`. `GET` with `?thread_id=` returns the same file as `text/markdown` |
+| GET | `/api/metrics` | `{metrics, periods, can: {sign, publish, refresh, drafts}}`; platform roles get 403 on every metrics route |
+| GET | `/api/metrics/board?period=` | each metric's visible rows with status and provenance |
+| GET | `/api/metrics/{id}?period=&dims=dept=eng` | one value |
+| POST | `/api/metrics/sign`, `/api/metrics/publish` | `{period, metric_ids}`; head of finance only; allow and deny audited `metric_signed` / `metric_published` |
+| POST | `/api/metrics/refresh` | `{period}`; head of finance, only while demo login is on; audited `policy_decision` (`metrics.refresh`) |
+| GET | `/api/sales/accounts` | accounts the caller may read |
+| GET | `/api/hr/candidates?app=hr_candidates\|hr_screening&req_id=` | candidates per requisition, explicit denials |
+| GET | `/api/hr/candidates/{id}?app=` | one candidate with the résumé labelled untrusted |
+| POST | `/api/hr/screenings/decision` | `{thread_id, candidate_id, decision: advance\|hold\|reject, reason}`: the thread must be the caller's and wait on exactly this candidate; `record_decision` runs as the caller (role and reason required; audited `hr_decision`); only then the thread resumes. The reason never enters graph state |
 
 ## 14. UI (B4)
 
@@ -621,8 +635,9 @@ Static files in `ui/`, no build step, **classic scripts** (no ES modules, no `fe
 
 - `ui/index.html`, `ui/css/app.css`, `ui/js/*.js`, `ui/fixtures/*.js` (each sets `window.FIXTURES.<name> = {...}`).
 - Mode: `file:` protocol → **demo** (fixtures); served by the API → **live** (`/api/...`); a toggle can force demo.
-- zh default, en toggle; strings in `ui/js/i18n.js`.
-- Views: persona picker (12 personas + platform admin + security auditor), role home, Q&A chat (route badge local/external, hwm banner "本会话已切换到本地模式", citations), approvals inbox (shows full real parameters and the params hash), legal review, management report, sales profile, HR screening, trace viewer, audit viewer, admin switches, and a "same question, different people" comparison page.
+- zh default, en toggle; shared strings in `ui/js/i18n.js`, each milestone's in `ui/js/i18n_<x>.js` (`KB.lang.extend("<x>", {zh, en})`; a key may be defined once only, zh and en must have the same keys).
+- Milestone extension points: each milestone owns `view_<x>.js`, `i18n_<x>.js`, `demo_<x>.js` and `fixtures/<x>.js` (`legal`, `report` (plus `view_metrics.js`), `sales`, `hr`). Demo hooks: `KB.demo.register("<x>", {apps, findRun, routes, init})`; every run, whoever supplies it, still goes through the shared start check, thread level, user level and outage switches; extension routes need a persona and cannot shadow a shared route. Fixture files: `{"runs": [...], "traces": {...}, "proposals": {"by_persona", "resumed_runs"}}` plus keys of their own (shape documented in `ui/js/fixtures_base.js`).
+- Views: persona picker (12 personas + platform admin + security auditor), role home, Q&A chat (route badge local/external, hwm banner "本会话已切换到本地模式", citations), approvals inbox (shows full real parameters and the params hash), legal review (`#/legal`), management report (`#/report`), metric sign-off (`#/metrics`), sales profile (`#/sales`), HR screening (`#/hr`), headcount (`#/headcount`), candidates (`#/candidates`), trace viewer, audit viewer, admin switches, and a "same question, different people" comparison page.
 - CSP meta: `default-src 'self'; img-src 'self' data:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://127.0.0.1:8000`. External links show the full URL and ask before opening.
 
 ## 15. Synthetic company (A5)
@@ -633,6 +648,9 @@ Deterministic from `--seed` (default 7). `python -m corpai synth [--seed N] [--s
 - **People**: CEO + chief of staff (exec); sales 14; eng 32 (CTO); legal 4; finance 6 (CFO); HR 5; IT 3 (platform admin, security auditor, IT support); plus service accounts `svc:ingest`, `svc:metrics`, `svc:eval`, `svc:executor`. Fixed **personas** for tests and demo, `PERSONAS: dict[str, str]` (key → user_id) in `corpai/synth/personas.py`, also stored as `core.users.persona_key`: `ceo` u0001, `exec_staff` u0002, `sales_head` u0010, `sales_staff` u0011, `eng_head` (CTO) u0020, `eng_staff` u0021, `legal_head` u0030, `legal_staff` u0031, `finance_head` (CFO) u0040, `finance_staff` u0041, `hr_head` u0050, `hr_staff` u0051, `platform_admin` u0060, `auditor` (security auditor) u0061. Persona ids are stable across seeds.
 - **Grants**: one demo grant, `G-0001`: `legal_staff` → `grant:crm:A-0003`, expiring **2027-12-31 23:59:59 UTC** (wall clock, §3).
 - **Systems**: CRM (≈40 fictional accounts, contacts, opportunities, interactions, quotes with discounts); eng (5 projects with stages 需求→立项→开发→测试→上线→运维, ≈300 tickets, CI runs, repo docs, 2 vulnerability reports L4); legal (≈40 contracts with structured fields, 2 litigation matters, clause library, a GDPR article library of paraphrased summaries with article numbers); finance (chart of accounts, 12 months of journal entries, AR/AP invoices, dept budgets vs actuals); HR (employees, compensation L4, performance L4, requisitions with budgets, candidates and résumés; `hr.screenings` created empty). Extra business columns: `crm.accounts.city/fleet_size`, `eng.projects.repo/summary`, `legal.contracts.processes_personal_data`, `fin.journal_entries.txn_id` (one row per journal line; the lines of a balanced transaction share it), `fin.invoices.kind` (`subscription|services`), `hr.requisitions.recruiter_id`.
+- **History (D-12)**: `hr.employees.left_on` (six deactivated former employees: five left within the 12 months, in eng and sales, one just before; their payroll stops after their last day, which is a month end). Requisitions record the date their current status began (`on_hold_on`, `filled_on`, `closed_on`, with a CHECK that they match the status). The ledger has an opening bank balance and the Series B receipt. Closed deals never close after 2026-09-30.
+- **Headcount (D-10)**: one implementation, `hr.headcount_by_dept(p_as_of date DEFAULT NULL)` (migration 091): people employed at the start of that day (leavers drop out), groups under 5 suppressed in SQL. `hris.headcount` and `corpai.hr.headcount_summary` both call it; `ops.hr_headcount()` is gone. `hris.headcount` returns `{departments: [{dept, headcount: n | "<5"}], min_group}` with an explicit denial for every department the caller may not see (HR staff: all denied; the head of HR: every department).
+- **Metrics**: `attrition_pct` is trailing-12-month attrition by department from `hr.employees` (minimum group 5); `headcount` and the opex staff counts exclude leavers; `open_requisitions` and `hiring_*` use the status at the period end; `cash_balance` is the bank balance at the reporting date (management audience).
 - **Corpus**: `corpus_dir/docs/<collection>/<doc_id>.md` (superseded versions `<doc_id>.v<N>.md`) with YAML front matter `doc_id, title, collection, source, level, dept, owner_id, acl_groups, trust, subject_ids, project_id, matter_id, version, status, source_uri`; ≈143 documents in 10 collections at full size, including one superseded policy. Company-wide pages (acl `all`, e.g. the HR handbook) sit in `general`.
 - **Web mock corpus**: `corpus_dir/web/pages.jsonl` (`url, domain, title, text, published_on, company_account_id, kind, injected`): pages for each CRM account (site, news, funding) on allowlisted fictional domains, plus 3 pages with prompt injections.
 - **Canaries**: 6 seed-derived `KB-CANARY-xxxxxxxx` strings in 7 locations (the contract canary sits in the row and its corpus mirror), hosted in a CRM interaction, contract C-0006, the eng P-01 README, a matter memo, a financial statement and an `hr.performance` summary. Canary hosts are **L4 with the host's ACL kept**. Listed in `synth.canaries(canary, location 'db:<table>:<pk>' | 'file:<path under corpus_dir>', level)`.
@@ -642,12 +660,82 @@ Deterministic from `--seed` (default 7). `python -m corpai synth [--seed N] [--s
 
 | | Graph | Key checks |
 |---|---|---|
-| M1 | `agents/qa.py`: input → retrieve (dept-scoped) → answer → citation check | public question → `external`; internal → `local`; same question by different personas returns different doc ids; outage switch → L3 requests error, `external` egress 0 |
-| M2 | `agents/legal/`: contract intake (untrusted, L3) → isolated review (Clause Check via `/v1/chat/completions`, no tools) → lawyer approval (four-eyes) → `send_contract` proposal; expiry queries via SQL | injected contract causes no tool calls; "expiring next month" exact |
-| M3 | `agents/report/`: fan-out per domain (requester identity) → metric table (SQL) → writer node (no tools) with `{metric:<id>}` placeholders → code renders and verifies every number → watermarked export | CEO vs CTO reports differ; every number traces to SQL; planted issues found; n<5 groups hidden |
-| M4 sales | `agents/sales/`: isolated web subgraph (`web.search/fetch` only, fixed JSON out, `external`) → fit score (code, public signals) + intent score (code, CRM, `local`) → playbook by intent tier → strategy (local) → `send_email` proposal | injection page has no effect; backtest of scores |
-| M4 HR | `agents/hr/`: headcount summary (L2 vs L3 split); résumé → strip protected attributes → per-requirement evidence (met / not met / unknown + quote) → HR decision via interrupt (reason required) | counterfactual pairs give identical outcomes |
+| M1 | `agents/qa.py`: classify → retrieve (dept-scoped; passages that address AI systems are withheld, `_qa_guard.py`) → tool rounds → answer → citation check. One route event per run (the answer call's, the most restrictive) | public question → `external`; internal → `local`; same question by different personas returns different doc ids; outage switch → L3 requests error, `external` egress 0. Suites: canary, chaos, red team, routing samples (`tests/security`), golden questions (`evals/qa`), routing robustness (`evals/routing`) |
+| M2 | `agents/legal/`: the input's `mode` picks one of four paths, mapped from plain text by fixed code rules. **review**: intake (`untrusted_input`, `sensitive_data`; stored contract, pasted text or the uploader's own upload) → review (no tools; `corpai.legal.review_contract`, hwm ≥ L3, one notice per finding "isolated, no effect"); never files a proposal. **due**: SQL only, no model. **draft**: code-assembled text filed unchanged as `create_contract_draft` (tier 2) → approval gate. **send**: a separate run the lawyer starts on purpose; arguments built by code → `legal.send_contract` (tier 3, four-eyes) → approval gate. `initial_state` resets every run-scoped key, so a send run never holds contract text | injected contract causes no tool calls; "expiring next month" exact; missing DPA (C-0005) found |
+| M3 | `agents/report/`: plan (period and language by code; an unfinished period is refused) → five parallel `fetch_<domain>` nodes (requester identity; signed snapshots only; explicit "no permission" entries) → write (no tools; `{metric:<id>}` placeholders; code renders and verifies every number, falls back to code's template) → finish (header, appendix of everything hidden, verification again) → watermarked export (§13) | CEO vs CTO reports differ; every number traces to SQL; planted issues found; n<5 groups hidden |
+| M4 sales | `agents/sales/`: profile branch intake (a plain company name at L1) → isolated `sales_web` sub-graph (`web.search/fetch` only, no checkpointer, fixed `CompanyProfile` out, `external` at L1 with `public_only`, local when the user raised the level) → score (CRM as the user: intent in code, fit, tier, playbook; L3) → strategy (local; profile enum and number fields only). Follow-up branch (`/followup [CT-xxxxx]` in a thread that holds a profile): draft_email (local) → `crm.send_email` proposal (tier 3) → approval gate | injection page has no effect; backtest of scores |
+| M4 HR | `agents/hr/`: `hr_headcount` (summary through `hr.headcount_by_dept`; L2 without budgets, L3 with; a digit-free model note over the public part). `hr_screening`: intake (L3 before anything is read) → screen (`untrusted_input`, `sensitive_data`, no tools; protected attributes removed; per-requirement evidence met / not met / unknown with verified quotes; L4) → decide (interrupt `hr_decision`) → record. `hr_candidates`: read-only, code only | counterfactual pairs give identical outcomes; no score, rank or recommendation anywhere |
 
 ## 17. If this were deployed for real
 
 Written up in `docs/real-deployment.md` at the end (hardware sizing, vLLM/SGLang, network isolation, Keycloak, OPA/Cedar, Langfuse, SLOs, audit anchors shipped to append-only storage outside the database host). Not implemented.
+
+## 18. API payloads (contract between corpai/api and ui/)
+
+All JSON. Errors: `{"error": {"code": "...", "message": "short, says what to do"}}` with 4xx/5xx. Codes: `unauthenticated` (401), `forbidden` (403), `not_found` (404), `bad_request` (400), `local_unavailable` (503), `external_unavailable` (503), `gateway_busy` (503), `budget_exceeded` (429), `secret_detected` (400).
+
+```jsonc
+// GET /api/health
+{"ok": true, "mode": "fake", "sim_today": "2026-10-01", "switches": {"local_down": false, "external_down": false}}
+
+// GET /api/personas   (demo login only)
+[{"user_id": "u0011", "persona_key": "sales_staff", "name": "...", "title": "...", "dept": "sales", "role": "employee"}]
+
+// GET /api/me   (apps: only those the caller may start AND whose graph exists, router.app_ready)
+{"user_id": "u0011", "name": "...", "title": "...", "dept": "sales", "role": "employee", "clearance": 3,
+ "persona_key": "sales_staff",
+ "apps": [{"id": "qa", "title_zh": "知识问答", "title_en": "Ask"}],
+ "can": {"approve": false, "audit": false, "admin": false}}
+
+// POST /api/runs   {"app": "qa", "input": "...", "thread_id": null, "user_level": 1}   (input ≤ 4000 chars)
+{"run_id": "run_...", "thread_id": "thr_...", "app": "qa",
+ "status": "done" | "waiting_approval" | "error",
+ "output": {"text": "...", "citations": [{"doc_id": "...", "title": "...", "level": 2, "collection": "general", "snippet": "..."}],
+            "data": {}},
+ "hwm": 3, "route": "local",          // route null when the run made no model call (legal "due", hr_candidates)
+ "events": [
+   {"t": "classify", "level": 1, "findings": ["money"]},
+   {"t": "retrieval", "count": 6, "level": 3, "collections": ["general", "sales"]},
+   {"t": "tool", "domain": "crm", "tool": "get_account", "decision": "allow", "level": 3, "denied": []},
+   {"t": "hwm", "from": 1, "to": 3, "reason": "tool:crm.get_account"},
+   {"t": "route", "route": "local", "level": 3, "reason": "route_by_level"},
+   {"t": "approval", "proposal_id": "prop_...", "tier": 3},
+   {"t": "notice", "code": "local_mode", "zh": "本会话已切换到本地模式", "en": "This session now uses the local model"},
+   {"t": "notice", "code": "embedded_instruction", "source": "eng-P-03-geo-utils-readme", "zh": "...", "en": "..."}
+ ],
+ "pending_approval": {"proposal_id": "prop_...", "tool": "crm.send_email", "tier": 3, "summary": "..."} | null,
+ "error": null | {"code": "...", "message": "..."}}
+
+// GET /api/runs/{run_id}/trace         (own runs only; others → 404)
+{"run_id": "...", "spans": [{"span_id": "...", "parent_id": null, "name": "answer", "kind": "llm", "level": 3,
+   "status": "ok", "started_at": "...", "ended_at": "...", "attrs": {"route": "local"}, "input_text": "masked or null", "output_text": "..."}]}
+
+// GET /api/proposals?box=mine|to_approve
+[{"proposal_id": "...", "created_at": "...", "requester": {"user_id": "...", "name": "..."}, "agent": "sales_profile",
+  "domain": "crm", "tool": "send_email", "tier": 3, "status": "pending", "summary": "...",
+  "params": {}, "params_hash": "sha256 hex", "can_approve": true, "why_not": null}]
+
+// POST /api/proposals/{id}/approve   {"params_hash": "...", "reason": "..."}
+// POST /api/proposals/{id}/reject    {"reason": "..."}
+{"proposal": {}, "run": {} | null}      // proposal as above (status updated, result); run = the resumed run, same shape as POST /api/runs
+
+// GET /api/audit?after_seq=0&limit=200     (security auditor; each call writes an audit_read event)
+{"entries": [{"seq": 1, "ts": "...", "actor": "u0011", "act_chain": ["agent:qa"], "event": "model_call", "action": null,
+  "resource": null, "decision": "allow", "reason": "route_by_level", "route": "local", "level": 3, "approval_id": null,
+  "run_id": "...", "details": {}}], "chain": {"ok": true, "checked": 1234, "first_bad_seq": null}}
+
+// GET /api/admin/switches        POST /api/admin/switches {"name": "local_down", "on": true, "reason": "..."}
+{"local_down": false, "external_down": false}
+```
+
+Per app, `output.data` (milestone routes are in §13):
+
+- **qa**: `{flagged_sources: [doc id or "domain.tool"]}`. A qa run has exactly one `route` event, the answer call's final route, which is also `run.route` (the hwm only rises, so it is the most restrictive). A notice may carry `source` (code `embedded_instruction`: a retrieved passage or tool result that addresses AI systems was withheld from the model).
+- **legal_review**: input is a JSON string `{"mode": "review", "contract_id": "C-0004"}` (or `text`, or `upload_id`), `{"mode": "due", "month": "2026-11"}`, `{"mode": "draft", "template_type", "account_id", "variables", "instructions"}`, `{"mode": "send", "contract_id", "to", "note"}`; plain text is mapped by fixed code rules. `data.mode` ∈ `review|due|draft|send|invalid`; refusals come back as `data.error {code, message}` on a run with status `done`.
+- **report**: `{kind, run_id, title, period, as_of, lang, level, route, template, used_fallback, attempts, problems, sections, table, export}`; every `table` value carries both displays and its provenance (metric id, SQL hash, formula, sources, signed by, version).
+- **sales_profile**: `{kind: "sales_profile", company, account, profile, web: {route, level, public_only, pages_used, flagged_urls, dropped_fields, ignored_tool_calls, error}, fit, intent, tier, playbook, contacts, steps, followup}`; the follow-up branch returns `{kind: "sales_followup", draft, proposal_id, tier, steps}`.
+- **hr_headcount**: `{kind, level, public, budget, note_source: model|code, note_route}`.
+- **hr_screening**: `{kind, candidate_id, req_id, evidence_id, items, flags, protected_removed, embedded_instruction, model_route, level, awaiting_decision, decision, notice}`. A run waiting for the HR decision has status `done` and `awaiting_decision: true`; there is no score, rank or recommendation.
+- **hr_candidates**: `{kind, requisitions: [{req_id, title, status, own, candidates, denied}], denied: [{id, reason}], own, listed}`.
+
+Playbooks: `playbooks/<id>.yaml` with `id, title, dept, owner_role, version, status (draft|active|retired), level, eval_set, body`; `load_playbook(id)` returns the active version; every graph output that used one records `playbook_id@version`.

@@ -15,9 +15,12 @@ from tests.metrics.conftest import owner_rows
 pytestmark = pytest.mark.security
 
 
+_EVENT = {"metrics.sign": "metric_signed", "metrics.publish": "metric_published"}  # issues-log D-13
+
+
 def _audit_since(seq: int, action: str) -> list[dict]:
     return owner_rows("SELECT actor, action, decision, resource, details FROM audit.log "
-                      "WHERE seq > %s AND event = 'policy_decision' AND action = %s ORDER BY seq", (seq, action))
+                      "WHERE seq > %s AND event = %s AND action = %s ORDER BY seq", (seq, _EVENT[action], action))
 
 
 def _head_seq() -> int:

@@ -2,8 +2,10 @@
 
 write_report_text() gives the model the metric table as placeholders, asks for prose that uses only
 those placeholders, renders them with numbers.render() and checks the result with verify_numbers().
-If the model invents or alters a figure, it gets one retry with the problem list; after that a
-deterministic template written by code replaces its text, so a wrong number never reaches the reader.
+Ids and dates (a contract id, a notice deadline) are facts too: the model may write only those it was
+shown, and it must name every issue code found (corpai.metrics.facts). If the model invents or alters a
+figure, an id or a date, or leaves an issue out, it gets one retry with the problem list; after that a
+deterministic template written by code replaces its text, so a wrong fact never reaches the reader.
 
 The node that calls this must have no tools (Rule of Two): its input is internal data (sensitive) and its
 output is shown to a person; it holds no write or outbound capability. The gateway route follows the
@@ -16,9 +18,10 @@ import json
 import re
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Mapping
+from typing import Any, Mapping
 
 from corpai.gateway import ChatRequest, fake_llm, get_gateway
+from corpai.metrics.facts import ID_RE, missing_issues, verify_facts
 from corpai.metrics.model import MetricValue
 from corpai.metrics.numbers import Problem, RenderError, format_value, render, verify_numbers, verify_template
 from corpai.metrics.signals import SignalResult
@@ -92,6 +95,28 @@ def _placeholder_block(table: Mapping[str, MetricValue], lang: str) -> str:
     return "\n".join(lines)
 
 
+_ISO_DAY = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_PERIOD = re.compile(r"^\d{4}-(?:\d{2}|Q[1-4])$")
+_MAX_LISTED = 10
+
+
+def _finding_facts(f: Mapping[str, Any]) -> str:
+    """The ids and dates of one finding, the only ones the model may write about it (a deadline, the
+    period of an overrun, invoice ids). Names and figures stay out: figures go through placeholders."""
+    out = []
+    for name, v in f.items():
+        # a digit in a field name ("last_5_run_ids") would read as a figure written outside a placeholder
+        if name in ("ref", "periods") or any(c.isdigit() for c in name):
+            continue
+        if isinstance(v, str) and (_ISO_DAY.match(v) or _PERIOD.match(v) or ID_RE.fullmatch(v)):
+            out.append(f"{name} {v}")
+        elif isinstance(v, (list, tuple)):
+            ids = [x for x in v if isinstance(x, str) and ID_RE.fullmatch(x)][:_MAX_LISTED]
+            if ids:
+                out.append(f"{name} {', '.join(ids)}")
+    return "; ".join(out)
+
+
 def _signal_block(signals: Mapping[str, SignalResult], lang: str) -> str:
     lines = ["ISSUES:"]
     for kind, s in signals.items():
@@ -103,8 +128,14 @@ def _signal_block(signals: Mapping[str, SignalResult], lang: str) -> str:
             lines.append(f"- {kind} | {title} | none found")
         else:
             for f in s.findings:
-                lines.append(f"- {kind} | {title} | ref {f['ref']}")
+                facts = _finding_facts(f)
+                lines.append(f"- {kind} | {title} | ref {f['ref']}" + (f" | {facts}" if facts else ""))
     return "\n".join(lines)
+
+
+def _shown(table: Mapping[str, MetricValue], signals: Mapping[str, SignalResult], lang: str, title: str) -> str:
+    """The facts part of the prompt; verify_facts allows exactly the ids and dates written here."""
+    return f"Report: {title}\n\n{_placeholder_block(table, lang)}\n\n{_signal_block(signals, lang)}"
 
 
 def _messages(table: Mapping[str, MetricValue], signals: Mapping[str, SignalResult], lang: str,
@@ -114,14 +145,16 @@ def _messages(table: Mapping[str, MetricValue], signals: Mapping[str, SignalResu
         "You write the narrative of an internal management report in " + language + ". "
         "Rules: (1) never write a digit for a figure: every amount, percentage, count or number of days must "
         "be a placeholder exactly as listed, written {metric:<key>}; (2) use only the facts listed; (3) mention "
-        "every issue, and say plainly when a figure or issue is not available to the reader; (4) no tables, "
-        "no invented metrics, no advice beyond the facts. Dates, years and ids like A-0001 may be written.")
-    user = f"Report: {title}\n\n{_placeholder_block(table, lang)}\n\n{_signal_block(signals, lang)}"
+        "every issue by its ref exactly as listed (for example A-0001 or sales), and say plainly when a figure "
+        "or issue is not available to the reader; (4) no tables, no invented metrics, no advice beyond the "
+        "facts; (5) write an id or a date only if it is listed below (the report title, a placeholder key or "
+        "an issue line), never one of your own.")
+    user = _shown(table, signals, lang, title)
     msgs = [{"role": "system", "content": system}, {"role": "user", "content": user}]
     if feedback:
         listed = "; ".join(sorted({f"{p.kind} '{p.token}'" for p in feedback}))[:800]
         msgs.append({"role": "user", "content": "Your previous text was rejected: " + listed +
-                     ". Rewrite it with placeholders only."})
+                     ". Rewrite it with placeholders only, only the listed ids and dates, and every issue."})
     return msgs
 
 
@@ -148,7 +181,9 @@ def template_text(table: Mapping[str, MetricValue], signals: Mapping[str, Signal
         for f in s.findings:
             facts = [f"{{metric:signal.{kind}.{f['ref']}.{name}}}" for name, v in f.items()
                      if _unit_for(name) and not isinstance(v, bool) and isinstance(v, (int, float, Decimal))]
-            out.append(f"- {title}: {f['ref']}" + (f" ({', '.join(facts)})" if facts else ""))
+            # a period-based finding says which period it is about (the report's own, see sections.py)
+            where = f", {f['period']}" if isinstance(f.get("period"), str) else ""
+            out.append(f"- {title}: {f['ref']}{where}" + (f" ({', '.join(facts)})" if facts else ""))
     return "\n".join(out) + "\n"
 
 
@@ -169,7 +204,7 @@ def fake_report_writer(messages: list[dict], *, route: str, json_mode: bool) -> 
     lines += [f"- {k}: {{metric:{k}}}" for k in keys]
     for parts in issues:
         if len(parts) >= 3:
-            lines.append(f"- issue {parts[0]}: {parts[2]}")
+            lines.append(f"- issue {parts[0]}: {' | '.join(parts[2:])}")
     return "\n".join(lines) + "\n"
 
 
@@ -183,21 +218,24 @@ register_fake()
 async def write_report_text(principal: Principal, *, run_id: str, table: Mapping[str, MetricValue],
                             signals: Mapping[str, SignalResult] | None = None, hwm: Level | int = Level.L1,
                             lang: str = "zh", title: str = "Management report", agent: str = "report",
-                            max_attempts: int = 2) -> ReportDraft:
+                            max_attempts: int = 2, gateway: Any = None) -> ReportDraft:
     """Ask the model for prose with placeholders; render and verify; fall back to code's template.
 
     `table` maps placeholder keys to MetricValues (signal evidence is added automatically). The level
     sent to the gateway is computed here (report_level) and can only be higher than `hwm`.
+    `gateway` is the run's gateway (RunContext.services.gateway); None means the process default.
     """
+    gw = gateway if gateway is not None else get_gateway()
     signals = dict(signals or {})
     full = {**dict(table), **signal_table(signals)}
+    shown = _shown(full, signals, lang, title)
     level = report_level(full, signals, hwm)
     feedback: list[Problem] | None = None
     route: str | None = None
     attempts = 0
     for _ in range(max(1, max_attempts)):
         attempts += 1
-        result = await get_gateway().chat(ChatRequest(
+        result = await gw.chat(ChatRequest(
             messages=_messages(full, signals, lang, title, feedback), principal=principal, hwm=level,
             purpose=PURPOSE, run_id=run_id, agent=agent, max_tokens=1500, temperature=0.2))
         route = str(result.route)
@@ -209,7 +247,8 @@ async def write_report_text(principal: Principal, *, run_id: str, table: Mapping
             continue
         # The template first: the model may not write any figure itself, so a swapped, invented,
         # scaled or sign-flipped number is caught even when its digits happen to be in the table.
-        problems = verify_template(template, full) + verify_numbers(text, full)
+        # Ids and dates must be ones the model was shown, and every issue code found must be named.
+        problems = verify_template(template, full) + verify_numbers(text, full) +             verify_facts(template, full, shown) + missing_issues(text, signals)
         if not problems:
             return ReportDraft(text=text, template=template, problems=(), used_fallback=False, route=route,
                                level=level, attempts=attempts)

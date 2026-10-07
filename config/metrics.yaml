@@ -113,7 +113,7 @@ metrics:
 
   # ---------------------------------------------------------------- operating expenses vs budget
   # Per-dept opex includes the dept's aggregate payroll, so in a small dept it would reveal pay:
-  # n = the dept's headcount and min_group 5 hide exec (2), it (3) and legal (4).
+  # n = the dept's headcount on the reporting date and min_group 5 hide exec (2), it (3) and legal (4).
   - id: opex_actual
     name_zh: 运营费用（实际）
     name_en: Operating expenses (actual)
@@ -134,7 +134,8 @@ metrics:
         WHERE a.type = 'expense' AND j.status = 'posted' AND j.period = ANY (%(periods)s)
         GROUP BY j.dept
       ), hc AS (
-        SELECT e.dept, count(*) AS n FROM hr.employees e WHERE e.hired_on < %(end)s GROUP BY e.dept
+        SELECT e.dept, count(*) AS n FROM hr.employees e
+        WHERE e.hired_on < %(end)s AND (e.left_on IS NULL OR e.left_on >= %(end)s) GROUP BY e.dept
       )
       SELECT a.dept, a.amount AS value, coalesce(h.n, 0) AS n FROM act a LEFT JOIN hc h ON h.dept = a.dept
       UNION ALL
@@ -157,7 +158,8 @@ metrics:
         SELECT b.dept, sum(b.budget_eur) AS amount FROM fin.budgets b
         WHERE b.period = ANY (%(periods)s) GROUP BY b.dept
       ), hc AS (
-        SELECT e.dept, count(*) AS n FROM hr.employees e WHERE e.hired_on < %(end)s GROUP BY e.dept
+        SELECT e.dept, count(*) AS n FROM hr.employees e
+        WHERE e.hired_on < %(end)s AND (e.left_on IS NULL OR e.left_on >= %(end)s) GROUP BY e.dept
       )
       SELECT b.dept, b.amount AS value, coalesce(h.n, 0) AS n FROM bud b LEFT JOIN hc h ON h.dept = b.dept
       UNION ALL
@@ -186,7 +188,8 @@ metrics:
         SELECT b.dept, sum(b.budget_eur) AS amount FROM fin.budgets b
         WHERE b.period = ANY (%(periods)s) GROUP BY b.dept
       ), hc AS (
-        SELECT e.dept, count(*) AS n FROM hr.employees e WHERE e.hired_on < %(end)s GROUP BY e.dept
+        SELECT e.dept, count(*) AS n FROM hr.employees e
+        WHERE e.hired_on < %(end)s AND (e.left_on IS NULL OR e.left_on >= %(end)s) GROUP BY e.dept
       ), rows AS (
         SELECT b.dept, coalesce(a.amount, 0) AS actual, b.amount AS budget, coalesce(h.n, 0) AS n
         FROM bud b LEFT JOIN act a ON a.dept = b.dept LEFT JOIN hc h ON h.dept = b.dept
@@ -201,7 +204,7 @@ metrics:
   - id: cash_net_flow
     name_zh: 净现金流（银行）
     name_en: Net cash flow (bank)
-    definition: Net movement on the bank account in the period; negative means cash burn. The ledger holds no opening balance, so this is a flow, not a balance.
+    definition: Net movement on the bank account in the period; negative means cash burn. A flow, not a balance (the balance is cash_balance).
     formula: sum(debit - credit) of posted journal lines on account 1800 in the period's months
     unit: EUR
     dims: []
@@ -213,6 +216,22 @@ metrics:
       SELECT coalesce(sum(j.debit_eur - j.credit_eur), 0) AS value
       FROM fin.journal_entries j
       WHERE j.account_code = '1800' AND j.status = 'posted' AND j.period = ANY (%(periods)s)
+
+  - id: cash_balance
+    name_zh: 银行存款余额
+    name_en: Cash balance (bank)
+    definition: Balance of the bank account at the start of the reporting date, the day after the period. The ledger starts with the opening balance posted on 2025-09-30 (so it is in every balance but in no period's cash_net_flow); the Series B is a posted bank receipt.
+    formula: sum(debit - credit) of posted journal lines on account 1800 with posted_on < as_of
+    unit: EUR
+    dims: []
+    sources: [fin.journal_entries]
+    owner_role: head:finance
+    level: 3
+    visible_to: management
+    sql: |
+      SELECT coalesce(sum(j.debit_eur - j.credit_eur), 0) AS value
+      FROM fin.journal_entries j
+      WHERE j.account_code = '1800' AND j.status = 'posted' AND j.posted_on < %(as_of)s
 
   - id: ar_overdue_total
     name_zh: 逾期应收账款
@@ -346,8 +365,8 @@ metrics:
   - id: headcount
     name_zh: 人数
     name_en: Headcount
-    definition: Employees on record hired before the end of the period, by dept. Departments under five people are not shown. The HR table has no leaving date yet, so employees who have left are still counted.
-    formula: count(hr.employees) with hired_on < end, by dept
+    definition: People employed on the reporting date (the day after the period), by dept; former employees are excluded from the day after their last working day. Departments under five people are not shown.
+    formula: count(hr.employees) with hired_on < end and (left_on is null or left_on >= end), by dept
     unit: count
     dims: [dept]
     sources: [hr.employees]
@@ -357,36 +376,44 @@ metrics:
     visible_to: ["dept:{dept}", "head:{dept}", "role:ceo", "dept:finance", "head:hr"]
     sql: |
       SELECT e.dept, count(*) AS value, count(*) AS n FROM hr.employees e
-      WHERE e.hired_on < %(end)s
+      WHERE e.hired_on < %(end)s AND (e.left_on IS NULL OR e.left_on >= %(end)s)
       GROUP BY GROUPING SETS ((e.dept), ())
 
+  # Attrition by dept: a dept's value is the people who left it in the last twelve months, so the
+  # group must be large (n = people employed on the reporting date, min_group 5); never per person.
   - id: attrition_pct
-    name_zh: 已停用员工账号占比（当前状态）
-    name_en: Deactivated employee accounts (current state)
-    definition: Share of employees hired before the end of the period whose directory account is deactivated at the time the snapshot is computed, by dept only and only for groups of five or more. This is not an attrition rate and has no time window. The HR table has no leaving date, so a deactivation for any reason (a leaver, a lockout, the admin demo switch) counts, in every period, past ones included. Replace it with leavers by leaving date once hr.employees records one.
-    formula: count(employees hired before end whose core.users.active = false now) / count(employees hired before end) * 100, by dept
+    name_zh: 员工流失率（近 12 个月）
+    name_en: Attrition (trailing 12 months)
+    definition: Employees whose last working day falls in the twelve months up to the end of the period, as a share of the average headcount (people employed at the start of the window and on the reporting date), by dept. Departments with fewer than five people on the reporting date are not shown.
+    formula: count(left_on in [ttm_start, end)) / ((headcount at ttm_start + headcount at end) / 2) * 100, by dept
     unit: pct
     dims: [dept]
-    sources: [hr.employees, core.users]
+    sources: [hr.employees]
     owner_role: head:hr
     level: 4
     min_group: 5
     visible_to: ["dept:{dept}", "head:{dept}", "role:ceo", "dept:finance", "head:hr"]
     sql: |
-      SELECT e.dept,
-             CASE WHEN count(*) > 0
-                  THEN round(count(*) FILTER (WHERE u.active IS FALSE)::numeric / count(*) * 100, 4) END AS value,
-             count(*) AS n
-      FROM hr.employees e
-      LEFT JOIN core.users u ON u.user_id = e.employee_id
-      WHERE e.hired_on < %(end)s
-      GROUP BY GROUPING SETS ((e.dept), ())
+      WITH e AS (
+        SELECT e.dept,
+               e.hired_on < %(ttm_start)s AND (e.left_on IS NULL OR e.left_on >= %(ttm_start)s) AS at_start,
+               e.hired_on < %(end)s AND (e.left_on IS NULL OR e.left_on >= %(end)s) AS at_end,
+               e.left_on >= %(ttm_start)s AND e.left_on < %(end)s AS left_in_window
+        FROM hr.employees e
+      )
+      SELECT dept,
+             CASE WHEN count(*) FILTER (WHERE at_start) + count(*) FILTER (WHERE at_end) > 0
+                  THEN round(count(*) FILTER (WHERE left_in_window)::numeric * 2
+                             / (count(*) FILTER (WHERE at_start) + count(*) FILTER (WHERE at_end)) * 100, 4) END AS value,
+             count(*) FILTER (WHERE at_end) AS n
+      FROM e
+      GROUP BY GROUPING SETS ((dept), ())
 
   - id: open_requisitions
     name_zh: 在招岗位数
     name_en: Open positions
-    definition: Positions on open requisitions opened before the end of the period, by hiring dept (roles and headcount are internal, L2).
-    formula: sum(hr.requisitions.headcount) where status = 'open' and opened_on < end, by dept
+    definition: Positions on requisitions that are open (not on hold, filled or closed) at the end of the period, by hiring dept (roles and headcount are internal, L2).
+    formula: sum(hr.requisitions.headcount) where opened_on < end and no on_hold_on, filled_on or closed_on before end, by dept
     unit: count
     dims: [dept]
     sources: [hr.requisitions]
@@ -395,7 +422,8 @@ metrics:
     visible_to: company
     sql: |
       SELECT r.dept, sum(r.headcount) AS value FROM hr.requisitions r
-      WHERE r.status = 'open' AND r.opened_on < %(end)s
+      WHERE r.opened_on < %(end)s AND NOT coalesce(r.on_hold_on < %(end)s, false)
+        AND NOT coalesce(r.filled_on < %(end)s, false) AND NOT coalesce(r.closed_on < %(end)s, false)
       GROUP BY GROUPING SETS ((r.dept), ())
 
   # Requisition budgets are L3 for the hiring head, HR, finance heads and the CEO. A one-position
@@ -404,8 +432,8 @@ metrics:
   - id: hiring_budget_approved
     name_zh: 招聘预算（已批准）
     name_en: Hiring budget (approved)
-    definition: Approved first-year cost of requisitions that are open or on hold when the snapshot is computed (the current status, not the status at the end of the period), by hiring dept.
-    formula: sum(hr.requisition_budgets.approved_budget_eur) for requisitions open or on hold, by dept
+    definition: Approved first-year cost of requisitions that are open or on hold at the end of the period (status from the requisition's status dates), by hiring dept.
+    formula: sum(hr.requisition_budgets.approved_budget_eur) for requisitions opened before end and not filled or closed before end, by dept
     unit: EUR
     dims: [dept]
     sources: [hr.requisitions, hr.requisition_budgets]
@@ -416,14 +444,15 @@ metrics:
     sql: |
       SELECT r.dept, sum(b.approved_budget_eur) AS value
       FROM hr.requisitions r JOIN hr.requisition_budgets b ON b.req_id = r.req_id
-      WHERE r.status IN ('open', 'on_hold') AND r.opened_on < %(end)s
+      WHERE r.opened_on < %(end)s
+        AND NOT coalesce(r.filled_on < %(end)s, false) AND NOT coalesce(r.closed_on < %(end)s, false)
       GROUP BY GROUPING SETS ((r.dept), ())
 
   - id: hiring_cost_projected
     name_zh: 招聘成本（预计）
     name_en: Hiring cost (projected)
-    definition: Projected first-year cost of requisitions that are open or on hold when the snapshot is computed (the current status, not the status at the end of the period), by hiring dept.
-    formula: sum(hr.requisition_budgets.projected_cost_eur) for requisitions open or on hold, by dept
+    definition: Projected first-year cost of requisitions that are open or on hold at the end of the period (status from the requisition's status dates), by hiring dept.
+    formula: sum(hr.requisition_budgets.projected_cost_eur) for requisitions opened before end and not filled or closed before end, by dept
     unit: EUR
     dims: [dept]
     sources: [hr.requisitions, hr.requisition_budgets]
@@ -434,13 +463,14 @@ metrics:
     sql: |
       SELECT r.dept, sum(b.projected_cost_eur) AS value
       FROM hr.requisitions r JOIN hr.requisition_budgets b ON b.req_id = r.req_id
-      WHERE r.status IN ('open', 'on_hold') AND r.opened_on < %(end)s
+      WHERE r.opened_on < %(end)s
+        AND NOT coalesce(r.filled_on < %(end)s, false) AND NOT coalesce(r.closed_on < %(end)s, false)
       GROUP BY GROUPING SETS ((r.dept), ())
 
   - id: hiring_variance_pct
     name_zh: 招聘成本超预算比例
     name_en: Hiring cost vs budget
-    definition: How far the projected cost of requisitions open or on hold when the snapshot is computed is above (positive) or below budget.
+    definition: How far the projected cost of requisitions open or on hold at the end of the period is above (positive) or below budget.
     formula: (projected / approved - 1) * 100, by dept
     unit: pct
     dims: [dept]
@@ -454,7 +484,8 @@ metrics:
              CASE WHEN sum(b.approved_budget_eur) > 0
                   THEN round((sum(b.projected_cost_eur) / sum(b.approved_budget_eur) - 1) * 100, 4) END AS value
       FROM hr.requisitions r JOIN hr.requisition_budgets b ON b.req_id = r.req_id
-      WHERE r.status IN ('open', 'on_hold') AND r.opened_on < %(end)s
+      WHERE r.opened_on < %(end)s
+        AND NOT coalesce(r.filled_on < %(end)s, false) AND NOT coalesce(r.closed_on < %(end)s, false)
       GROUP BY GROUPING SETS ((r.dept), ())
 
   # ---------------------------------------------------------------- engineering (project level, never per person)

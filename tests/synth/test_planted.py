@@ -14,6 +14,7 @@ import pytest
 from corpai import synth
 from corpai.config import settings
 from corpai.db import pg as pgmod
+from corpai.synth.script import LEAVERS
 from corpai.synth.writer import TABLES
 
 TODAY = date(2026, 10, 1)
@@ -59,7 +60,9 @@ def test_full_size_volumes(size):
         assert 2500 <= c["fin.journal_entries"] <= 3500 and 200 <= c["fin.invoices"] <= 300
         assert c["hr.requisitions"] == 6 and c["hr.candidates"] == 40
         assert 130 <= report.docs <= 170
-    assert c["core.users"] == 70
+    # 70 current people and service accounts plus the former employees (deactivated accounts, D-12)
+    assert c["core.users"] == 70 + len(LEAVERS)
+    assert len(q("SELECT user_id FROM core.users WHERE active")) == 70
 
 
 def test_overdue_receivable(size):

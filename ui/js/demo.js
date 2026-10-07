@@ -4,12 +4,60 @@
 // and admin only pages, a thread's level that only goes up, local_down refusing every local
 // call, approvers not seeing the requester's resumed thread), so demo mode never shows
 // something live mode would refuse.
+//
+// Pages ask hasRecording(app, input) and recordedPersonas(app) to mark controls with no recording
+// and to say up front when the persona has none (KB.appPage.demoCoverage).
+//
+// Milestone extension points (so a milestone never edits this file):
+// - fixtures/<legal|report|sales|hr>.js may hold "runs" (items like runs.items), "traces" (by run id)
+//   and "proposals" ({by_persona, resumed_runs}); they are merged with the shared fixtures here.
+// - js/demo_<name>.js calls KB.demo.register(name, hooks) for app-specific behaviour: extra API
+//   routes, its own recording lookup for its apps, and its own state (see register() below). Every
+//   run, whoever found its recording, still goes through the same rules: start permission, the
+//   thread's level, the user's level and the outage switches.
 (function () {
   "use strict";
   var KB = (window.KB = window.KB || {});
   var U = KB.util;
   var F = {};
   var S = {};
+  var HOOKS = {};   // name -> hooks registered by js/demo_<name>.js
+  // the milestone fixture files (fixtures_base.js); each may add runs, traces and proposals
+  var APP_FIXTURES = window.FIXTURE_APPS || [];
+
+  function appFixtures() {
+    return APP_FIXTURES.map(function (n) { return F[n] || {}; });
+  }
+
+  // the shared recordings plus every milestone file's
+  function allRuns() {
+    var items = ((F.runs && F.runs.items) || []).slice();
+    appFixtures().forEach(function (a) { items = items.concat(a.runs || []); });
+    return items;
+  }
+
+  function traceFor(runId) {
+    var tr = F.traces && F.traces.by_run && F.traces.by_run[runId];
+    appFixtures().forEach(function (a) { if (!tr && a.traces && a.traces[runId]) tr = a.traces[runId]; });
+    return tr || null;
+  }
+
+  function mergedProposals() {
+    var out = U.copy(F.proposals || {by_persona: {}, resumed_runs: {}});
+    out.by_persona = out.by_persona || {};
+    out.resumed_runs = out.resumed_runs || {};
+    appFixtures().forEach(function (a) {
+      var p = a.proposals || {};
+      Object.keys(p.by_persona || {}).forEach(function (k) {
+        var box = out.by_persona[k] || (out.by_persona[k] = {mine: [], to_approve: []});
+        ["mine", "to_approve"].forEach(function (b) {
+          box[b] = (box[b] || []).concat(U.copy((p.by_persona[k] || {})[b] || []));
+        });
+      });
+      Object.keys(p.resumed_runs || {}).forEach(function (id) { out.resumed_runs[id] = U.copy(p.resumed_runs[id]); });
+    });
+    return out;
+  }
 
   // (Re)read window.FIXTURES: js/fixtures_loader.js adds the files only once the mode is demo.
   function reload() {
@@ -17,11 +65,13 @@
     S = {
       persona: S.persona || null,   // persona_key of the "logged in" demo user
       switches: U.copy(F.switches || {local_down: false, external_down: false}),
-      proposals: U.copy(F.proposals || {by_persona: {}, resumed_runs: {}}),
+      proposals: mergedProposals(),
       audit: U.copy(F.audit || {entries: [], chain: {ok: true, checked: 0, first_bad_seq: null}}),
       threads: {},                  // thread_id -> highest level reached in that thread
-      tampered: false
+      tampered: false,
+      ext: {}                       // name -> state of a registered milestone extension
     };
+    Object.keys(HOOKS).forEach(initHook);
   }
   reload();
 
@@ -70,6 +120,25 @@
     S.audit.chain.checked = seq;
   }
 
+  // When a rule moves a recorded external run to local, the routes recorded inside its output (a step's
+  // route, the route of a generated note) must follow: the page shows them as badges, and an outage
+  // drill must never claim that a call went out. The fake model's "[fake/external]" tag moves too.
+  function localise(run) {
+    function walk(v) {
+      if (Array.isArray(v)) { v.forEach(walk); return; }
+      if (!v || typeof v !== "object") return;
+      Object.keys(v).forEach(function (k) {
+        if (k === "route" && v[k] === "external") v[k] = "local";
+        else walk(v[k]);
+      });
+    }
+    var out = run.output;
+    if (!out) return run;
+    walk(out.data);
+    if (typeof out.text === "string") out.text = out.text.replace(/\[fake\/external\]/g, "[fake/local]");
+    return run;
+  }
+
   // A thread keeps its level (architecture §12: nothing lowers it; a new thread is the only reset).
   // A recording made in a fresh thread is raised to the level the thread already reached, with
   // the route that level implies; the local-mode notice belongs to the run that crossed L3.
@@ -87,6 +156,7 @@
       var route = th >= 3 ? "local" : out.route;
       events.push({t: "route", route: route, level: th, reason: "route_by_level"});
       out.route = route;
+      if (route === "local") localise(out);
     }
     out.events = events;
     return out;
@@ -104,6 +174,9 @@
         {t: "route", route: "local", level: out.hwm, reason: "external_down_fallback"}
       ]);
     }
+    // a run whose own route is local can still carry an external step (the sales web extraction):
+    // with external_down that step ran locally too
+    if (S.switches.external_down) localise(out);
     if (out.route === "local" && S.switches.local_down) {
       var kept = (out.events || []).filter(function (e) { return e.t !== "notice" && e.t !== "route"; });
       kept.push({t: "route", route: "local", level: out.hwm, reason: "local_down"});
@@ -133,11 +206,12 @@
       out.events.push({t: "notice", code: "local_mode", zh: "本会话已切换到本地模式", en: "This session now uses the local model"});
     }
     out.route = route;
+    if (route === "local") localise(out);  // a raised level keeps every step local (issues-log WI-01)
     return out;
   }
 
   function findRun(key, body) {
-    var items = (F.runs && F.runs.items) || [];
+    var items = allRuns();
     var q = norm(body.input);
     var cands = items.filter(function (it) { return matches(it, key, body.app) && norm(it.input) === q; });
     // most specific first: own persona over "*", and a recording made under the current switches
@@ -152,16 +226,40 @@
     return null;
   }
 
+  // A milestone's own lookup for its apps (findRun in demo_<name>.js), then the shared one.
+  function lookup(key, body) {
+    var names = Object.keys(HOOKS);
+    for (var i = 0; i < names.length; i++) {
+      var h = HOOKS[names[i]];
+      if (h.findRun && (h.apps || []).indexOf(body.app) >= 0) {
+        var found = h.findRun(ctx(names[i]), key, U.copy(body));
+        if (usable(found, body)) return found;
+      }
+    }
+    return findRun(key, body);
+  }
+
   function runAs(key, body) {
     var me = meFor(key);
     if (!me) throw err(401, "unauthenticated", "Pick a persona first.");
     var allowed = (me.apps || []).some(function (a) { return a.id === body.app; });
     if (!allowed) throw err(403, "forbidden", "Your role may not start this app.");
     if (!body.input || !String(body.input).trim()) throw err(400, "bad_request", "Type a question first.");
-    var item = findRun(key, body);
+    var item = lookup(key, body);
     if (!item) {
       throw err(404, "demo_not_recorded", "This question has no recording in demo mode.");
     }
+    return finishRun(me, body, item);
+  }
+
+  // A recording for this app (never another app's), made under the current switches if under any:
+  // an extension cannot hand back a run that would skip the switch rules.
+  function usable(item, body) {
+    return !!(item && item.run && item.app === body.app && item.run.app === body.app && switchesMatch(item));
+  }
+
+  // The rules every recorded run goes through, whichever lookup found it.
+  function finishRun(me, body, item) {
     // Order as on the server: the level first (thread, then the user's choice), then the
     // gateway's switches decide on the final route, so local_down refuses an L3/L4 request
     // even when the recording itself went external.
@@ -178,7 +276,7 @@
   }
 
   function runOwner(runId) {
-    var items = (F.runs && F.runs.items) || [];
+    var items = allRuns();
     for (var i = 0; i < items.length; i++) {
       if (items[i].run && items[i].run.run_id === runId) return items[i].persona_key;
     }
@@ -304,7 +402,7 @@
     if (method === "POST" && bare === "/api/runs") return runAs(key, body || {});
     if (method === "GET" && (m = bare.match(/^\/api\/runs\/([^/]+)\/trace$/))) {
       var owner = runOwner(m[1]);
-      var tr = F.traces && F.traces.by_run && F.traces.by_run[m[1]];
+      var tr = traceFor(m[1]);
       // own runs only: someone else's run is indistinguishable from a missing one
       if (!tr || !(owner === key || owner === "*")) throw err(404, "not_found", "No such run among yours.");
       return U.copy(tr);
@@ -349,15 +447,120 @@
         return U.copy(S.switches);
       }
     }
+    var ext = extRoute(method, bare);
+    if (ext) {
+      return ext.route.handle(ctx(ext.name), {method: method, path: path, match: ext.match, query: q,
+                                              body: body || {}, persona: key, me: meFor(key)});
+    }
     throw err(404, "not_found", "Not available in demo mode.");
+  }
+
+  // ---------------------------------------------------------------- milestone extensions
+
+  // A route registered by a milestone. The shared routes above always win: an extension adds
+  // endpoints (e.g. GET /api/metrics), never replaces one, and is reached only with a persona.
+  function extRoute(method, bare) {
+    var names = Object.keys(HOOKS);
+    for (var i = 0; i < names.length; i++) {
+      var routes = HOOKS[names[i]].routes || [];
+      for (var j = 0; j < routes.length; j++) {
+        var r = routes[j];
+        var m = r.method === method ? bare.match(r.path) : null;
+        if (m) return {name: names[i], route: r, match: m};
+      }
+    }
+    return null;
+  }
+
+  // What a milestone's demo code may use. A run it returns goes through finishRun, so the start
+  // permission, the thread's level, the user's level and the switches apply as to every other run.
+  function ctx(name) {
+    if (!S.ext[name]) S.ext[name] = {};
+    return {
+      name: name,
+      fixtures: F,
+      appFixture: F[name] || {},
+      state: S.ext[name],
+      persona: function () { return S.persona; },
+      me: meFor,
+      err: err,
+      copy: U.copy,
+      audit: auditAppend,
+      boxes: boxes,
+      findProposal: findProposal,
+      updateProposal: updateEverywhere,
+      allRuns: allRuns,
+      // body: {app, input, thread_id, user_level}; item: a runs item ({persona_key, app, input, run})
+      finishRun: function (body, item) {
+        var me = meFor(S.persona);
+        if (!me) throw err(401, "unauthenticated", "Pick a persona first.");
+        if (!(me.apps || []).some(function (a) { return a.id === body.app; })) {
+          throw err(403, "forbidden", "Your role may not start this app.");
+        }
+        if (!usable(item, body)) throw err(404, "demo_not_recorded", "This step has no recording in demo mode.");
+        return finishRun(me, body, item);
+      }
+    };
+  }
+
+  function initHook(name) {
+    S.ext[name] = {};
+    if (HOOKS[name].init) HOOKS[name].init(ctx(name));
+  }
+
+  // register("legal", {
+  //   apps: ["legal_review"],                        apps whose recordings findRun may supply
+  //   findRun: function (ctx, personaKey, body) {},  a runs item, or null for the shared lookup
+  //   routes: [{method: "GET", path: /^\/api\/legal\/reviews$/, handle: function (ctx, req) {}}],
+  //   init: function (ctx) {}                        on every reload, with a fresh ctx.state
+  // })
+  function register(name, hooks) {
+    if (!/^[a-z][a-z0-9_]*$/.test(name)) throw new Error("demo extension names are lower-case identifiers");
+    if (HOOKS[name]) throw new Error("demo extension " + name + " is already registered");
+    HOOKS[name] = hooks || {};
+    initHook(name);
   }
 
   function canFind(key, app, input) {
     return !!findRun(key, {app: app, input: input});
   }
 
+  // Whether POST /api/runs {app, input} as `key` would find a recording, without changing any demo
+  // state (a milestone's own lookup may remember things; its `hasRecording` hook answers instead).
+  // The pages use it to mark controls that would only answer "no recording" (finding: dead buttons).
+  function hasRecording(key, app, input, threadId) {
+    if (!key) return false;
+    var body = {app: app, input: input, thread_id: threadId || null};
+    var names = Object.keys(HOOKS);
+    for (var i = 0; i < names.length; i++) {
+      var h = HOOKS[names[i]];
+      if ((h.apps || []).indexOf(app) < 0) continue;
+      if (h.hasRecording) return !!h.hasRecording(ctx(names[i]), key, U.copy(body));
+    }
+    return canFind(key, app, input);
+  }
+
+  // The personas with at least one recording of the app, or null when a recording is for everyone.
+  function recordedPersonas(app) {
+    var names = Object.keys(HOOKS);
+    for (var i = 0; i < names.length; i++) {
+      var h = HOOKS[names[i]];
+      if ((h.apps || []).indexOf(app) >= 0 && h.recordedPersonas) return h.recordedPersonas(ctx(names[i]), app);
+    }
+    var keys = [];
+    var everyone = false;
+    allRuns().forEach(function (it) {
+      if (it.app !== app || it.switches) return;
+      if (it.persona_key === "*") everyone = true;
+      else if (keys.indexOf(it.persona_key) < 0) keys.push(it.persona_key);
+    });
+    return everyone ? null : keys;
+  }
+
   KB.demo = {
     reload: reload,
+    register: register,
+    registered: function () { return Object.keys(HOOKS); },
     // Promise-based like fetch; a short delay keeps the UI's loading states honest.
     request: function (method, path, body) {
       return new Promise(function (resolve, reject) {
@@ -379,7 +582,7 @@
       if (k && meFor(k)) S.persona = k;
     },
     suggestions: function (key, app) {
-      var items = (F.runs && F.runs.items) || [];
+      var items = allRuns();
       var seen = {};
       return items.filter(function (it) {
         if (!matches(it, key, app) || it.switches || seen[it.input]) return false;
@@ -391,7 +594,7 @@
     // for everyone ("*"), then any. `runnable` says whether 运行 with its input would find a
     // recording for this persona (only then does the page pre-fill the input with it).
     sample: function (app, key) {
-      var items = ((F.runs && F.runs.items) || []).filter(function (it) { return it.app === app && !it.switches; });
+      var items = allRuns().filter(function (it) { return it.app === app && !it.switches; });
       var pick = items.filter(function (it) { return key && it.persona_key === key; })[0] ||
         items.filter(function (it) { return it.persona_key === "*"; })[0] || items[0];
       if (!pick) return null;
@@ -399,11 +602,16 @@
       out.runnable = !!key && canFind(key, app, pick.input);
       return out;
     },
+    hasRecording: function (app, input, threadId) { return hasRecording(S.persona, app, input, threadId); },
+    recordedPersonas: recordedPersonas,
+    personaName: function (key) {
+      var p = personaList().filter(function (x) { return x.persona_key === key; })[0];
+      return p ? p.name + " (" + p.title + ")" : String(key);
+    },
     // Whether the trace page would answer for this run as the current persona (own runs only).
     hasTrace: function (runId) {
       var owner = runOwner(runId);
-      return !!(S.persona && F.traces && F.traces.by_run && F.traces.by_run[runId] &&
-        (owner === S.persona || owner === "*"));
+      return !!(S.persona && traceFor(runId) && (owner === S.persona || owner === "*"));
     },
     persona: function () { return S.persona; },
     setTampered: function (on) { S.tampered = !!on; },

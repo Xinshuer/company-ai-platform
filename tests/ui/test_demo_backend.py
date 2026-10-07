@@ -164,3 +164,44 @@ def test_app_samples_prefill_only_when_runnable(r):
     assert r["sample_sales_staff"]["runnable"] is True
     head = r["sample_sales_head"]
     assert head is None or head["runnable"] is False
+
+
+# ---- milestone extension points (KB.demo.register, fixtures/<name>.js) -------------------------------
+
+def test_every_milestone_registers_its_demo_extension(r):
+    assert r["registered"] == ["hr", "legal", "report", "sales"]
+    assert r["ext_dup"] == "refused", "a name is registered once; a second file cannot take it over"
+
+
+def test_extension_routes_need_a_persona_and_never_shadow_shared_routes(r):
+    _err(r, "ext_route_no_persona", 401, "unauthenticated")
+    assert r["ext_route"]["value"] == {"persona": "legal_staff", "me": "u0031"}
+    assert r["ext_cannot_shadow"]["value"]["user_id"] == "u0031", "GET /api/me stays the shared handler"
+
+
+def test_extension_runs_obey_the_shared_rules(r):
+    plain = r["ext_run_plain"]["value"]
+    assert plain["route"] == "external" and plain["hwm"] == 1
+    raised = r["ext_run_raised"]["value"]  # the user may raise the level
+    assert raised["route"] == "local" and raised["hwm"] == 3
+    thread = r["ext_run_thread"]["value"]  # the thread keeps it
+    assert thread["route"] == "local" and thread["hwm"] == 3
+    assert r["ext_route_run"]["value"]["hwm"] == 3, "a run returned by an extension route is processed too"
+    ext_down = r["ext_run_external_down"]["value"]
+    assert ext_down["route"] == "local" and any(e.get("reason") == "external_down_fallback" for e in ext_down["events"])
+    local_down = r["ext_run_local_down"]["value"]
+    assert local_down["status"] == "error" and local_down["error"]["code"] == "local_unavailable"
+    assert not local_down["output"]["text"]
+
+
+def test_extensions_cannot_widen_access(r):
+    _err(r, "ext_wrong_app", 404, "demo_not_recorded")  # a recording for another app is refused
+    _err(r, "ext_run_forbidden", 403, "forbidden")
+    _err(r, "ext_route_run_forbidden", 403, "forbidden")
+
+
+def test_milestone_fixture_files_are_merged(r):
+    assert r["ext_inits_after_reload"] is True
+    run = r["fixture_run"]["value"]
+    assert run["run_id"] == "run_w0fix" and run["app"] == "legal_review"
+    assert r["fixture_trace_own"] is True and r["fixture_trace_other"] is False

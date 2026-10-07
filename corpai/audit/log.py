@@ -22,7 +22,11 @@ EVENTS: frozenset[str] = frozenset({
     "login", "demo_login", "policy_decision", "tool_call", "retrieval", "model_call",
     "route_decision", "proposal_created", "proposal_approved", "proposal_rejected",
     "proposal_executed", "export", "outage_switch", "budget_exceeded", "break_glass", "owner_job",
-    "audit_read",  # the security auditor's own reads of the log (GET /api/audit; migration 101)
+    "audit_read",  # the security auditor's own reads of the log (GET /api/audit)
+    # Human acts with their own event (issues-log D-13), so the trail does not hide them among
+    # policy decisions and tool calls: the CFO signs off / publishes metrics; AI screening evidence
+    # is stored; an HR person records the screening decision (GDPR Art. 22).
+    "metric_signed", "metric_published", "hr_screening", "hr_decision",
 })
 ROUTES: frozenset[str] = frozenset({"local", "external"})
 

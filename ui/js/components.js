@@ -337,6 +337,18 @@
     return KB.api.mode !== "demo" || KB.demo.hasTrace(run.run_id);
   };
 
+  // Model text written by the offline fake model (tests, `CORPAI_LLM=fake`, and every demo recording
+  // so far: issues-log D-07) starts with "[fake/<route>]". Say so next to it, so nobody takes the
+  // wording for what the real model writes. Demo recordings that hold no such tag were made the same
+  // way (or written by hand), so in demo mode the note is shown whenever a run called a model.
+  C.isFakeText = function (text) { return /^\s*\[fake\//.test(String(text || "")); };
+  C.fakeModelNote = function (run) {
+    var text = run && run.output && run.output.text;
+    var demo = KB.api.mode === "demo" && run && run.route;
+    if (!C.isFakeText(text) && !demo) return null;
+    return el("p", {class: "small muted fake-note", role: "note"}, [C.icon("info", "icon-xs"), t("fake_model_note")]);
+  };
+
   // ---------------------------------------------------------------- the §18 run card
   C.runCard = function (run, opts) {
     opts = opts || {};
@@ -356,6 +368,7 @@
     }
     var text = run.output && run.output.text;
     if (text) body.push(el("div", {class: "answer"}, U.linkify(text)));
+    if (text) body.push(C.fakeModelNote(run));
     if (run.pending_approval) {
       var pa = run.pending_approval;
       body.push(C.panel("wait", "inbox", t("pending_title"), [

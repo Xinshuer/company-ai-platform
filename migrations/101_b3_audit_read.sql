@@ -1,6 +1,8 @@
 -- 101 B3: the event 'audit_read' (phase-B spec §9; issues-log D-03). GET /api/audit writes one for
 -- every read of the log by the security auditor, so reading the log is itself on record.
--- Done as a new migration instead of editing 001, so databases that already applied 001 upgrade.
+-- 001 now lists every event itself (D-13 edited it in place); this file re-creates the same CHECK
+-- so a database migrated before that edit ends up identical. Keep both lists equal to
+-- corpai/audit/log.py EVENTS (tests/audit checks that).
 
 DO $$
 DECLARE
@@ -21,4 +23,4 @@ ALTER TABLE audit.log ADD CONSTRAINT log_event_check CHECK (event IN (
   'login', 'demo_login', 'policy_decision', 'tool_call', 'retrieval', 'model_call',
   'route_decision', 'proposal_created', 'proposal_approved', 'proposal_rejected',
   'proposal_executed', 'export', 'outage_switch', 'budget_exceeded', 'break_glass',
-  'owner_job', 'audit_read'));
+  'owner_job', 'audit_read', 'metric_signed', 'metric_published', 'hr_screening', 'hr_decision'));

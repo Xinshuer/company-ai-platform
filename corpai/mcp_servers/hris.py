@@ -1,9 +1,10 @@
 """hris server: employees, headcount, requisitions, candidates (architecture §11, decisions D6/D7).
 
 Employee profiles are L3 for HR and the direct manager; pay and ratings are never served here.
-Headcount is an aggregate (policy kind hr.aggregate): the CEO sees every department, other heads
-their own, and groups under 5 people are shown as "<5" (obligation min_group_5, D7). HR staff read
-every employee row anyway (acl dept:hr), so for them the count is simply the rows they can read.
+Headcount is an aggregate (policy kind hr.aggregate) with one implementation, the SQL function
+hr.headcount_by_dept() (issues-log D-10): the CEO and the head of HR see every department, other
+heads their own, and groups under 5 people come back from SQL already suppressed and are shown as
+"<5" (obligation min_group_5, D7). Everybody else gets an explicit denial per department.
 Candidates and résumés are untrusted input (trust=untrusted travels in the label).
 """
 
@@ -11,9 +12,9 @@ from __future__ import annotations
 
 from typing import Any
 
-import psycopg
 from mcp.server.mcpserver import Context
 
+from corpai import clock
 from corpai.mcp_servers._common import (
     DEPTS,
     check_choice,
@@ -30,8 +31,10 @@ from corpai.policy import decide
 from corpai.types import Action, Dept, Label, Level, Resource
 
 DOMAIN = "hris"
-EMPLOYEE_FIELDS = ["employee_id", "name", "dept", "title", "manager_id", "country", "hired_on", "employment_type", "fte"]
-REQ_FIELDS = ["req_id", "dept", "title", "headcount", "status", "opened_on", "hiring_manager_id", "recruiter_id"]
+EMPLOYEE_FIELDS = ["employee_id", "name", "dept", "title", "manager_id", "country", "hired_on", "left_on",
+                   "employment_type", "fte"]
+REQ_FIELDS = ["req_id", "dept", "title", "headcount", "status", "opened_on", "on_hold_on", "filled_on", "closed_on",
+              "hiring_manager_id", "recruiter_id"]
 BUDGET_FIELDS = ["approved_budget_eur", "projected_cost_eur", "comp_band_min", "comp_band_max"]
 CANDIDATE_LIST_FIELDS = ["candidate_id", "req_id", "name", "stage", "applied_on", "source"]
 CANDIDATE_FIELDS = CANDIDATE_LIST_FIELDS + ["email", "phone", "resume_text"]
@@ -60,36 +63,28 @@ def _aggregate(dept: str) -> Resource:
 
 
 async def headcount(ctx: Context) -> dict:
-    """People per department. Groups under 5 are shown as "<5" unless you can read every person in them."""
+    """People per department today. Groups under 5 are shown as "<5"; departments you may not see are denied."""
     async def body(col: Collector) -> dict:
         p = col.auth.principal
-        hr_member = "dept:hr" in p.groups  # §5.1: HR reads every hr.employees row
         decisions = {d: decide(p, Action.READ, _aggregate(d)) for d in DEPTS}
-        agg: dict[str, int] = {}
-        async with tx(col) as conn:
-            visible = {r["dept"]: int(r["n"]) for r in await fetch_all(
-                conn, "SELECT dept, count(*) AS n FROM hr.employees GROUP BY dept")}
-        if not hr_member and any(d.allow for d in decisions.values()):
-            try:
-                async with tx(col) as conn:
-                    agg = {r["dept"]: int(r["n"]) for r in await fetch_all(conn,
-                                                                         "SELECT * FROM ops.hr_headcount()")}
-            except psycopg.errors.InsufficientPrivilege:
-                agg = {}  # SQL disagrees with policy: show nothing rather than guess
+        counts: dict[str, dict] = {}
+        if any(d.allow for d in decisions.values()):
+            async with tx(col) as conn:
+                # SQL applies the same hr.aggregate rules and the n<5 suppression itself
+                counts = {r["dept"]: r for r in await fetch_all(
+                    conn, "SELECT dept, employees, suppressed FROM hr.headcount_by_dept(%s)", (clock.today(),))}
         rows: list[dict[str, Any]] = []
         for d in DEPTS:
             dec = decisions[d]
-            if hr_member:
-                rows.append({"dept": d, "headcount": visible.get(d, 0)})
-            elif dec.allow and d in agg:
-                n = agg[d]
-                small = "min_group_5" in dec.obligations and 0 < n < MIN_GROUP
-                rows.append({"dept": d, "headcount": SMALL_GROUP if small else n})
-                col.obligations |= set(dec.obligations)
-            elif dec.allow:
-                continue  # an empty department
-            else:
+            if not dec.allow:
                 col.deny(f"hr.aggregate:headcount:{d}", dec.reason)
+                continue
+            r = counts.get(d)
+            if r is None:
+                continue  # an empty department (or SQL refused it: nothing is shown rather than guessed)
+            small = bool(r["suppressed"]) or r["employees"] is None or r["employees"] < MIN_GROUP
+            rows.append({"dept": d, "headcount": SMALL_GROUP if small else int(r["employees"])})
+            col.obligations |= set(dec.obligations)
         col.add_level(Level.L2, source="hr.aggregate:headcount", dept=str(Dept.HR))
         return col.envelope({"departments": rows, "min_group": MIN_GROUP})
     return await run_tool(ctx, DOMAIN, "headcount", body)

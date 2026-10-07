@@ -6,6 +6,12 @@
 # `apps`: UI apps the agent serves (empty = sub-agent, started only by its parent graph).
 # `purpose`: the rag_filter purpose the agent retrieves with (null = no retrieval).
 # Tools are `domain.tool` from the §11 catalogue; a test fails on unknown names.
+#
+# `tools` is what the agent's graph may call at all. The comments under each milestone agent are the
+# wiring contract for its graph (corpai/agents/<legal|report|sales|hr>, from the domain streams'
+# wiring notes): which node holds which tools. Rule of Two (design-review 二.6): a node that reads
+# untrusted content (uploaded contracts, web pages, résumés) holds no tool at all; a write tool is
+# called only from a node after the approval gate, never from the node that read untrusted text.
 
 agents:
   qa:
@@ -29,8 +35,18 @@ agents:
       - legal.search_regulations
       - legal.contracts_expiring
 
+  # Graph (M2, corpai/agents/legal):
+  #   intake      read tools only (search_contracts, get_contract, docs.*, crm.get_account with a grant)
+  #   review      corpai.legal.review_contract in @node(caps={untrusted_input, sensitive_data}): NO tools;
+  #               its model loop uses Clause Check's internal read-only lookups, not MCP tools
+  #   due         contracts_expiring / corpai.legal.contracts_due, code only, no model
+  #   draft       corpai.legal.draft_contract (caps {sensitive_data}), no tools
+  #   propose     create_contract_draft (tier 2) / send_contract (tier 3, four eyes): filed only after
+  #               the lawyer confirmed the review in an approval gate; review output (counterparty
+  #               quotes, model rationale) never becomes tool arguments; the proposal's own approval
+  #               is a second gate before anything is sent
   legal_review:
-    description: Contract intake and isolated clause review against the legal playbook; four-eyes before sending.
+    description: Contract intake and isolated clause review against the legal playbook (the review node holds no tools); drafts and sending are proposals filed after approval, sending is four-eyes.
     apps: [legal_review]
     purpose: legal_review
     start:
@@ -48,6 +64,11 @@ agents:
       - docs.search_docs
       - docs.get_doc
 
+  # Graph (M3, corpai/agents/report): fan-out nodes (caps {sensitive_data}) read metrics with
+  # signed_only for management reports plus corpai.metrics.detect_all; the writer node holds no tools
+  # (corpai.metrics.write_report_text, numbers only through {metric:...} placeholders); export through
+  # corpai.metrics.aexport_report with domain = 'company' for the CEO, the head's own domain otherwise.
+  # No untrusted input, no writes, no web.
   report:
     description: Management report; fan-out per domain with the requester's own rights, numbers from SQL, no web, no writes.
     apps: [report]
@@ -68,6 +89,10 @@ agents:
       - legal.contracts_expiring
       - docs.search_docs
 
+  # Graph (M4, corpai/agents/sales): the web sub-graph runs as agent sales_web (below); scoring is
+  # code (corpai.sales.intent_score / fit_score / tier / select_playbook, caps {sensitive_data}); the
+  # strategy node runs local and files send_email (tier 3) through the approval gate. Page text never
+  # enters this agent's state: only the CompanyProfile (L1) leaves sales_web.
   sales_profile:
     description: Company profile and follow-up strategy; intent from CRM (local), web only through sales_web; send_email is a tier-3 proposal.
     apps: [sales_profile]
@@ -87,6 +112,8 @@ agents:
       - docs.search_docs
       - docs.get_doc
 
+  # Graph: web.search / web.fetch, then corpai.sales.extract_profile_with_meta in a node with caps
+  # {untrusted_input} only; the fetched pages go in unchanged (any edit drops public_only).
   sales_web:
     description: Isolated web sub-agent of sales_profile; untrusted input, only web.search and web.fetch, fixed JSON out.
     apps: []
@@ -99,6 +126,9 @@ agents:
       - web.search
       - web.fetch
 
+  # Graph (M4, corpai/agents/hr): corpai.hr.headcount_summary (one SQL implementation of the department
+  # counts, hr.headcount_by_dept; issues-log D-10); hwm = summary level (L3 once a budget is included).
+  # create_requisition (tier 2) is a proposal through the approval gate.
   hr_headcount:
     description: Headcount and requisition summary (L2 roles/counts vs L3 budgets); n<5 groups hidden.
     apps: [hr_headcount]
@@ -113,6 +143,9 @@ agents:
       - hris.create_requisition
       - docs.search_docs
 
+  # Graph (M4, corpai/agents/hr): corpai.hr.screen_candidate in a node with caps
+  # {untrusted_input, sensitive_data} (résumés are untrusted), hwm L4, then an interrupt for the HR
+  # person's decision; the API route calls corpai.hr.record_decision. The decision is never a tool.
   hr_screening:
     description: Resume screening; evidence per requirement only (met / not met / unknown), no score, HR decides.
     apps: [hr_screening]
@@ -125,3 +158,21 @@ agents:
       - hris.list_candidates
       - hris.get_candidate
       - docs.search_docs
+
+  # issues-log D-14. Anyone may open the app, but the tool rules (tool-hris-hiring-manager: holders of
+  # req:<id>; HR; heads for list_requisitions) and RLS on hr.candidates (acl req:<id>, head:hr) limit
+  # it to the candidates of the caller's own requisitions; everybody else gets explicit denials.
+  # Graph (M4, corpai/agents/hr): read-only; the requisition ids come from the caller's req:<id>
+  # groups (code), never from the model. Résumé text is untrusted: no write or outbound tool here,
+  # and no screening evidence (L4, HR only).
+  hr_candidates:
+    description: Hiring manager's read-only view of the candidates of their own requisitions (no screening, no decisions).
+    apps: [hr_candidates]
+    purpose: null
+    start:
+      roles: [employee, manager, ceo]
+      depts: []
+    tools:
+      - hris.list_requisitions
+      - hris.list_candidates
+      - hris.get_candidate

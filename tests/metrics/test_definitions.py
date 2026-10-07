@@ -17,7 +17,7 @@ REQUIRED = {
     "cash_net_flow", "ar_overdue_total", "ar_overdue_60d", "ar_overdue_by_tier", "dso_days", "pipeline_value",
     "win_rate_pct", "bookings", "headcount", "open_requisitions", "hiring_cost_projected",
     "hiring_budget_approved", "hiring_variance_pct", "attrition_pct", "projects_by_stage", "ci_pass_rate_pct",
-    "contracts_expiring_next_month", "contracts_missing_dpa",
+    "contracts_expiring_next_month", "contracts_missing_dpa", "cash_balance",
 }
 
 

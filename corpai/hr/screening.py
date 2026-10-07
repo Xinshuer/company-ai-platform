@@ -50,7 +50,8 @@ def _requirements(raw: Any) -> list[tuple[str, str]]:
 
 
 async def _deny(principal: Principal, candidate_id: str, run_id: str | None, why: str) -> None:
-    await audit.arecord("policy_decision", actor=principal.user_id, act_chain=[f"agent:{AGENT}"],
+    # hr_screening (issues-log D-13): every screening attempt, refused or stored, under one event
+    await audit.arecord("hr_screening", actor=principal.user_id, act_chain=[f"agent:{AGENT}"],
                         action="hr.screen_candidate", resource=f"hr.candidate:{candidate_id}", decision="deny",
                         reason=why[:200], run_id=run_id)
 
@@ -104,7 +105,7 @@ async def screen_candidate(principal: Principal, *, candidate_id: str, run_id: s
     async with pg.principal_tx(principal, run_id=run_id) as conn:
         await conn.execute("SELECT hr.write_screening_evidence(%s, %s, %s::jsonb, %s)",
                            (evidence_id, row["candidate_id"], json.dumps(stored.to_json()), route))
-    await audit.arecord("tool_call", actor=principal.user_id, act_chain=[f"agent:{AGENT}"],
+    await audit.arecord("hr_screening", actor=principal.user_id, act_chain=[f"agent:{AGENT}"],
                         action="hr.screen_candidate", resource=f"hr.candidate:{row['candidate_id']}",
                         decision="allow", reason="evidence_stored", route=route, level=4, run_id=run_id,
                         details={"evidence_id": evidence_id, "req_id": row["req_id"], "requirements": len(items),

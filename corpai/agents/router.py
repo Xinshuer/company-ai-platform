@@ -26,6 +26,7 @@ MILESTONE_APPS: dict[str, tuple[str, str]] = {
     "sales_profile": ("corpai.agents.sales", "M4"),
     "hr_headcount": ("corpai.agents.hr", "M4"),
     "hr_screening": ("corpai.agents.hr", "M4"),
+    "hr_candidates": ("corpai.agents.hr", "M4"),  # hiring managers' read-only view (issues-log D-14)
 }
 
 

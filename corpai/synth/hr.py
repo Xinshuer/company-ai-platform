@@ -8,7 +8,7 @@ from datetime import date
 from psycopg.types.json import Jsonb
 
 from corpai.synth import labels
-from corpai.synth._util import World, faker_for, label, money, pick, rand_date, rng_for, slug
+from corpai.synth._util import SIM_TODAY, World, faker_for, label, money, pick, rand_date, rng_for, slug
 from corpai.synth.script import REQUISITIONS, RequisitionSpec
 
 HR_HEAD = "u0050"
@@ -64,9 +64,12 @@ def jd_text(r: RequisitionSpec) -> str:
 def build(world: World) -> None:
     rng = rng_for(world.seed, "hr")
     for r in REQUISITIONS:
+        # the status history must end in the current status on the simulation date
+        assert r.status_on(SIM_TODAY) == r.status, r.req_id
         world.add("hr.requisitions", {
             "req_id": r.req_id, "dept": r.dept, "title": r.title, "headcount": r.headcount, "status": r.status,
-            "opened_on": r.opened_on, "hiring_manager_id": r.hiring_manager_id, "recruiter_id": r.recruiter_id,
+            "opened_on": r.opened_on, "on_hold_on": r.on_hold_on, "filled_on": r.filled_on, "closed_on": r.closed_on,
+            "hiring_manager_id": r.hiring_manager_id, "recruiter_id": r.recruiter_id,
             "jd_text": jd_text(r),
             "hard_requirements": Jsonb([{"id": f"{r.req_id}-H{i}", "text": t} for i, t in enumerate(r.requirements, 1)]),
             **label(2, r.dept, r.recruiter_id, labels.requisition(r.req_id, r.dept))})  # dept = hiring dept

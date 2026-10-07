@@ -62,7 +62,10 @@ MONEY = re.compile(rf"(?<![A-Za-z0-9.,]){_CUR_PRE}\s?{_AMOUNT}{_MULT}(?!\d)"
 
 COMMERCIAL = re.compile(
     r"(?i)\b(?:discount\w*|quot(?:e|es|ed|ation|ations)|pric(?:e|es|ed|ing)|invoic\w*|margins?|revenues?|"
-    r"budget\w*|deals?|rabatt\w*|angebot\w*|preis\w*|rechnung\w*|umsatz\w*)\b|\bARR\b|折扣|报价|预算|收入|价格|发票")
+    r"budget\w*|deals?|rabatt\w*|angebot\w*|preis\w*|rechnung\w*|umsatz\w*|"
+    # contract money: a liability cap or an indemnity amount is a negotiated term (design-review 四.3
+    # "pasted customer contract clauses: L3"); contracts and playbooks are L3 by source anyway
+    r"liabilit(?:y|ies)|indemnit\w*|haftung\w*)\b|\bARR\b|折扣|报价|预算|收入|价格|发票|责任上限|赔偿")
 
 SALARY_TERM = re.compile(
     r"(?i)\b(?:salar(?:y|ies)|\w{0,12}geh(?:a|ä)lt(?:er|s)?|compensation|bonus(?:es)?|wages?|remuneration|"
@@ -314,11 +317,14 @@ def detect(text: str) -> list[Finding]:
     norm = _normalised(text)
     if norm is not None:
         ntext, index = norm
-        seen = {(f.kind, f.start, f.end) for f in found}
+        # Keyed by level too: the normalised pass can see the same span at a higher level (company
+        # code once "fleet<ZWSP>pilot" reads "fleetpilot", money once "dis<SHY>count" reads
+        # "discount"); dropping it as a duplicate would keep the lower level (W-M1 robustness eval).
+        seen = {(f.kind, f.start, f.end, f.level) for f in found}
         for f in _detect(ntext):
             s, e = map_span(index, f.start, f.end)
-            if (f.kind, s, e) not in seen:
-                seen.add((f.kind, s, e))
+            if (f.kind, s, e, f.level) not in seen:
+                seen.add((f.kind, s, e, f.level))
                 found.append(Finding(f.kind, s, e, f.level))
     return found
 

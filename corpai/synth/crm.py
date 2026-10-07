@@ -151,7 +151,9 @@ def _opportunities(world: World, rng, accounts: list[dict]) -> None:
         a = by_id[acc_id]
         closed = stage.startswith("closed")
         close = rand_date(rng, START + days(60), END) if closed else rand_date(rng, date(2026, 10, 15), date(2027, 3, 31))
-        if acc_id == "A-0002":
+        if acc_id == "A-0002" and not closed:
+            # the open renewal closes with the order form (2026-11-30); a closed deal never lies in the
+            # future (issues-log D-12: closed deals close on or before 2026-09-30)
             close = date(2026, 11, 30)
         opp_id = f"O-{i:04d}"
         world.add("crm.opportunities", {"opp_id": opp_id, "account_id": acc_id, "name": name, "stage": stage,

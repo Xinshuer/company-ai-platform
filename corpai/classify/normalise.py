@@ -1,6 +1,6 @@
 """Hidden-character normalisation shared by every detector that must not be fooled by it.
 
-Zero-width and bidi controls (category Cf), the soft hyphen and fullwidth ASCII hide data from
+Zero-width and bidi controls (category Cf), the soft hyphen, no-break spaces and fullwidth ASCII hide data from
 the patterns ("sk-abc<ZWSP>def…", "Ａｇｅ: 34", "KB-CANARY-0A1B<ZWSP>2C3D") while a model reads
 straight through them. Text containing any of them is scanned a second time in normalised form,
 with offsets mapped back to the original, by classify_text, scrub_secrets and redact_protected
@@ -13,7 +13,10 @@ import re
 import unicodedata
 from typing import Callable, Iterable, TypeVar
 
-_HIDING_RANGES = ((0x00AD, 0x00AD), (0x200B, 0x200F), (0x202A, 0x202E), (0x2060, 0x2064), (0xFEFF, 0xFEFF),
+# No-break spaces (U+00A0, U+2007, U+202F) are included: pasted text often carries them, and the
+# phone and id patterns expect plain spaces between digit groups (NFKC turns them into spaces).
+_HIDING_RANGES = ((0x00A0, 0x00A0), (0x00AD, 0x00AD), (0x2007, 0x2007), (0x200B, 0x200F), (0x202A, 0x202F),
+                  (0x2060, 0x2064), (0xFEFF, 0xFEFF),
                   (0xFF0B, 0xFF0B), (0xFF0D, 0xFF0E), (0xFF10, 0xFF19), (0xFF20, 0xFF3A), (0xFF41, 0xFF5A))
 HIDING = re.compile("[" + "".join(f"\\u{a:04x}-\\u{b:04x}" for a, b in _HIDING_RANGES) + "]")
 

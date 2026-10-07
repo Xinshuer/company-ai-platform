@@ -1,10 +1,10 @@
-"""Hiring managers see their own requisitions' candidates (design-review 五 简历、候选人; issues-log D-05).
+"""Hiring managers see their own requisitions' candidates (design-review 五 简历、候选人; issues-log D-05, D-14).
 
 The tool rule `tool-hris-hiring-manager` admits any active human who holds req:<id> to
 hris.list_candidates / hris.get_candidate; RLS on hr.candidates then limits rows to those
-requisitions. No agent in config/agents.yaml lets a non-HR hiring manager start a candidate view
-yet (core change request), so the end-to-end checks below install that agent in a patched loader.
-The table cases live in tests/security/permission_matrix.yaml (`hiring_manager_tools`).
+requisitions. The read-only agent `hr_candidates` in config/agents.yaml (D-14) is what lets a
+hiring manager outside HR reach those tools. The table cases live in
+tests/security/permission_matrix.yaml (`hiring_manager_tools`).
 """
 
 from __future__ import annotations
@@ -16,30 +16,21 @@ import pytest
 import yaml
 
 from corpai.db import pg
-from corpai.policy import agents as agents_mod
-from corpai.policy import rules, tool_allowed
-from corpai.policy.model import AgentSpec
+from corpai.policy import load_agents, may_start, rules, tool_allowed
 from corpai.types import Role
 from tests.policy.fake_personas import principal as fake_principal
 
 MATRIX = yaml.safe_load((Path(__file__).parents[1] / "security" / "permission_matrix.yaml").read_text(encoding="utf-8"))
 CASES = MATRIX["hiring_manager_tools"]
 
-# The agent requested from the integrator (config/agents.yaml); mirrored here for the checks.
-HR_CANDIDATES = AgentSpec(
-    name="hr_candidates", description="Hiring manager's read-only view of their requisitions' candidates.",
-    apps=("hr_candidates",), start_roles=frozenset({Role.EMPLOYEE, Role.MANAGER, Role.CEO}), start_depts=frozenset(),
-    tools=frozenset({"hris.list_requisitions", "hris.list_candidates", "hris.get_candidate"}), purpose=None)
-
 
 @pytest.fixture
-def with_candidates_agent(monkeypatch):
-    real = agents_mod.load_agents
-
-    def patched():
-        return {**real(), "hr_candidates": HR_CANDIDATES}
-
-    monkeypatch.setattr(agents_mod, "load_agents", patched)
+def with_candidates_agent():
+    """The agent is real config now (D-14); this fixture only pins its shape for the checks below."""
+    spec = load_agents()["hr_candidates"]
+    assert spec.apps == ("hr_candidates",) and spec.purpose is None and spec.start_depts == frozenset()
+    assert spec.start_roles == frozenset({Role.EMPLOYEE, Role.MANAGER, Role.CEO})
+    assert spec.tools == frozenset({"hris.list_requisitions", "hris.list_candidates", "hris.get_candidate"})
 
 
 def _rule() -> rules.ToolRule:
@@ -71,7 +62,7 @@ def test_ops_roles_and_inactive_users_are_never_hiring_managers(with_candidates_
 
 
 def test_existing_agents_unchanged(principal_of):
-    # Without the new agent a non-HR hiring manager still cannot start hr_screening (D6: HR screens).
+    # A non-HR hiring manager still cannot start hr_screening (D6: HR screens).
     hm = principal_of("u0112")
     d = tool_allowed(hm, "hr_screening", "hris", "list_candidates")
     assert not d.allow and d.rule_id == "agent-start-denied"
@@ -87,3 +78,19 @@ def test_seeded_hiring_manager_end_to_end(with_candidates_agent, principal_of):
         evidence = conn.execute("SELECT count(*) AS n FROM hr.screening_evidence").fetchone()["n"]
     assert reqs == {r.removeprefix("req:") for r in hm.groups if r.startswith("req:")}
     assert evidence == 0  # screening results are L4: the hiring manager (L3) sees candidates, not evaluations
+
+
+def test_ops_roles_cannot_start_the_candidates_app():
+    for key in ("platform_admin", "auditor"):
+        assert not may_start(fake_principal(key), "hr_candidates").allow, key
+
+
+def test_staff_without_a_requisition_get_denials_not_candidates(principal_of):
+    # Opening the app is allowed (D-14), but without req:<id> the candidate tools are refused.
+    staff = principal_of("u0011")  # sales_staff, holds no requisition
+    assert may_start(staff, "hr_candidates").allow
+    assert not any(g.startswith("req:") for g in staff.groups)
+    for tool in ("list_candidates", "get_candidate", "list_requisitions"):
+        assert not tool_allowed(staff, "hr_candidates", "hris", tool).allow, tool
+    with pg.principal_tx_sync(staff) as conn:
+        assert conn.execute("SELECT count(*) AS n FROM hr.candidates").fetchone()["n"] == 0

@@ -28,6 +28,8 @@ load("js/fixtures_base.js");
 for (const f of fs.readdirSync(path.join(UI, "fixtures")).filter((f) => f.endsWith(".js")).sort()) load("fixtures/" + f);
 load("js/util.js");
 load("js/demo.js");
+// the milestone demo extensions, in page order (ui/index.html loads them right after demo.js)
+for (const f of fs.readdirSync(path.join(UI, "js")).filter((f) => /^demo_[a-z]+\.js$/.test(f)).sort()) load("js/" + f);
 
 const D = sandbox.KB.demo;
 const F = sandbox.FIXTURES;
@@ -114,6 +116,71 @@ async function login(key) { return D.request("POST", "/api/auth/demo-login", {us
   await login("auditor");
   await call("auditor_audit", "GET", "/api/audit?after_seq=0&limit=1000");
   await call("auditor_admin", "GET", "/api/admin/switches");
+
+  // ---- milestone extension points (KB.demo.register): the shared rules still apply ----------------
+  out.registered = D.registered().slice().sort();
+  const pub = F.runs.items.find((i) => i.persona_key === "*" && i.app === "qa");
+  // a recording the extension supplies for legal_review: external, L1, as recorded
+  const extItem = JSON.parse(JSON.stringify(pub));
+  extItem.app = "legal_review";
+  extItem.run.app = "legal_review";
+  extItem.run.run_id = "run_w0ext";
+  extItem.input = "ext question";
+  const wrongApp = JSON.parse(JSON.stringify(pub));  // a recording for another app
+  wrongApp.input = "wrong app";
+  D.register("w0test", {
+    apps: ["legal_review"],
+    findRun: (ctx, key, body) => body.input === "ext question" ? extItem
+      : body.input === "wrong app" ? wrongApp : null,
+    init: (ctx) => { ctx.state.inits = (ctx.state.inits || 0) + 1; },
+    routes: [
+      {method: "GET", path: /^\/api\/w0test\/ping$/, handle: (ctx, req) => ({persona: req.persona, me: req.me.user_id})},
+      {method: "GET", path: /^\/api\/me$/, handle: () => ({shadowed: true})},
+      {method: "POST", path: /^\/api\/w0test\/run$/, handle: (ctx, req) => ctx.finishRun(req.body, extItem)}
+    ]
+  });
+  await call("ext_dup_register", "GET", "/api/health");
+  try { D.register("w0test", {}); out.ext_dup = "accepted"; } catch (e) { out.ext_dup = "refused"; }
+
+  await call("logout_for_ext", "POST", "/api/auth/logout", {});
+  await call("ext_route_no_persona", "GET", "/api/w0test/ping");
+  await login("platform_admin");
+  await D.request("POST", "/api/admin/switches", {name: "external_down", on: false, reason: "drill over"});
+  await login("legal_staff");
+  await call("ext_route", "GET", "/api/w0test/ping");
+  await call("ext_cannot_shadow", "GET", "/api/me");
+  await call("ext_run_plain", "POST", "/api/runs", {app: "legal_review", input: "ext question", thread_id: null, user_level: 1});
+  await call("ext_run_raised", "POST", "/api/runs", {app: "legal_review", input: "ext question", thread_id: "th_w0", user_level: 3});
+  await call("ext_run_thread", "POST", "/api/runs", {app: "legal_review", input: "ext question", thread_id: "th_w0", user_level: 1});
+  await call("ext_wrong_app", "POST", "/api/runs", {app: "legal_review", input: "wrong app", user_level: 1});
+  await call("ext_route_run", "POST", "/api/w0test/run", {app: "legal_review", input: "x", thread_id: null, user_level: 3});
+  await login("platform_admin");
+  await D.request("POST", "/api/admin/switches", {name: "external_down", on: true, reason: "drill"});
+  await login("legal_staff");
+  await call("ext_run_external_down", "POST", "/api/runs", {app: "legal_review", input: "ext question", user_level: 1});
+  await login("platform_admin");
+  await D.request("POST", "/api/admin/switches", {name: "external_down", on: false, reason: "drill over"});
+  await D.request("POST", "/api/admin/switches", {name: "local_down", on: true, reason: "drill"});
+  await login("legal_staff");
+  await call("ext_run_local_down", "POST", "/api/runs", {app: "legal_review", input: "ext question", user_level: 3});
+  await login("platform_admin");
+  await D.request("POST", "/api/admin/switches", {name: "local_down", on: false, reason: "drill over"});
+  await login("sales_staff");  // may not start legal_review: neither through /api/runs nor an extension route
+  await call("ext_run_forbidden", "POST", "/api/runs", {app: "legal_review", input: "ext question", user_level: 1});
+  await call("ext_route_run_forbidden", "POST", "/api/w0test/run", {app: "legal_review", input: "x", user_level: 1});
+
+  // milestone fixture files: their runs, traces and proposals join the shared ones on reload
+  F.legal.runs.push({persona_key: "legal_staff", app: "legal_review", input: "fixture question",
+                     run: Object.assign(JSON.parse(JSON.stringify(extItem.run)), {run_id: "run_w0fix"})});
+  F.legal.traces.run_w0fix = JSON.parse(JSON.stringify(Object.values(F.traces.by_run)[0]));
+  F.legal.traces.run_w0fix.run_id = "run_w0fix";
+  D.reload();
+  out.ext_inits_after_reload = D.registered().indexOf("w0test") >= 0;
+  await login("legal_staff");
+  await call("fixture_run", "POST", "/api/runs", {app: "legal_review", input: "fixture question", user_level: 1});
+  out.fixture_trace_own = D.hasTrace("run_w0fix");
+  await login("legal_head");
+  out.fixture_trace_other = D.hasTrace("run_w0fix");
 
   await call("logout", "POST", "/api/auth/logout", {});
   await call("me_after_logout", "GET", "/api/me");

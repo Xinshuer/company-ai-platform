@@ -7,7 +7,8 @@
   var KB = (window.KB = window.KB || {});
 
   // every file in ui/fixtures/ (tests/ui/test_static.py keeps this list complete)
-  var NAMES = ["personas", "me", "health", "switches", "runs", "compare", "proposals", "traces", "audit"];
+  var NAMES = ["personas", "me", "health", "switches", "runs", "compare", "proposals", "traces", "audit",
+               "legal", "report", "sales", "hr"];
   var pending = null;
 
   KB.fixtures = {

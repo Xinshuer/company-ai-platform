@@ -14,6 +14,7 @@ from collections import defaultdict
 from decimal import Decimal
 from typing import Any
 
+from corpai import clock
 from corpai.db import pg
 from corpai.hr.errors import NoPermission
 from corpai.policy import decide, may_start
@@ -45,7 +46,8 @@ async def headcount_summary(principal: Principal, *, run_id: str | None = None) 
         cur = await conn.execute(
             "SELECT req_id, approved_budget_eur, projected_cost_eur FROM hr.requisition_budgets ORDER BY req_id")
         budgets = {b["req_id"]: b for b in await cur.fetchall()}
-        cur = await conn.execute("SELECT dept, employees, suppressed FROM hr.headcount_by_dept()")
+        # people employed on the simulation date (leavers excluded), as in the headcount metric
+        cur = await conn.execute("SELECT dept, employees, suppressed FROM hr.headcount_by_dept(%s)", (clock.today(),))
         staff_rows = await cur.fetchall()
 
     by_dept: dict[str, list[dict]] = defaultdict(list)

@@ -100,12 +100,36 @@ async def test_headcount_hides_small_groups_for_non_hr(call):
     assert env.level == Level.L2
 
 
-async def test_hr_reads_exact_counts(call):
-    for persona, agent in (("hr_head", "hr_headcount"), ("hr_staff", "hr_headcount")):
-        env = await call(persona, agent, "hris", "headcount")
-        assert env.ok
-        counts = _counts(env)
-        assert counts["legal"] == 4 and counts["exec"] == 2 and counts["it"] == 3, persona
+async def test_hr_head_sees_every_department_with_small_groups_hidden(call):
+    """One implementation (issues-log D-10): the head of HR gets every department from
+    hr.headcount_by_dept(), with the same n<5 suppression as everybody else."""
+    env = await call("hr_head", "hr_headcount", "hris", "headcount")
+    assert env.ok and env.denied == []
+    counts = _counts(env)
+    assert set(counts) == {"exec", "sales", "eng", "legal", "finance", "hr", "it"}
+    assert counts["legal"] == counts["exec"] == counts["it"] == "<5"
+    assert counts["eng"] == 32 and counts["sales"] == 14  # current staff: leavers are not counted
+
+
+async def test_hr_staff_get_explicit_denials_not_counts(call):
+    # HR staff are not covered by the hr.aggregate rules: every department is denied, explicitly
+    env = await call("hr_staff", "hr_headcount", "hris", "headcount")
+    assert env.ok and env.data["departments"] == []
+    assert {d["id"] for d in env.denied} == {f"hr.aggregate:headcount:{d}"
+                                             for d in ("exec", "sales", "eng", "legal", "finance", "hr", "it")}
+
+
+async def test_headcount_excludes_leavers(call):
+    from tests.mcp.support import owner_rows
+
+    left = owner_rows("SELECT dept, count(*) AS n FROM hr.employees WHERE left_on IS NOT NULL GROUP BY dept")
+    assert {r["dept"] for r in left} >= {"eng", "sales"}  # synth plants leavers in big departments
+    current = {r["dept"]: r["n"] for r in owner_rows(
+        "SELECT dept, count(*) AS n FROM hr.employees WHERE left_on IS NULL GROUP BY dept")}
+    env = await call("ceo", "qa", "hris", "headcount")
+    counts = _counts(env)
+    for dept, n in current.items():
+        assert counts[dept] == (n if n >= 5 else "<5"), dept
 
 
 async def test_other_heads_see_only_their_own_department(call):
@@ -123,18 +147,18 @@ async def test_staff_outside_hr_get_no_headcount(call):
     assert not env.ok and env.error == "tool_denied"
 
 
-async def test_headcount_function_refuses_staff_in_sql(personas):
-    """Defence in depth: ops.hr_headcount() itself refuses a non-head, whatever the Python says."""
-    import psycopg
-
+async def test_headcount_function_gives_staff_nothing_in_sql(personas):
+    """Defence in depth: hr.headcount_by_dept() itself returns nothing to a non-head and only their
+    own department to a head, whatever the Python says; ops.hr_headcount() is gone (D-10)."""
     from corpai.db import pg
 
-    with pytest.raises(psycopg.errors.InsufficientPrivilege):
-        with pg.principal_tx_sync(personas["sales_staff"]) as conn:
-            conn.execute("SELECT * FROM ops.hr_headcount()").fetchall()
+    with pg.principal_tx_sync(personas["sales_staff"]) as conn:
+        assert conn.execute("SELECT * FROM hr.headcount_by_dept()").fetchall() == []
     with pg.principal_tx_sync(personas["sales_head"]) as conn:
-        rows = conn.execute("SELECT * FROM ops.hr_headcount()").fetchall()
-    assert [r["dept"] for r in rows] == ["sales"]
+        rows = conn.execute("SELECT * FROM hr.headcount_by_dept()").fetchall()
+        assert [r["dept"] for r in rows] == ["sales"]
+        gone = conn.execute("SELECT to_regprocedure('ops.hr_headcount()') AS f").fetchone()["f"]
+    assert gone is None
 
 
 async def test_requisition_budget_only_where_visible(call):

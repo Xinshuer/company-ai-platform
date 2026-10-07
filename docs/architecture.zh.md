@@ -233,9 +233,10 @@ RLS 防的是**应用角色**；表主人是受信任的后台任务代码。事
 | 060–069 | B2 | 提议、发件箱 |
 | 070–079 | M3 | 指标层 |
 | 080–089 | M2 | 法务 |
-| 090–099 | M4 | 销售、HR |
+| 090–099 | M4 | 销售、HR（091 是唯一的编制人数函数 `hr.headcount_by_dept`） |
+| 100–109 | B3 | 100 会话归属 `ops.threads`、101 `audit_read` 事件、102 trace 统计的最小分组 |
 
-迁移是纯 SQL，在不费事的地方写成可重复执行（`IF NOT EXISTS`、`CREATE OR REPLACE`）。每个文件在自己的事务里执行，并连同它的 sha256 记在 `core.schema_migrations` 里。改动一个已经执行过的文件会抛 `MigrationError`：要么新加一个迁移，要么用 `python -m corpai db reset --yes` 重置开发数据库。建表的迁移必须在同一个文件里写好 `GRANT` 和 RLS 策略。
+迁移是纯 SQL，在不费事的地方写成可重复执行（`IF NOT EXISTS`、`CREATE OR REPLACE`）。每个文件在自己的事务里执行，并连同它的 sha256 记在 `core.schema_migrations` 里。改动一个已经执行过的文件会抛 `MigrationError`：要么新加一个迁移，要么用 `python -m corpai db reset --yes` 重置开发数据库。（接线阶段在真实部署之前就地改了 001、044、062、070、091、101，之前建的开发库要先 `db reset --yes`，再 `synth` 和 `ingest`。）建表的迁移必须在同一个文件里写好 `GRANT` 和 RLS 策略。
 
 ## 5. 身份、组与令牌（A3）
 
@@ -578,7 +579,9 @@ def read_anchors(path=None) -> list[Anchor];  def write_anchor(conn=None, *, pat
 
 💡 链只能证明“现有的行彼此首尾相接”。删掉最新的几条，剩下的照样首尾相接；表主人甚至可以改掉中间某行，再把后面的哈希全部重算一遍。锚点把某一刻的链头存到数据库之外，并且签了名，数据库里的人改不了它，这两种篡改就都露馅了。剩下的缺口是最新锚点之后的那一段，所以每次 `record_owner_job` 都会补一个锚点；真实部署时，锚点还应送到数据库主机写不了的存储上（§17）。
 
-事件名：`login`、`demo_login`、`policy_decision`、`tool_call`、`retrieval`、`model_call`、`route_decision`、`proposal_created`、`proposal_approved`、`proposal_rejected`、`proposal_executed`、`export`、`outage_switch`、`budget_exceeded`、`break_glass`、`owner_job`（由 CHECK 约束强制）。
+事件名：`login`、`demo_login`、`policy_decision`、`tool_call`、`retrieval`、`model_call`、`route_decision`、`proposal_created`、`proposal_approved`、`proposal_rejected`、`proposal_executed`、`export`、`outage_switch`、`budget_exceeded`、`break_glass`、`owner_job`、`audit_read`（安全审计员读日志，由 `GET /api/audit` 写），以及四个“人做的决定”各有自己的事件（问题记录 D-13）：`metric_signed` / `metric_published`（动作 `metrics.sign` / `metrics.publish`，财务负责人签核、发布指标）、`hr_screening`（动作 `hr.screen_candidate`，保存筛查证据）、`hr_decision`（动作 `hr.record_decision`，HR 记录人工决定）。这四个动作被拒绝时也用同一个事件，decision 为 `deny`。迁移 001 和 101 里的 CHECK 约束强制这个列表；`tests/audit/test_events.py` 检查 Python 列表、两个迁移和实际数据库三者一致。
+
+💡 签核和人工决定以前混在 `policy_decision`、`tool_call` 里，审计员要从一堆策略判断里把“人做的决定”挑出来。单独的事件名让“谁签了哪个数字、谁对哪个候选人做了什么决定”一查就有，这正是 GDPR 第 22 条和指标签核要能回答的问题。
 
 trace 表 `trace.spans`：`span_id, run_id, parent_id, name, kind（node|llm|tool|retrieval|policy）, user_id, dept, level, started_at, ended_at, status（running|ok|error）, attrs jsonb, input_text, output_text`；CHECK 约束禁止 L4 的 span 带任何文本。唯一的写入途径是 `trace.write_span(...)`（SECURITY DEFINER）：span 属于谁取自 `app.user_id`/`app.dept`，不由参数指定；span 开始时只插入元数据，结束时更新一次；它的身份和主人永远不变，级别只升不降，结束后就冻结；attrs 里出现凭据类字段名直接拒绝。`Span.set_attr`（Python 一侧，不是 `trace.write_span`）限制 attrs 每项的值不超过 4096 字节的 JSON、键不超过 64 个字符。
 
@@ -603,10 +606,8 @@ async def dept_stats(principal: Principal, since: datetime) -> list[dict]   # �
 
 💡 **审计和 trace 为什么分开**：trace 是给工程师排查问题的，可以脱敏、可以过期删除；审计是给合规和安全看的，要回答“谁、以谁的身份、通过哪个 Agent、看了什么、谁批准的”，而且不能被篡改。如果把 trace 当审计用，能看 trace 的人就成了全公司权限最高的人（设计评审 二.11）。同样的道理，trace 的统计也按“负责人只看本部门”这一条规则给，CEO 不开特例：设计评审第五节的权限矩阵里，“trace 内容”这一行的 CEO 一栏就是“否”。
 
-待后续阶段（B/M）处理：
-- 安全审计员读审计日志本身，也要记一条 `audit_read` 事件。
-- `dept_stats` 设一个最小分组人数（法务这种小部门，计数也可能指向具体的人）。
-- `trace.spans` 加上 `subject_ids`，支持 GDPR 删除个人数据。
+平台服务阶段已完成：`audit_read` 事件；`dept_stats` 至少 5 个人才展示（迁移 102）。
+仍待处理（问题记录 D-04）：`trace.spans` 加上 `subject_ids`，支持 GDPR 删除个人数据。
 
 ## 10. RAG（B1）
 
@@ -724,15 +725,18 @@ async def approval_gate(rt, proposal_id) -> dict      # interrupt({"type": "appr
 
 - 图的第一个节点设置 `sensitivity_hwm = max(classify_text(用户输入), ctx.user_level)`。每个辅助函数都返回一个抬高 hwm 的 state 更新；`llm()` 读 `state["sensitivity_hwm"]` 传给网关。没有任何东西能降低它，只有开新会话（新 thread）才会重置。
 - checkpoint（图每执行一步后保存的 state 快照；等待审批时图会停下，批准后靠它从断点继续）：`AsyncPostgresSaver`，放在 schema `lg`（连接的 `search_path=lg`），启动时由表主人执行 `setup()`。超过 `config.checkpoint_ttl_days` 的 checkpoint 由 `python -m corpai prune` 清理。
-- 会话归属：`ops.threads(thread_id, owner_id, agent, created_at)`。审批后恢复运行时，从目录重新解析**会话主人**的身份，传入新的 `RunContext`（而不是审批人的身份）。
-- 路由（`agents/router.py`）：用代码，不用模型。界面选择一个应用（`qa`、`legal_review`、`report`、`sales_profile`、`hr_headcount`、`hr_screening`）；路由检查这个用户能不能启动对应的 Agent（`policy.may_start`，依据 `config/agents.yaml`），然后构建对应的图。
+- 会话归属：`ops.threads(thread_id, owner_id, agent, app, created_at)`；同一进程里每个会话一把锁，会话忙时新的请求返回 400；checkpoint 表开了行级安全，只能读写自己的会话。审批后恢复运行时，从目录重新解析**会话主人**的身份，传入新的 `RunContext`（而不是审批人的身份）。
+- 路由（`agents/router.py`）：用代码，不用模型。界面选择一个应用（`qa`、`legal_review`、`report`、`sales_profile`、`hr_headcount`、`hr_screening`、`hr_candidates`）；路由检查这个用户能不能启动对应的 Agent（`policy.may_start`，依据 `config/agents.yaml`），然后构建对应的图。`MILESTONE_APPS` 把每个里程碑应用对应到它的模块（`corpai.agents.legal`、`.report`、`.sales`、`.hr`）；模块导出 `build_graph`（或 `build_<app>_graph`）和 `initial_state`。模块有了图，`router.app_ready(app)` 才为真，`/api/me` 只列出这样的应用。
+- **用户手动调高的级别是下限，子 Agent 也一样**：每张图的第一个节点把高水位升到 `max(classify_text(输入), ctx.user_level)`；销售的联网子 Agent 把 `ctx.user_level` 作为抽取调用的 hwm 传给网关（高于 L1 时网关忽略 `public_only`，于是走本地）。如果升级之后紧接着的模型调用可能失败（例如 `hr_screening`），升级放在单独的节点里，先存进 checkpoint，调用失败时会话也不会停在低级别。
+- `ChatRequest.public_only=True` 只由代码设置：发给模型的每个字段都和已发布的内容逐字节一致，而且 hwm 是 L1（销售联网子 Agent 的抽取）。
+- 图可以有自己的人工等待类型（`hr_screening` 的 `{"type": "hr_decision", ...}`）。目前这样的运行状态是 `done`，`output.data.awaiting_decision = true`；决定接口用代码构造的值恢复它。
 - **Rule of Two（三项最多占两项）**：每个节点用装饰器 `@node(caps={...})` 声明自己占了哪几项能力，取值范围是 `{"untrusted_input"（读不可信内容）, "sensitive_data"（接触敏感数据）, "external_action"（对外通信或改变状态）}`。`tests/security/test_rule_of_two.py` 遍历每张图，只要某条路径三项全占、中间又没有 `approval_gate`，测试就失败。
 
 💡 **为什么用户身份放在运行时 context 而不是 state**：state 是节点之间传递、可能被模型输出影响的数据；context 是这次运行固定的环境，节点只能读不能写。身份放在 context 里，模型无论输出什么都改不了“以谁的身份”。
 
 💡 **Rule of Two** 来自 Meta 的 Agents Rule of Two：读外部不可信内容、接触敏感数据、对外行动，这三项在一个会话里最多占两项；三项都要时，Agent 就不能自主运行，必须有人监督（Meta 的说法是人工审批或其他可靠的验证手段；本项目用 `approval_gate` 人工审批）。它的好处是结构性的，不依赖模型“识破”注入；但 Meta 也说明它不是完整方案，还要配合其他防线（本项目的权限、路由、DLP、审计）。
 
-Agent 白名单在 `config/agents.yaml`：`agents:` 下每个 Agent 有 `description`、`apps`（服务哪些应用）、`purpose`（它用的 `rag_filter` 用途，可以是 null）、`start: {roles, depts}`（谁能启动）、`tools`（写成 `domain.tool`），以及可选的 `subagent_of`。共七个：`qa`、`legal_review`、`report`、`sales_profile`、`sales_web`（`sales_profile` 的子 Agent，只有 `web.search`/`web.fetch`）、`hr_headcount`、`hr_screening`。用户的角色在 `roles` 里，或者部门在 `depts` 里，就能启动这个 Agent；`depts` 永远不放行运维角色和服务账号，服务账号什么 Agent 都不能启动。工具名写错的话，加载配置时就报错。
+Agent 白名单在 `config/agents.yaml`：`agents:` 下每个 Agent 有 `description`、`apps`（服务哪些应用）、`purpose`（它用的 `rag_filter` 用途，可以是 null）、`start: {roles, depts}`（谁能启动）、`tools`（写成 `domain.tool`），以及可选的 `subagent_of`。共八个：`qa`、`legal_review`、`report`、`sales_profile`、`sales_web`（`sales_profile` 的子 Agent，只有 `web.search`/`web.fetch`）、`hr_headcount`、`hr_screening`、`hr_candidates`（D-14：员工、负责人和 CEO 都能启动；只有 `hris.list_requisitions`、`hris.list_candidates`、`hris.get_candidate`；只能看自己的 `req:<id>` 岗位的候选人，其余一律明确拒绝）。每个里程碑 Agent 在 YAML 注释里写了逐节点的接线说明（哪个节点持有哪个工具），由各图的 Rule of Two 测试保证，加载器不检查。用户的角色在 `roles` 里，或者部门在 `depts` 里，就能启动这个 Agent；`depts` 永远不放行运维角色和服务账号，服务账号什么 Agent 都不能启动。工具名写错的话，加载配置时就报错。
 
 ## 13. API（B3 搭骨架，各里程碑扩展）
 
@@ -756,9 +760,20 @@ Agent 白名单在 `config/agents.yaml`：`agents:` 下每个 Agent 有 `descrip
 
 各里程碑的路由写在 `corpai/api/routes_<area>.py`，由 `create_app()` 统一挂载。API 启动（lifespan）时装上应用连接池（`pg.install_app_pool`），并加载人名词典（§7）。
 
-待后续阶段（B/M）处理：
-- 在 `create_app()` 里挂上 `openai_compat.router`，并基于 `ops.read_switches`/`ops.set_switch` 做出 `/api/admin/switches`（B3）。
-- 在 lifespan 里调用 `load_gazetteer_from_db()`（B3）。
+各里程碑的路由先检查调用者能不能启动对应的应用（不能就明确返回 403，并写审计），再以该应用的 Agent 身份通过 MCP 工具读取：
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/legal/contracts` | 调用者能读的合同的结构化字段（RLS），不含正文 |
+| GET | `/api/legal/reviews?contract_id=`、`/api/legal/reviews/{id}` | 已保存的审查结果；读不到的返回 404 |
+| POST | `/api/legal/uploads` | `{text, filename}`（最多 20 万字符）→ `{upload_id}`；按用户存在内存里 2 小时，只有上传者能审查 |
+| POST | `/api/reports/{run_id}/export` | `{thread_id}` → `{filename, content, sha256, level, domain, bytes}`；正文从调用者自己的 checkpoint 读回，不信任请求里的内容；水印级别取运行的级别；写审计 `export`。`GET` 加 `?thread_id=` 下载同一个文件 |
+| GET | `/api/metrics`、`/api/metrics/board?period=`、`/api/metrics/{id}` | 指标列表和 `can {sign, publish, refresh, drafts}`；各指标可见的行，带状态和来源；单个值。平台角色一律 403 |
+| POST | `/api/metrics/sign`、`/api/metrics/publish` | `{period, metric_ids}`；只有财务负责人；允许和拒绝都写 `metric_signed` / `metric_published` |
+| POST | `/api/metrics/refresh` | `{period}`；只有财务负责人，且只在演示登录开启时；写 `policy_decision`（`metrics.refresh`） |
+| GET | `/api/sales/accounts` | 调用者能读的客户 |
+| GET | `/api/hr/candidates?app=&req_id=`、`/api/hr/candidates/{id}?app=` | 按岗位列候选人（明确列出拒绝）；单个候选人，简历标为不可信 |
+| POST | `/api/hr/screenings/decision` | `{thread_id, candidate_id, decision: advance\|hold\|reject, reason}`：会话必须是调用者自己的、正在等这个候选人；以调用者身份 `record_decision`（角色和理由都必须有，写 `hr_decision`）；之后才恢复会话。理由不进图的 state |
 
 ## 14. 界面（B4）
 
@@ -766,12 +781,13 @@ Agent 白名单在 `config/agents.yaml`：`agents:` 下每个 Agent 有 `descrip
 
 - 文件：`ui/index.html`、`ui/css/app.css`、`ui/js/*.js`、`ui/fixtures/*.js`（每个 fixture 文件设置 `window.FIXTURES.<name> = {...}`）。
 - 模式：用 `file:` 协议打开 → **演示模式**（读录制好的 fixture）；由 API 提供页面 → **实时模式**（调 `/api/...`）；也可以手动切到演示模式。
-- 默认中文，可切换英文；文案在 `ui/js/i18n.js`。
+- 默认中文，可切换英文；共用文案在 `ui/js/i18n.js`，各里程碑的在 `ui/js/i18n_<x>.js`（`KB.lang.extend("<x>", {zh, en})`；同一个键只能定义一次，中英文的键必须一致）。
+- 里程碑扩展点：每个里程碑有自己的 `view_<x>.js`、`i18n_<x>.js`、`demo_<x>.js` 和 `fixtures/<x>.js`（`legal`、`report`（另有 `view_metrics.js`）、`sales`、`hr`）。演示钩子 `KB.demo.register("<x>", {apps, findRun, routes, init})`；不管谁提供的录制，都要经过共用的启动检查、会话级别、用户级别和宕机开关；扩展路由必须有登录身份，不能覆盖共用路由。
 - 页面：
   - 身份选择（12 个演示身份：6 个部门各一个员工、一个负责人 + 平台管理员 + 安全审计员）、按角色的首页；
   - 问答（显示 local/external 线路标记、高水位横幅“本会话已切换到本地模式”、引用来源）；
   - 审批收件箱（显示完整真实参数和参数哈希）；
-  - 法务审查、管理层报告、销售画像、HR 筛选；
+  - 法务审查（`#/legal`）、管理层报告（`#/report`）、指标签核（`#/metrics`）、销售画像（`#/sales`）、HR 筛选（`#/hr`）、编制（`#/headcount`）、候选人（`#/candidates`）；
   - trace 查看、审计日志查看、管理员开关；
   - “同一个问题，不同的人问”对比页。
 - 用 CSP meta 限制资源来源：`default-src 'self'; img-src 'self' data:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://127.0.0.1:8000`。外部链接显示完整 URL，点击前要确认。
@@ -798,6 +814,9 @@ Agent 白名单在 `config/agents.yaml`：`agents:` 下每个 Agent 有 `descrip
   - 财务：会计科目表、12 个月的分录、应收应付发票、各部门预算与实际；
   - HR：员工、薪酬（L4）、绩效（L4）、带预算的招聘需求、候选人和简历；`hr.screenings` 建好但是空的。
   - 额外的业务列：`crm.accounts.city/fleet_size`、`eng.projects.repo/summary`、`legal.contracts.processes_personal_data`、`fin.journal_entries.txn_id`（每行是一条分录明细，同一笔借贷平衡的交易共用一个 txn_id）、`fin.invoices.kind`（`subscription|services`）、`hr.requisitions.recruiter_id`。
+- **历史数据（D-12）**：`hr.employees.left_on`（6 名已停用的前员工：5 人在这 12 个月内离职，分布在技术和销售部，1 人在此之前；最后一天之后不再发薪，离职日都是月末）。招聘需求记录当前状态开始的日期（`on_hold_on`、`filled_on`、`closed_on`，有 CHECK 保证和状态一致）。总账有期初银行余额和 B 轮融资到账。已成交的商机不会晚于 2026-09-30 成交。
+- **编制人数（D-10）**：只有一个实现，`hr.headcount_by_dept(p_as_of date DEFAULT NULL)`（迁移 091）：按当天开始时在职的人计数（离职的人不算），少于 5 人的分组在 SQL 里就隐藏。`hris.headcount` 和 `corpai.hr.headcount_summary` 都调用它；`ops.hr_headcount()` 已删除。`hris.headcount` 返回 `{departments: [{dept, headcount: n 或 "<5"}], min_group}`，调用者看不到的部门逐个明确拒绝（HR 员工：全部拒绝；HR 负责人：全部可见）。
+- **指标**：`attrition_pct` 是按部门、过去 12 个月的真实流失率，只取 `hr.employees`（最小分组 5）；`headcount` 和费用里的人数不含已离职的人；`open_requisitions` 和 `hiring_*` 用期末那天的状态；新增 `cash_balance`（报告日的银行余额，管理层可见）。
 - **文档语料**：`corpus_dir/docs/<collection>/<doc_id>.md`（被替代的旧版本是 `<doc_id>.v<N>.md`），YAML 头部有 `doc_id, title, collection, source, level, dept, owner_id, acl_groups, trust, subject_ids, project_id, matter_id, version, status, source_uri`。完整规模下约 143 份文档、10 个集合，其中有一份已被替代的制度。全公司可见的页面（ACL 为 `all`，例如 HR 手册）放在 `general`。
 - **模拟网页语料**：`corpus_dir/web/pages.jsonl`（字段 `url, domain, title, text, published_on, company_account_id, kind, injected`）：每个 CRM 客户的官网、新闻、融资页面，都在白名单内的虚构域名上；外加 3 个藏了提示注入的网页。
 - **金丝雀**：6 个由 seed 派生的 `KB-CANARY-xxxxxxxx` 字符串，放在 7 个位置（合同里那个既在数据行里，也在对应的语料文件里）。所在位置：一条 CRM 互动记录、合同 C-0006、技术项目 P-01 的 README、一份案件备忘录、一份财务报表、一条 `hr.performance` 评语。埋了金丝雀的行和文档**一律是 L4，ACL 保留原样**。清单在 `synth.canaries(canary, location, level)`，location 写成 `'db:<表>:<主键>'` 或 `'file:<corpus_dir 下的路径>'`。
@@ -821,11 +840,11 @@ Agent 白名单在 `config/agents.yaml`：`agents:` 下每个 Agent 有 `descrip
 
 | | 图 | 关键检查 |
 |---|---|---|
-| M1 | `agents/qa.py`：输入 → 检索（按部门限定）→ 回答 → 引用校验 | 公开问题走 `external`；内部问题走 `local`；不同身份问同一个问题，返回的文档不同；打开宕机开关后 L3 请求报错，`external` 出口为 0 |
-| M2 | `agents/legal/`：合同接收（不可信，L3）→ 隔离审查（经 `/v1/chat/completions` 复用 Clause Check，没有任何工具）→ 律师审批（四眼）→ `send_contract` 提议；到期查询用 SQL | 藏了注入的合同不会引发任何工具调用；“下月到期的合同”查询结果完全准确 |
-| M3 | `agents/report/`：按领域并行取数（用请求人身份）→ 指标表（SQL 计算）→ 写作节点（没有工具），正文用 `{metric:<id>}` 占位 → 代码替换并逐个校验数字 → 带水印导出 | CEO 和 CTO 拿到的报告不同；每个数字都能追溯到 SQL；埋入的问题被发现；n<5 的分组不展示 |
-| M4 销售 | `agents/sales/`：隔离的联网子图（只有 `web.search/fetch`，输出固定 JSON，走 `external`）→ 匹配度分数（代码，基于公开信号）+ 意向分数（代码，基于 CRM，走 `local`）→ 按意向分级选 Playbook → 跟进策略（local）→ `send_email` 提议 | 注入网页不起作用；分数用历史数据回测 |
-| M4 HR | `agents/hr/`：编制汇总（L2 和 L3 部分分开）；简历 → 去掉受保护属性 → 逐条对照硬性条件给证据（满足 / 不满足 / 无法判断 + 原文引用）→ HR 在 interrupt 节点做决定（必须写理由） | 反事实简历对的结果完全相同 |
+| M1 | `agents/qa.py`：分级 → 检索（按部门限定；写给 AI 的段落被扣下，`_qa_guard.py`）→ 工具调用 → 回答 → 引用校验。每次运行只有一个线路事件（回答那次调用的线路，也是最严格的） | 公开问题走 `external`；内部问题走 `local`；不同身份问同一个问题，返回的文档不同；打开宕机开关后 L3 请求报错，`external` 出口为 0。测试集：金丝雀、混沌、红队、路由样例（`tests/security`），黄金问题集（`evals/qa`），路由鲁棒性（`evals/routing`） |
+| M2 | `agents/legal/`：输入的 `mode` 决定走四条路之一，纯文本由固定的代码规则映射。**审查**：接收（不可信 + 敏感；库里的合同、粘贴的文本或本人上传的文件）→ 审查（没有任何工具；hwm 至少 L3；每条发现一个“已隔离，无任何效果”的提示），这条路永远不提交提议。**到期**：只用 SQL，不调模型。**起草**：代码拼好的文本原样提交 `create_contract_draft`（风险档 2）→ 审批。**发送**：律师单独发起的一次运行，参数由代码构造 → `legal.send_contract`（风险档 3，四眼）→ 审批。`initial_state` 每次清空本次运行的键，所以发送那次运行里没有合同正文 | 藏了注入的合同不会引发任何工具调用；“下月到期的合同”查询结果完全准确；C-0005 缺 DPA 被发现 |
+| M3 | `agents/report/`：计划（期间和语言由代码解析；没结束的期间直接拒绝）→ 五个领域并行取数（请求人身份；只用已签核的快照；看不到的明确写“无权限”）→ 写作（没有工具，`{metric:<id>}` 占位；代码替换并校验每个数字，不通过就用代码模板）→ 收尾（表头、列出所有隐藏内容的附录、再校验一次）→ 带水印导出（§13） | CEO 和 CTO 拿到的报告不同；每个数字都能追溯到 SQL；埋入的问题被发现；n<5 的分组不展示 |
+| M4 销售 | `agents/sales/`：画像分支：接收（只接受 L1 的公司名）→ 隔离的 `sales_web` 子图（只有 `web.search/fetch`，不存 checkpoint，输出固定的 `CompanyProfile`；L1 时带 `public_only` 走 `external`，用户调高级别时走本地）→ 打分（以用户身份读 CRM：意向分由代码算、匹配度、分级、Playbook；L3）→ 策略（本地；只用画像里的枚举和数字字段）。跟进分支（在已有画像的会话里输入 `/followup [CT-xxxxx]`）：起草邮件（本地）→ `crm.send_email` 提议（风险档 3）→ 审批 | 注入网页不起作用；分数用历史数据回测 |
+| M4 HR | `agents/hr/`：`hr_headcount`（通过 `hr.headcount_by_dept` 汇总；没有预算是 L2，有预算是 L3；模型写的说明不许有数字）。`hr_screening`：接收（读任何东西之前先升到 L3）→ 筛查（不可信 + 敏感，没有工具；去掉受保护属性；逐条硬性条件给证据和校验过的引文；L4）→ 等人决定（interrupt `hr_decision`）→ 记录。`hr_candidates`：只读，纯代码 | 反事实简历对的结果完全相同；任何地方都没有分数、排名或推荐 |
 
 ## 17. 如果真实部署
 
@@ -860,3 +879,31 @@ Agent 白名单在 `config/agents.yaml`：`agents:` 下每个 Agent 有 `descrip
 - B3 或某个里程碑：在 `agents.yaml` 里加一个能用 `code.create_ticket`/`code.comment_ticket` 的工单 Agent（§6）。
 - 审计与 trace：安全审计员读日志时也记一条 `audit_read` 事件；`dept_stats` 设最小分组人数；`trace.spans` 加 `subject_ids`，支持 GDPR 删除（§9）。
 - 真实部署：把审计锚点送到数据库主机写不了的存储上（§17）。
+
+---
+
+## 18. API 数据格式（界面和后端之间的约定）
+
+完整的 JSON 示例见英文规范 §18，这里只说要点：
+
+- 出错时一律返回 `{"error": {"code": "...", "message": "简短，说清楚该怎么办"}}`。错误码：`unauthenticated`（401）、`forbidden`（403）、`not_found`（404）、`bad_request`（400）、`local_unavailable`、`external_unavailable`、`gateway_busy`（503）、`budget_exceeded`（429）、`secret_detected`（400）。
+- `POST /api/runs` 返回 `{run_id, thread_id, app, status: done|waiting_approval|error, output: {text, citations, data}, hwm, route, events, pending_approval, error}`。没有调用模型的运行（法务“到期合同”、`hr_candidates`）`route` 为 null。
+- 事件 `events` 的种类：`classify`、`retrieval`、`tool`（被拒绝的条目在 `denied` 里）、`hwm`、`route`、`approval`、`notice`（带 `code` 和中英文文案；`embedded_instruction` 还带 `source`，说明是哪份资料里写了给 AI 的指令）。
+- 问答每次运行只有**一个** `route` 事件：回答那次调用的线路，也就是 `run.route`。高水位只升不降，所以这是本次运行最严格的线路；工具轮次照样审计和追踪。`output.data.flagged_sources` 列出被扣下的资料。
+- 各应用 `output.data` 的格式：法务有 `mode`（review、due、draft、send、invalid），拒绝时放 `data.error {code, message}`，运行状态仍是 done；报告有 `sections`、`table`（每个数字带来源：指标 id、SQL 哈希、公式、签核人、版本）、`export` 等；销售画像有 `web`（线路、级别、`public_only`、被标记的网页）、`fit`、`intent`、`playbook`、`steps`；HR 筛查有逐条证据 `items`、`protected_removed`、`awaiting_decision`，没有分数；候选人有按岗位分组的 `requisitions` 和 `denied`。
+- 审批：`POST /api/proposals/{id}/approve` 带 `{params_hash, reason}`，返回 `{proposal, run}`（run 是恢复后的那次运行）。
+- `GET /api/audit` 只有安全审计员能用，每次调用都写一条 `audit_read`。
+
+---
+
+## 实现说明（接线阶段，2026-10-07 晚）
+
+M1–M4 的图、路由和页面在这一阶段接上了平台服务。值得学习的几处：
+
+- **一个应用一组文件**：每个里程碑只改自己的 `view_<x>.js`、`i18n_<x>.js`、`demo_<x>.js`、`fixtures/<x>.js`，共用的路由、首页、演示后端不动。并行开发时互相踩不到，静态测试保证文案键不重复、中英文一致。
+- **演示模式也走同一套检查**：不管哪个里程碑提供的录制，都要经过共用的启动检查、会话级别、用户级别和宕机开关，演示和真实服务器的行为才不会各说各话（BR-04/BR-05 的教训）。
+- **用户调高的级别是下限，子 Agent 也不例外**：W-M1 的路由样例测试发现销售联网子 Agent 和 HR 的三张图都没用上 `ctx.user_level`，用户把会话标成机密后，部分调用照样走外部。集成时全部改掉，相关的“已知缺口”标记也删掉了。
+- **单一的人数实现**：编制人数只剩 `hr.headcount_by_dept` 一个 SQL 函数，“少于 5 人不展示”在 SQL 里就做掉，Python 拿不到小组的真实人数。
+- **根目录的 conftest**：`evals/` 和 `tests/` 共用同一套夹具和同一个数据库，不管目录顺序。只有 `CORPAI_LLM=live` 而且命令行只写了 `evals/` 下的路径时，才会真的调用模型。
+
+仍待处理的事见 `docs/issues-log.md` 第十三节。

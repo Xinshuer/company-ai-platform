@@ -194,7 +194,7 @@ REVOKE ALL ON FUNCTION metrics.publish(text, text[]) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION metrics.sign(text, text[]) TO corpai_app;
 GRANT EXECUTE ON FUNCTION metrics.publish(text, text[]) TO corpai_app;
 
--- Which departments are under the D7 minimum group of five people (hired before p_end, as in the
+-- Which departments are under the D7 minimum group of five people (employed on p_end, as in the
 -- opex metrics' n). Signals that show a per-dept amount containing payroll (dept_budget_overrun)
 -- suppress those depts. Most readers cannot count hr.employees through RLS, so this SECURITY DEFINER
 -- function answers only the boolean, never a count, and only to an active principal.
@@ -203,7 +203,9 @@ RETURNS TABLE (dept text, below boolean)
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = metrics, pg_temp AS $$
   WITH d AS (SELECT b.dept FROM fin.budgets b UNION SELECT e.dept FROM hr.employees e)
   SELECT d.dept,
-         (SELECT count(*) FROM hr.employees e WHERE e.dept = d.dept AND e.hired_on < p_end) < 5
+         -- people employed on p_end, as the opex metrics' n (leavers excluded; issues-log D-12)
+         (SELECT count(*) FROM hr.employees e
+           WHERE e.dept = d.dept AND e.hired_on < p_end AND (e.left_on IS NULL OR e.left_on >= p_end)) < 5
     FROM d
    WHERE d.dept IS NOT NULL AND core.cur_user() IS NOT NULL AND core.cur_clearance() > 0
 $$;

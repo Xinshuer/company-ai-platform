@@ -33,6 +33,11 @@ window.FIXTURES.me = {
      "id": "hr_headcount",
      "title_zh": "编制概览",
      "title_en": "Headcount"
+    },
+    {
+     "id": "hr_candidates",
+     "title_zh": "候选人",
+     "title_en": "Candidates"
     }
    ],
    "can": {
@@ -54,6 +59,11 @@ window.FIXTURES.me = {
      "id": "qa",
      "title_zh": "知识问答",
      "title_en": "Ask"
+    },
+    {
+     "id": "hr_candidates",
+     "title_zh": "候选人",
+     "title_en": "Candidates"
     }
    ],
    "can": {
@@ -90,6 +100,11 @@ window.FIXTURES.me = {
      "id": "hr_headcount",
      "title_zh": "编制概览",
      "title_en": "Headcount"
+    },
+    {
+     "id": "hr_candidates",
+     "title_zh": "候选人",
+     "title_en": "Candidates"
     }
    ],
    "can": {
@@ -116,6 +131,11 @@ window.FIXTURES.me = {
      "id": "sales_profile",
      "title_zh": "客户画像",
      "title_en": "Account profile"
+    },
+    {
+     "id": "hr_candidates",
+     "title_zh": "候选人",
+     "title_en": "Candidates"
     }
    ],
    "can": {
@@ -147,6 +167,11 @@ window.FIXTURES.me = {
      "id": "hr_headcount",
      "title_zh": "编制概览",
      "title_en": "Headcount"
+    },
+    {
+     "id": "hr_candidates",
+     "title_zh": "候选人",
+     "title_en": "Candidates"
     }
    ],
    "can": {
@@ -168,6 +193,11 @@ window.FIXTURES.me = {
      "id": "qa",
      "title_zh": "知识问答",
      "title_en": "Ask"
+    },
+    {
+     "id": "hr_candidates",
+     "title_zh": "候选人",
+     "title_en": "Candidates"
     }
    ],
    "can": {
@@ -204,6 +234,11 @@ window.FIXTURES.me = {
      "id": "hr_headcount",
      "title_zh": "编制概览",
      "title_en": "Headcount"
+    },
+    {
+     "id": "hr_candidates",
+     "title_zh": "候选人",
+     "title_en": "Candidates"
     }
    ],
    "can": {
@@ -230,6 +265,11 @@ window.FIXTURES.me = {
      "id": "legal_review",
      "title_zh": "合同审查",
      "title_en": "Contract review"
+    },
+    {
+     "id": "hr_candidates",
+     "title_zh": "候选人",
+     "title_en": "Candidates"
     }
    ],
    "can": {
@@ -261,6 +301,11 @@ window.FIXTURES.me = {
      "id": "hr_headcount",
      "title_zh": "编制概览",
      "title_en": "Headcount"
+    },
+    {
+     "id": "hr_candidates",
+     "title_zh": "候选人",
+     "title_en": "Candidates"
     }
    ],
    "can": {
@@ -282,6 +327,11 @@ window.FIXTURES.me = {
      "id": "qa",
      "title_zh": "知识问答",
      "title_en": "Ask"
+    },
+    {
+     "id": "hr_candidates",
+     "title_zh": "候选人",
+     "title_en": "Candidates"
     }
    ],
    "can": {
@@ -318,6 +368,11 @@ window.FIXTURES.me = {
      "id": "hr_screening",
      "title_zh": "简历筛查",
      "title_en": "Résumé screening"
+    },
+    {
+     "id": "hr_candidates",
+     "title_zh": "候选人",
+     "title_en": "Candidates"
     }
    ],
    "can": {
@@ -349,6 +404,11 @@ window.FIXTURES.me = {
      "id": "hr_screening",
      "title_zh": "简历筛查",
      "title_en": "Résumé screening"
+    },
+    {
+     "id": "hr_candidates",
+     "title_zh": "候选人",
+     "title_en": "Candidates"
     }
    ],
    "can": {

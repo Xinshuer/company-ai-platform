@@ -22,8 +22,9 @@ def _screenings(cid: str) -> list[dict]:
 
 
 def _decision_audits(user_id: str, cid: str) -> list[dict]:
-    return owner_rows("SELECT * FROM audit.log WHERE actor = %s AND action = 'hr.record_decision' AND resource = %s "
-                      "ORDER BY seq", (user_id, f"hr.candidate:{cid}"))
+    # the decision has its own audit event (issues-log D-13), refusals included
+    return owner_rows("SELECT * FROM audit.log WHERE event = 'hr_decision' AND actor = %s "
+                      "AND action = 'hr.record_decision' AND resource = %s ORDER BY seq", (user_id, f"hr.candidate:{cid}"))
 
 
 async def test_hr_staff_records_a_decision_with_the_evidence_seen(personas, planted_pairs, run_id):

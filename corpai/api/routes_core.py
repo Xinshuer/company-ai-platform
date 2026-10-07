@@ -30,6 +30,7 @@ APP_TITLES: dict[str, tuple[str, str]] = {
     "sales_profile": ("客户画像", "Account profile"),
     "hr_headcount": ("编制概览", "Headcount"),
     "hr_screening": ("简历筛查", "Résumé screening"),
+    "hr_candidates": ("候选人", "Candidates"),
 }
 
 

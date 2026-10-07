@@ -11,8 +11,11 @@ from tests.hr.conftest import owner_rows
 pytestmark = pytest.mark.anyio
 
 
-def _true_counts() -> dict[str, int]:
-    return {r["dept"]: r["n"] for r in owner_rows("SELECT dept, count(*)::int AS n FROM hr.employees GROUP BY dept")}
+def _true_counts(as_of: str = "2026-10-01") -> dict[str, int]:
+    # people employed at the start of as_of: leavers (left_on = last working day) drop out the day after
+    return {r["dept"]: r["n"] for r in owner_rows(
+        "SELECT dept, count(*)::int AS n FROM hr.employees "
+        "WHERE hired_on < %s::date AND (left_on IS NULL OR left_on >= %s::date) GROUP BY dept", (as_of, as_of))}
 
 
 def _reqs(summary) -> set[str]:
@@ -105,3 +108,24 @@ async def test_forged_role_gets_no_aggregate(personas):
     async with pg.principal_tx(personas["sales_staff"]) as conn:
         await conn.execute("SELECT set_config('app.role', 'ceo', true)")
         assert await (await conn.execute("SELECT * FROM hr.headcount_by_dept()")).fetchall() == []
+
+
+async def test_leavers_count_until_their_last_day(personas):
+    """hr.headcount_by_dept(as_of) counts a former employee on and before their last working day
+    and not after it (issues-log D-12), with the same rule as the headcount metric."""
+    (lv,) = owner_rows("SELECT employee_id, dept, left_on FROM hr.employees WHERE employee_id = 'u0193'")
+    assert lv["dept"] == "sales" and lv["left_on"].isoformat() == "2026-07-31"
+    async with pg.principal_tx(personas["ceo"]) as conn:
+        before = {r["dept"]: r["employees"] for r in await (await conn.execute(
+            "SELECT * FROM hr.headcount_by_dept('2026-07-31')")).fetchall()}
+        after = {r["dept"]: r["employees"] for r in await (await conn.execute(
+            "SELECT * FROM hr.headcount_by_dept('2026-08-01')")).fetchall()}
+    assert before["sales"] == _true_counts("2026-07-31")["sales"] == after["sales"] + 1
+    assert after["sales"] == _true_counts("2026-08-01")["sales"]
+
+
+async def test_summary_counts_today_and_hides_leavers(personas):
+    s = await headcount_summary(personas["ceo"])
+    staff = {x["dept"]: x["employees"] for x in s["public"]["staff_by_dept"]}
+    every_row = {r["dept"]: r["n"] for r in owner_rows("SELECT dept, count(*)::int AS n FROM hr.employees GROUP BY dept")}
+    assert staff["eng"] == _true_counts()["eng"] < every_row["eng"]

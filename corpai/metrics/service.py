@@ -141,14 +141,20 @@ def _check_ids(metric_ids: Iterable[str]) -> list[str]:
     return ids
 
 
+# Sign-off and publication are human acts with their own audit events (issues-log D-13); the
+# refusals use the same event with decision deny, so one query shows every attempt.
+_EVENT = {"metrics.sign": "metric_signed", "metrics.publish": "metric_published"}
+
+
 async def _transition(principal: Principal, period: str, metric_ids: Iterable[str], *, fn: str,
                       action: str) -> SignResult:
+    event = _EVENT[action]
     p = parse_period(period)
     ids = _check_ids(metric_ids)
     resource = f"fin.metric:{p.text}"
     if not _is_finance_head(principal):
         # Audited like every refusal; the SQL function would refuse too (role, dept, group, clearance).
-        await audit.arecord("policy_decision", actor=principal.user_id, action=action, resource=resource,
+        await audit.arecord(event, actor=principal.user_id, action=action, resource=resource,
                             decision="deny", reason="only the head of finance may sign off or publish metrics",
                             details={"metrics": ids})
         raise PermissionError("only the head of finance may sign off or publish metrics")
@@ -158,13 +164,13 @@ async def _transition(principal: Principal, period: str, metric_ids: Iterable[st
                                      (p.text, ids))
             rows = await cur.fetchall()
     except psycopg.errors.InsufficientPrivilege as e:
-        await audit.arecord("policy_decision", actor=principal.user_id, action=action, resource=resource,
+        await audit.arecord(event, actor=principal.user_id, action=action, resource=resource,
                             decision="deny", reason="refused by the database", details={"metrics": ids})
         raise PermissionError("only the head of finance may sign off or publish metrics") from e
     changed = tuple(sorted({r["o_metric_id"] for r in rows}))
     result = SignResult(period=p.text, changed=changed, rows=len(rows),
                         skipped=tuple(m for m in ids if m not in changed))
-    await audit.arecord("policy_decision", actor=principal.user_id, action=action, resource=resource,
+    await audit.arecord(event, actor=principal.user_id, action=action, resource=resource,
                         decision="allow", reason=f"{action} by the head of finance",
                         details={"metrics": list(changed), "rows": result.rows, "skipped": list(result.skipped)})
     return result

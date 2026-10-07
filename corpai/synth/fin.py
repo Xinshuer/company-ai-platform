@@ -14,6 +14,7 @@ from decimal import Decimal
 from corpai.synth import labels
 from corpai.synth._util import (END, SIM_TODAY, START, World, days, label, money, month_end, months, period, pick,
                                 rand_date, rng_for, split_amount)
+from corpai.synth.script import OPENING_BANK_BALANCE_EUR, SERIES_B
 
 CFO, FIN_STAFF, BILLING = "u0040", "u0041", "u0147"
 OVERDUE_ACCOUNT = "A-0001"
@@ -71,6 +72,7 @@ def build(world: World) -> None:
         world.add("fin.chart_of_accounts", {"account_code": code, "name": name, "type": typ,
                                             **label(2, "finance", CFO, acl)})
     j = _Journal()
+    _funding(j)
     _invoices(world, rng, j)
     unbudgeted = _expenses(world, rng, j)
     j.txns.sort(key=lambda t: (t[0], t[1]))
@@ -82,6 +84,23 @@ def build(world: World) -> None:
                                               **label(lvl, r["dept"], FIN_STAFF, acl)})
             n += 1
     _budgets(world, rng, unbudgeted)
+
+
+def _funding(j: _Journal) -> None:
+    """Opening bank balance and the Series B (issues-log D-12): without them the bank account only
+    holds the year's flows, and a cash balance would be the burn, a large negative number.
+
+    The opening balance is posted on the day before the window (2025-09-30, period 2025-09): it is in
+    every balance from 2025-10-01 on, but in no period's cash_net_flow. Posted on 2025-10-01 it would
+    count as EUR 3.2M of cash received in October and turn that month's burn into an inflow."""
+    opening = money(OPENING_BANK_BALANCE_EUR)
+    before = START - days(1)
+    j.txn(before, "0open", [("1800", "finance", opening, Decimal(0)), ("2000", "finance", Decimal(0), opening)],
+          f"Opening balance bank {before.isoformat()} (carried forward into {period(START)})")
+    on, amount, investor = SERIES_B
+    cash = money(amount)
+    j.txn(on, "0seriesb", [("1800", "finance", cash, Decimal(0)), ("2000", "finance", Decimal(0), cash)],
+          f"Series B equity funding received ({investor})")
 
 
 def _invoice_plan(world: World, rng) -> list[tuple[str, date, Decimal, str]]:
@@ -145,6 +164,7 @@ def _invoices(world: World, rng, j: _Journal) -> None:
 
 def _expenses(world: World, rng, j: _Journal) -> dict[tuple[str, str], Decimal]:
     users = {u["user_id"]: u for u in world.rows("core.users")}
+    left_on = {e["employee_id"]: e["left_on"] for e in world.rows("hr.employees")}
     projects = [p["project_id"] for p in world.rows("eng.projects")]
     unbudgeted: dict[tuple[str, str], Decimal] = defaultdict(Decimal)
     for m in months():
@@ -152,7 +172,9 @@ def _expenses(world: World, rng, j: _Journal) -> dict[tuple[str, str], Decimal]:
         payroll: dict[str, Decimal] = defaultdict(Decimal)
         for c in world.rows("hr.compensation"):
             u = users[c["employee_id"]]
-            if u["hired_on"] <= end:
+            left = left_on.get(c["employee_id"])
+            # leavers are paid up to their last day, which is always a month end
+            if u["hired_on"] <= end and (left is None or left >= end):
                 payroll[u["dept"]] += c["base_salary_eur"] / 12
         for dept in sorted(payroll):
             gross = money(payroll[dept])

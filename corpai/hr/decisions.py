@@ -23,7 +23,8 @@ MAX_REASON = 2000
 async def _audit(principal: Principal, candidate_id: str, decision: str, allow: bool, why: str,
                  screening_id: str | None) -> None:
     # Metadata only: the reason may describe the candidate, so its text stays in hr.screenings (L4).
-    await audit.arecord("tool_call", actor=principal.user_id, act_chain=["app:hr_screening"],
+    # Its own event (issues-log D-13): a person's decision, refusals included, never a tool call.
+    await audit.arecord("hr_decision", actor=principal.user_id, act_chain=["app:hr_screening"],
                         action="hr.record_decision", resource=f"hr.candidate:{candidate_id}",
                         decision="allow" if allow else "deny", reason=why, level=4,
                         details={"decision": decision if decision in DECISIONS else "invalid",

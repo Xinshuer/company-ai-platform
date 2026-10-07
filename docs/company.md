@@ -17,6 +17,9 @@ accounts, amounts); everything below is the same for every seed.
 - Jurisdiction: GDPR (EU) as controller for staff data and processor for customer fleet data. Personal data stays on the `local` model route
   (decisions D2).
 - Simulation window: 2025-10-01 to 2026-09-30; the simulation date is **2026-10-01**.
+- Bank: EUR 3,200,000 opening balance posted on 2025-09-30 and carried forward; the Series B (EUR 18,000,000,
+  Brightwater Ventures) reached the bank on 2026-01-30. Both are ledger entries, so the bank
+  balance on any day is the sum of the bank account's postings.
 
 ## Departments
 
@@ -31,6 +34,18 @@ accounts, amounts); everything below is the same for every seed.
 | it | 3 | reports to the CEO (platform admin, security auditor, IT support) |
 
 Service accounts (role `service`, dept `it`, clearance L1): `svc:ingest`, `svc:metrics`, `svc:eval`, `svc:executor`.
+
+Former employees keep their HR record (`hr.employees.left_on`, the last working day) and a
+deactivated directory account; names come from the seed:
+
+| User id | Dept | Title | Hired | Left (last day) |
+|---|---|---|---|---|
+| u0190 | eng | Backend Engineer | 2021-05-01 | 2025-12-31 |
+| u0191 | eng | Frontend Engineer | 2022-09-01 | 2026-04-30 |
+| u0192 | sales | Account Executive | 2023-02-01 | 2026-02-28 |
+| u0193 | sales | Sales Development Representative | 2024-06-01 | 2026-07-31 |
+| u0194 | legal | Paralegal | 2020-03-01 | 2026-05-31 |
+| u0195 | eng | QA Engineer | 2020-08-01 | 2025-08-31 |
 
 ## Personas (fixed ids and names for every seed)
 
@@ -94,14 +109,14 @@ Stages: requirements, approved, development, testing, release, operations (éœ€æ±
 
 ## Hiring
 
-| Id | Dept | Role | Headcount | Status | Approved budget | Projected cost |
-|---|---|---|---|---|---|---|
-| R-01 | eng | Senior Backend Engineer (Routing) | 2 | open | 210,000 | 198,000 |
-| R-02 | eng | Site Reliability Engineer | 1 | open | 95,000 | 108,000 |
-| R-03 | sales | Account Executive DACH | 1 | open | 88,000 | 84,000 |
-| R-04 | legal | Legal Counsel (Privacy) | 1 | on_hold | 92,000 | 90,000 |
-| R-05 | finance | Financial Controller | 1 | filled | 82,000 | 79,000 |
-| R-06 | eng | Machine Learning Engineer (ETA prediction) | 1 | open | 98,000 | 94,000 |
+| Id | Dept | Role | Headcount | Status | Opened | Status since | Approved budget | Projected cost |
+|---|---|---|---|---|---|---|---|---|
+| R-01 | eng | Senior Backend Engineer (Routing) | 2 | open | 2026-06-01 | 2026-06-01 | 210,000 | 198,000 |
+| R-02 | eng | Site Reliability Engineer | 1 | open | 2026-07-06 | 2026-07-06 | 95,000 | 108,000 |
+| R-03 | sales | Account Executive DACH | 1 | open | 2026-08-03 | 2026-08-03 | 88,000 | 84,000 |
+| R-04 | legal | Legal Counsel (Privacy) | 1 | on_hold | 2026-04-13 | 2026-07-01 | 92,000 | 90,000 |
+| R-05 | finance | Financial Controller | 1 | filled | 2026-01-12 | 2026-03-20 | 82,000 | 79,000 |
+| R-06 | eng | Machine Learning Engineer (ETA prediction) | 1 | open | 2026-09-01 | 2026-09-01 | 98,000 | 94,000 |
 
 ## Timeline (2025-10 to 2026-09)
 

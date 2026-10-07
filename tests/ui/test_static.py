@@ -7,7 +7,10 @@ What these prove:
 - zh and en strings have the same keys and every literal key the code uses exists;
 - fixtures are strict JSON in the §18 shapes, agree with the policy (apps, approval rights) and
   with the gateway's routing rule, and carry no secrets, canaries or non-fictional domains;
-- every view the router references exists in index.html.
+- every view the router references exists in index.html;
+- the milestone extension points are wired: each milestone owns view_<name>.js, i18n_<name>.js,
+  demo_<name>.js and fixtures/<name>.js, all loaded by the shared files, so a milestone never edits
+  a shared file (extension strings cannot collide with shared ones, zh/en parity per file).
 """
 
 from __future__ import annotations
@@ -24,6 +27,15 @@ UI = ROOT / "ui"
 INDEX = UI / "index.html"
 JS_DIR = UI / "js"
 FIX_DIR = UI / "fixtures"
+# Milestone extension points: one name per milestone app area (fixtures_base.js FIXTURE_APPS).
+EXTENSIONS = ("legal", "report", "sales", "hr")
+CORE_FIXTURES = {"personas", "me", "health", "switches", "runs", "compare", "proposals", "traces", "audit"}
+# route -> (view file, app or None); every milestone page lives in its own file
+MILESTONE_ROUTES = {"legal": ("view_legal.js", "legal_review"), "report": ("view_report.js", "report"),
+                    "metrics": ("view_metrics.js", None), "sales": ("view_sales.js", "sales_profile"),
+                    "hr": ("view_hr.js", "hr_screening"), "headcount": ("view_hr.js", "hr_headcount"),
+                    "candidates": ("view_hr.js", "hr_candidates")}
+ALL_APPS = ["qa", "legal_review", "report", "sales_profile", "hr_headcount", "hr_screening", "hr_candidates"]
 
 SPEC_CSP = ("default-src 'self'; img-src 'self' data:; script-src 'self'; "
             "style-src 'self' 'unsafe-inline'; connect-src 'self' http://127.0.0.1:8000")
@@ -109,14 +121,37 @@ def fixtures() -> dict[str, object]:
     return out
 
 
-@pytest.fixture(scope="module")
-def i18n() -> dict[str, dict[str, str]]:
+def _main_i18n() -> dict[str, dict[str, str]]:
     src = _read(JS_DIR / "i18n.js")
     start = src.index("{", src.index("window.I18N ="))
     end = src.rindex("}")
     tail = src[end + 1:].strip()
     assert tail == ";", "i18n.js must end with the JSON literal"
     return json.loads(src[start:end + 1])
+
+
+def _ext_i18n(name: str) -> dict[str, dict[str, str]]:
+    src = _code_without_comments(_read(JS_DIR / f"i18n_{name}.js")).strip()
+    m = re.fullmatch(r'KB\.lang\.extend\("([a-z]+)", (\{.*\})\);', src, flags=re.S)
+    assert m, f"i18n_{name}.js must be exactly KB.lang.extend(\"{name}\", <json>); after its comments"
+    assert m.group(1) == name, f"i18n_{name}.js extends {m.group(1)!r}"
+    return json.loads(m.group(2))
+
+
+@pytest.fixture(scope="module")
+def i18n_parts() -> dict[str, dict[str, dict[str, str]]]:
+    """"main" (i18n.js) and every milestone extension, as written."""
+    return {"main": _main_i18n(), **{name: _ext_i18n(name) for name in EXTENSIONS}}
+
+
+@pytest.fixture(scope="module")
+def i18n(i18n_parts) -> dict[str, dict[str, str]]:
+    """The dictionary the page ends up with: i18n.js plus every KB.lang.extend pack."""
+    merged: dict[str, dict[str, str]] = {"zh": {}, "en": {}}
+    for part in i18n_parts.values():
+        for lang in ("zh", "en"):
+            merged[lang].update(part.get(lang, {}))
+    return merged
 
 
 # ---------------------------------------------------------------- scripts and CSP
@@ -171,6 +206,30 @@ def test_all_js_files_are_loaded_and_ordered(page):
     assert srcs.index("js/i18n.js") < srcs.index("js/lang.js")
     assert srcs.index("js/util.js") < srcs.index("js/demo.js") < srcs.index("js/api.js")
     assert srcs[-1] == "js/app.js"
+    # milestone files: strings after the language runtime, demo hooks after demo.js, pages after
+    # the shared app-page helper; all before router.js and app.js render anything
+    for name in EXTENSIONS:
+        assert srcs.index("js/lang.js") < srcs.index(f"js/i18n_{name}.js") < srcs.index("js/router.js")
+        assert srcs.index("js/demo.js") < srcs.index(f"js/demo_{name}.js") < srcs.index("js/api.js")
+    for view, _ in MILESTONE_ROUTES.values():
+        assert srcs.index("js/components.js") < srcs.index("js/view_apps.js") < srcs.index(f"js/{view}") \
+            < srcs.index("js/router.js")
+
+
+def test_every_milestone_owns_its_extension_files():
+    for name in EXTENSIONS:
+        for f in (JS_DIR / f"i18n_{name}.js", JS_DIR / f"demo_{name}.js", FIX_DIR / f"{name}.js"):
+            assert f.is_file(), f
+        demo = _code_without_comments(_read(JS_DIR / f"demo_{name}.js"))
+        assert f'KB.demo.register("{name}",' in demo, f"demo_{name}.js registers under its own name"
+    for view, _ in MILESTONE_ROUTES.values():
+        assert (JS_DIR / view).is_file(), view
+    base = _read(JS_DIR / "fixtures_base.js")
+    apps = json.loads(re.search(r"window\.FIXTURE_APPS = (\[[^\]]*\]);", base).group(1))
+    assert apps == list(EXTENSIONS)
+    loader = _read(JS_DIR / "fixtures_loader.js")
+    names = json.loads("[" + re.search(r"var NAMES = \[([^\]]*)\];", loader).group(1) + "]")
+    assert set(names) == CORE_FIXTURES | set(EXTENSIONS)
 
 
 def test_stylesheets_are_local(page):
@@ -255,12 +314,29 @@ def test_lf_line_endings():
 
 # ---------------------------------------------------------------- i18n
 
-def test_i18n_zh_en_identical_keys_and_non_empty(i18n):
-    assert set(i18n) == {"zh", "en"}
+def test_i18n_zh_en_identical_keys_and_non_empty(i18n_parts, i18n):
+    for name, part in i18n_parts.items():  # zh/en parity per file, not only overall
+        assert set(part) == {"zh", "en"}, name
+        assert set(part["zh"]) == set(part["en"]), (name, set(part["zh"]) ^ set(part["en"]))
     assert set(i18n["zh"]) == set(i18n["en"])
     for lang in ("zh", "en"):
         empty = [k for k, v in i18n[lang].items() if not isinstance(v, str) or not v.strip()]
         assert not empty, f"{lang}: empty strings {empty}"
+
+
+def test_extension_strings_never_redefine_another_files_key(i18n_parts):
+    # KB.lang.extend refuses (ignores) a key that already exists; the test makes that a build error
+    seen: dict[str, str] = {}
+    for name, part in i18n_parts.items():
+        for k in part["zh"]:
+            assert k not in seen, f"{k} is defined in both {seen[k]} and {name}"
+            seen[k] = name
+
+
+def test_lang_extend_refuses_existing_keys():
+    lang = _code_without_comments(_read(JS_DIR / "lang.js"))
+    body = lang[lang.index("L.extend = function"):lang.index("L.has = function")]
+    assert "hasOwnProperty.call(target, k)" in body and "return;" in body
 
 
 def test_i18n_placeholders_match_between_languages(i18n):
@@ -301,11 +377,13 @@ def test_dynamic_i18n_families_are_complete(i18n):
         "sw_{}": ["local_down", "external_down"], "sw_{}_does": ["local_down", "external_down"],
         "sw_{}_never": ["local_down", "external_down"],
         "mode_reason_{}": ["file", "forced", "health", "no_backend"],
-        "app_{}": ["qa", "legal_review", "report", "sales_profile", "hr_headcount", "hr_screening"],
-        "app_{}_desc": ["qa", "legal_review", "report", "sales_profile", "hr_headcount", "hr_screening"],
+        "app_{}": ALL_APPS,
+        "app_{}_desc": ALL_APPS,
+        "metrics_step{}": ["1", "2", "3", "4"],
     }
     missing = [f.format(v) for f, vals in fams.items() for v in vals if f.format(v) not in keys]
-    for app, n in (("legal_review", 4), ("report", 4), ("sales_profile", 4), ("hr_screening", 4), ("hr_headcount", 3)):
+    for app, n in (("legal_review", 4), ("report", 4), ("sales_profile", 4), ("hr_screening", 4), ("hr_headcount", 3),
+                   ("hr_candidates", 3)):
         for suffix in ["_who", "_safety", "_input"] + [f"_step{i}" for i in range(1, n + 1)]:
             if f"app_{app}{suffix}" not in keys:
                 missing.append(f"app_{app}{suffix}")
@@ -335,9 +413,31 @@ def test_every_route_has_a_view_renderer():
     router = _read(JS_DIR / "router.js")
     paths = re.findall(r'\{path:\s*"([a-z]+)"', router)
     all_js = "\n".join(_read(p) for p in _js_files())
-    app_routes = set(re.findall(r'^\s{4}([a-z]+): \{app: "', _read(JS_DIR / "view_apps.js"), flags=re.M))
     for p in paths:
-        assert f"KB.views.{p} =" in all_js or p in app_routes, f"route {p} has no renderer"
+        assert f"KB.views.{p} =" in all_js, f"route {p} has no renderer"
+    # each milestone route is rendered by its own file, with the app named in the router
+    for route, (view, app) in MILESTONE_ROUTES.items():
+        assert f"KB.views.{route} =" in _read(JS_DIR / view), (route, view)
+        if app:
+            assert re.search(rf'path: "{route}", view: "view-{route}", nav: "apps", icon: "[a-z]+", app: "{app}"',
+                             router), route
+
+
+def test_milestone_pages_deny_explicitly():
+    # a persona without the app gets an explicit denial (ENGINEERING.md rule 6), on every app page
+    for route, (view, app) in MILESTONE_ROUTES.items():
+        if not app:
+            continue
+        code = _code_without_comments(_read(JS_DIR / view))
+        assert "KB.appPage.render(" in code or "KB.appPage.denied(" in code or "C.denied(" in code, view
+    helper = _code_without_comments(_read(JS_DIR / "view_apps.js"))
+    render = helper[helper.index("P.render = function"):]
+    assert "if (!P.hasApp(id))" in render and "P.denied(root, id)" in render
+
+
+def test_home_catalog_lists_every_app():
+    home = _read(JS_DIR / "view_home.js")
+    assert re.findall(r'\{id: "([a-z_]+)", route:', home) == ALL_APPS
 
 
 def test_router_gates_ops_pages_and_apps():
@@ -364,8 +464,23 @@ def test_fixture_files_parse_and_names_match(fixtures):
     for f in _fixture_files():
         name, _ = _load_fixture(f)
         assert name == f.stem
-    required = {"personas", "me", "health", "switches", "runs", "compare", "proposals", "traces", "audit"}
-    assert required <= set(fixtures)
+    assert CORE_FIXTURES | set(EXTENSIONS) == set(fixtures)
+
+
+def test_milestone_fixtures_have_the_merged_shapes(fixtures):
+    """fixtures/<legal|report|sales|hr>.js: what js/demo.js merges must have the shared shapes."""
+    for name in EXTENSIONS:
+        fx = fixtures[name]
+        assert isinstance(fx, dict), name
+        assert isinstance(fx.get("runs", []), list), name
+        assert isinstance(fx.get("traces", {}), dict), name
+        props = fx.get("proposals", {"by_persona": {}, "resumed_runs": {}})
+        assert set(props) <= {"by_persona", "resumed_runs"}, name
+        for key, b in props.get("by_persona", {}).items():
+            assert key in fixtures["me"]["by_persona"] and set(b) <= {"mine", "to_approve"}, (name, key)
+        for item in fx.get("runs", []):
+            assert {"persona_key", "app", "input", "run"} <= set(item), name
+            assert item["persona_key"] == "*" or item["persona_key"] in fixtures["me"]["by_persona"], name
 
 
 def test_personas_fixture_matches_synth(fixtures):
@@ -411,11 +526,38 @@ def test_me_fixture_agrees_with_policy(fixtures):
         assert m["clearance"] == expect, s.key
 
 
+def _run_items(fixtures):
+    """Shared recordings plus every milestone file's, as js/demo.js merges them."""
+    items = list(fixtures["runs"]["items"])
+    for name in EXTENSIONS:
+        items += fixtures[name].get("runs", [])
+    return items
+
+
 def _all_runs(fixtures):
-    for item in fixtures["runs"]["items"]:
+    for item in _run_items(fixtures):
         yield item, item["run"]
-    for run in fixtures["proposals"].get("resumed_runs", {}).values():
-        yield None, run
+    for src in [fixtures["proposals"]] + [fixtures[n].get("proposals", {}) for n in EXTENSIONS]:
+        for run in src.get("resumed_runs", {}).values():
+            yield None, run
+
+
+def _all_traces(fixtures) -> dict:
+    out = dict(fixtures["traces"]["by_run"])
+    for name in EXTENSIONS:
+        out.update(fixtures[name].get("traces", {}))
+    return out
+
+
+def _all_boxes(fixtures) -> dict:
+    out = {k: {"mine": list(b["mine"]), "to_approve": list(b["to_approve"])}
+           for k, b in fixtures["proposals"]["by_persona"].items()}
+    for name in EXTENSIONS:
+        for k, b in fixtures[name].get("proposals", {}).get("by_persona", {}).items():
+            box = out.setdefault(k, {"mine": [], "to_approve": []})
+            for which in ("mine", "to_approve"):
+                box[which] += b.get(which, [])
+    return out
 
 
 def test_runs_have_section_18_shape(fixtures):
@@ -459,7 +601,7 @@ def test_runs_obey_routing_and_level_rules(fixtures):
 
 
 def test_required_demo_scenarios_present(fixtures):
-    items = fixtures["runs"]["items"]
+    items = _run_items(fixtures)
     public = [i for i in items if i["app"] == "qa" and i["run"]["route"] == "external" and i["run"]["hwm"] == 1]
     assert public, "a public Q&A run on the external route"
     sales = [i for i in items if i["persona_key"] == "sales_staff" and i["app"] == "qa" and not i.get("switches")
@@ -490,7 +632,7 @@ def test_compare_fixture_shows_different_citations(fixtures):
 
 def test_proposals_fixture_shapes_and_four_eyes(fixtures):
     me = fixtures["me"]["by_persona"]
-    boxes = fixtures["proposals"]["by_persona"]
+    boxes = _all_boxes(fixtures)
     seen_pending_requester = seen_pending_head = seen_done = False
     for key, b in boxes.items():
         assert set(b) == {"mine", "to_approve"}
@@ -526,7 +668,7 @@ def test_proposals_fixture_shapes_and_four_eyes(fixtures):
 
 def test_traces_fixture_masks_l4(fixtures):
     run_ids = {r["run_id"] for _, r in _all_runs(fixtures)}
-    for rid, tr in fixtures["traces"]["by_run"].items():
+    for rid, tr in _all_traces(fixtures).items():
         assert tr["run_id"] == rid and rid in run_ids
         ids = {s["span_id"] for s in tr["spans"]}
         for s in tr["spans"]:
@@ -629,3 +771,20 @@ def test_zh_labels_read_naturally(i18n):
     assert zh["nav_trace"] == "运行追踪"
     assert zh["run_id"] == zh["trace_run_id"] == "运行 ID"
     assert zh["trace_spans"] == "span 数量"
+
+
+# The demo recordings were made with the offline fake model (issues-log D-07). Until they are re-recorded
+# with the real one, every page that shows model text labels it (C.fakeModelNote); once they are, flip
+# REAL_RECORDINGS and no fixture may carry the fake model's "[fake/" tag any more.
+REAL_RECORDINGS = False
+_SHOWS_MODEL_TEXT = ("components.js", "view_report.js", "view_sales.js", "view_hr.js")
+
+
+def test_fake_model_text_is_labelled_until_real_recordings_exist():
+    fake = [p.name for p in sorted((UI / "fixtures").glob("*.js")) if "[fake/" in p.read_text(encoding="utf-8")]
+    if REAL_RECORDINGS:
+        assert fake == [], f"re-recorded with the real model, yet fake-model text remains in {fake}"
+        return
+    assert fake, "no fake-model text left: set REAL_RECORDINGS = True"
+    for name in _SHOWS_MODEL_TEXT:
+        assert "fakeModelNote(" in (UI / "js" / name).read_text(encoding="utf-8"), name

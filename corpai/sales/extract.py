@@ -165,7 +165,9 @@ def build_messages(pages: list[dict]) -> list[dict]:
 
 
 async def extract_profile_with_meta(principal: Principal, *, account_id: str, pages: list[dict],
-                                    run_id: str) -> tuple[CompanyProfile, ExtractMeta]:
+                                    run_id: str, hwm: Level = Level.L1) -> tuple[CompanyProfile, ExtractMeta]:
+    """`hwm` is the floor the caller's session imposes (the user's raised level, architecture §12).
+    Above L1 the gateway ignores public_only, so the extraction stays on the local route."""
     # Same gate as the web tools: only sales and the CEO, and only as the isolated sales_web agent.
     started = may_start(principal, AGENT)
     if not started.allow:
@@ -186,7 +188,8 @@ async def extract_profile_with_meta(principal: Principal, *, account_id: str, pa
     # caller's dicts looked up by URL: a duplicate URL or an unchecked field would otherwise smuggle
     # internal text (a quote, a discount) past the money rule to the external route.
     public = prompt_pages_are_published(selected)
-    req = ChatRequest(messages=build_messages(selected), principal=principal, hwm=Level.L1, purpose=PURPOSE,
+    req = ChatRequest(messages=build_messages(selected), principal=principal, hwm=Level(max(1, int(hwm))),
+                      purpose=PURPOSE,
                       run_id=run_id, agent=AGENT, json_mode=True, max_tokens=800, temperature=0.0,
                       tools=None, public_only=public)
     result = await get_gateway().chat(req)

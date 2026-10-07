@@ -11,6 +11,9 @@ CREATE TABLE IF NOT EXISTS hr.employees (
   manager_id      text,
   country         text,
   hired_on        date NOT NULL,
+  -- last working day of a former employee; NULL while employed. HR keeps leavers' records, so
+  -- headcount and attrition at any date come from hired_on / left_on (issues-log D-12).
+  left_on         date CHECK (left_on IS NULL OR left_on >= hired_on),
   employment_type text NOT NULL CHECK (employment_type IN ('full_time','part_time','contractor')),
   fte             numeric(3,2) NOT NULL,
   level           smallint NOT NULL CHECK (level BETWEEN 1 AND 4),
@@ -54,6 +57,11 @@ CREATE TABLE IF NOT EXISTS hr.requisitions (
   headcount         int NOT NULL CHECK (headcount > 0),
   status            text NOT NULL CHECK (status IN ('open','on_hold','filled','closed')),
   opened_on         date NOT NULL,
+  -- the day the current status began (issues-log D-12): period metrics use the status at the
+  -- period's end. Each date is set exactly when the requisition is in that status.
+  on_hold_on        date CHECK (on_hold_on IS NULL OR on_hold_on >= opened_on),
+  filled_on         date CHECK (filled_on IS NULL OR filled_on >= opened_on),
+  closed_on         date CHECK (closed_on IS NULL OR closed_on >= opened_on),
   hiring_manager_id text NOT NULL,
   recruiter_id      text NOT NULL,
   jd_text           text NOT NULL,
@@ -62,7 +70,9 @@ CREATE TABLE IF NOT EXISTS hr.requisitions (
   owner_id          text,
   acl_groups        text[] NOT NULL CHECK (cardinality(acl_groups) > 0),
   trust             text NOT NULL DEFAULT 'internal' CHECK (trust IN ('reviewed','internal','untrusted')),
-  subject_ids       text[] NOT NULL DEFAULT '{}'
+  subject_ids       text[] NOT NULL DEFAULT '{}',
+  CHECK ((status = 'on_hold') = (on_hold_on IS NOT NULL) AND (status = 'filled') = (filled_on IS NOT NULL)
+         AND (status = 'closed') = (closed_on IS NOT NULL))
 );
 
 CREATE TABLE IF NOT EXISTS hr.requisition_budgets (

@@ -13,4 +13,11 @@
 //   proposals  {"by_persona": {key: {"mine": [...], "to_approve": [...]}}, "resumed_runs": {proposal_id: run}}
 //   traces     {"by_run": {run_id: GET /api/runs/{id}/trace}}
 //   audit      GET /api/audit
+// One file per milestone app area, owned by that milestone (legal M2, report M3, sales and hr M4):
+//   legal | report | sales | hr
+//              {"runs": [runs item, ...], "traces": {run_id: trace}, "proposals": {"by_persona": {...},
+//               "resumed_runs": {...}}, ...any keys its js/demo_<name>.js reads}
+//              js/demo.js merges runs, traces and proposals with the shared ones above.
 window.FIXTURES = window.FIXTURES || {};
+// the milestone fixture names above (js/fixtures_loader.js loads them; js/demo.js merges them)
+window.FIXTURE_APPS = ["legal", "report", "sales", "hr"];

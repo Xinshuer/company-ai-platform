@@ -46,7 +46,7 @@ def test_persona_row(users, key):
 
 
 def test_department_sizes_and_service_accounts(users):
-    humans = [u for u in users.values() if u["role"] != "service"]
+    humans = [u for u in users.values() if u["role"] != "service" and u["active"]]
     assert Counter(u["dept"] for u in humans) == {"exec": 2, "sales": 14, "eng": 32, "legal": 4, "finance": 6,
                                                   "hr": 5, "it": 3}
     svc = {u["user_id"]: u for u in users.values() if u["role"] == "service"}

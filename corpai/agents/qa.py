@@ -2,11 +2,17 @@
 
     classify   hwm = max(classify_text(question), ctx.user_level)
     retrieve   rag purpose "qa" as the user (policy filter + RLS); irrelevant hits are dropped
-               before they enter the session
+               before they enter the session; instruction lines aimed at AI systems are withheld
+               from the model and flagged (corpai/agents/_qa_guard.py)
     tools      ≤ 3 model rounds choosing among the read tools this user may use through the qa
                agent; anything else the model asks for is refused and noted
     answer     the model answers from the sources, citing [doc:<id>]
     cite       code keeps only citations of retrieved documents or tool sources
+
+Events (§18): one `route` event per run, for the answer call, which is the run's final and most
+restrictive route (the hwm only rises between the calls). The tool-choosing rounds are audited and
+traced by the gateway like every call but add no route badge of their own; before, the UI timeline
+showed one badge per model call.
 
 No node can write or reach outside (no write tools, no web), so the graph holds at most
 untrusted_input + sensitive_data (Rule of Two). Routing is the gateway's: this module never picks
@@ -21,8 +27,8 @@ from typing import Any
 
 from langgraph.graph import END, START, StateGraph
 
-from corpai.agents import _qa_fake, _qa_tools
-from corpai.agents.runtime import BaseState, RunContext, Step, node
+from corpai.agents import _qa_fake, _qa_guard, _qa_tools
+from corpai.agents.runtime import BaseState, RunContext, Step, llm, llm_update, node
 from corpai.classify import classify_text
 from corpai.policy import agent_spec, tool_allowed, tool_tier
 from corpai.types import Level, ToolTier
@@ -56,13 +62,26 @@ class QAState(BaseState, total=False):
     question: str
     hits: list[dict]
     tool_results: list[dict]
+    flagged: list[str]
     answer: str
     output: dict
 
 
 def initial_state(text: str) -> dict:
     """The per-run input. Run-scoped keys are reset; hwm and events carry over in a thread."""
-    return {"question": text, "hits": [], "tool_results": [], "answer": "", "output": None}
+    return {"question": text, "hits": [], "tool_results": [], "flagged": [], "answer": "", "output": None}
+
+
+class _NoRouteBadgeStep(Step):
+    """A Step whose model calls raise the hwm as usual but add no `route` event: the run's single
+    route event comes from the answer call (see the module docstring)."""
+
+    async def llm(self, messages: list[dict], **kw: Any) -> Any:
+        res = await llm(self.rt, self, messages, **kw)
+        upd = llm_update(self, res)
+        upd["events"] = [e for e in upd["events"] if e.get("t") != "route"]
+        self.apply(upd)
+        return res
 
 
 def _terms(text: str) -> set[str]:
@@ -118,9 +137,11 @@ async def classify(state: QAState, runtime) -> dict:
 
 
 def _hit_dict(h: Any) -> dict:
+    # Withhold before truncating, so an instruction cut in half at the limit is still found.
+    text, flagged = _qa_guard.withhold(h.text)
     return {"chunk_id": h.chunk_id, "doc_id": h.doc_id, "title": h.title, "heading": h.heading,
-            "text": h.text[:_MAX_HIT_TEXT], "level": int(h.level), "collection": h.collection,
-            "trust": str(h.trust)}
+            "text": text[:_MAX_HIT_TEXT], "level": int(h.level), "collection": h.collection,
+            "trust": str(h.trust), "flagged": flagged}
 
 
 @node(caps={"sensitive_data", "untrusted_input"})
@@ -128,7 +149,11 @@ async def retrieve(state: QAState, runtime) -> dict:
     step = Step(runtime, state)
     q = state.get("question") or ""
     res = await step.retrieve(q, purpose="qa", k=K, keep=relevant(q))
-    return step.update(hits=[_hit_dict(h) for h in res.hits])
+    hits = [_hit_dict(h) for h in res.hits]
+    flagged = list(dict.fromkeys(h["doc_id"] for h in hits if h["flagged"]))
+    for ev in _qa_guard.notices(flagged):
+        step.event(ev)
+    return step.update(hits=hits, flagged=flagged)
 
 
 def _tool_message(env: Any) -> str:
@@ -146,7 +171,7 @@ def _tool_message(env: Any) -> str:
 @node(caps={"sensitive_data", "untrusted_input"})
 async def tools(state: QAState, runtime) -> dict:
     ctx: RunContext = runtime.context
-    step = Step(runtime, state)
+    step = _NoRouteBadgeStep(runtime, state)
     offered = offered_tools(ctx)
     if not offered:
         return step.update(tool_results=[])
@@ -185,11 +210,19 @@ async def tools(state: QAState, runtime) -> dict:
                 continue
             domain, _, tool = qualified.partition(".")
             env = await step.call_tool(domain, tool, args)
+            text = _tool_message(env)
+            # Tool data (CRM notes, ticket text) can carry an injection too. It is flagged and the
+            # answer prompt warns about it; the JSON is not cut, since the spans would cover all of it.
+            flagged = _qa_guard.flagged(text)
             results.append({"domain": domain, "tool": tool, "ok": env.ok, "level": int(env.level),
                             "sources": env.sources[:50], "denied": env.denied[:20], "error": env.error,
-                            "text": _tool_message(env)})
-            messages.append({"role": "tool", "tool_call_id": call_id, "content": _tool_message(env)})
-    return step.update(tool_results=results)
+                            "text": text, "flagged": flagged})
+            if flagged:
+                step.event(_qa_guard.notice(f"{domain}.{tool}"))
+            messages.append({"role": "tool", "tool_call_id": call_id, "content": text})
+    flagged_tools = [f"{r['domain']}.{r['tool']}" for r in results if r["flagged"]]
+    return step.update(tool_results=results,
+                       flagged=list(dict.fromkeys([*(state.get("flagged") or []), *flagged_tools])))
 
 
 def _context(state: QAState) -> str:
@@ -200,6 +233,8 @@ def _context(state: QAState) -> str:
     for h in hits:
         head = f" — {h['heading']}" if h.get("heading") else ""
         parts.append(f"[doc:{h['doc_id']}] {h['title']}{head}")
+        if h.get("flagged"):
+            parts.append(_qa_guard.CONTEXT_WARNING)
         parts.append(h["text"])
         parts.append("")
     results = state.get("tool_results") or []
@@ -207,6 +242,8 @@ def _context(state: QAState) -> str:
         parts.append("Tool results:")
         for r in results:
             parts.append(f"[tool:{r['domain']}.{r['tool']}] sources: {', '.join(r['sources']) or '-'}")
+            if r.get("flagged"):
+                parts.append(_qa_guard.CONTEXT_WARNING)
             parts.append(r["text"])
             parts.append("")
     return "\n".join(parts)
@@ -264,7 +301,7 @@ async def cite(state: QAState, runtime) -> dict:
     data = {"tools": [{"domain": r["domain"], "tool": r["tool"], "ok": r["ok"], "level": r["level"],
                        "sources": r["sources"][:20], "denied": r["denied"]}
                       for r in state.get("tool_results") or []],
-            "dropped_citations": len(dropped)}
+            "dropped_citations": len(dropped), "flagged_sources": list(state.get("flagged") or [])}
     return step.update(output={"text": text, "citations": citations, "data": data})
 
 

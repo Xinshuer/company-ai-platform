@@ -11,12 +11,14 @@ from tests.api.support import login, owner_exec, owner_rows
 pytestmark = pytest.mark.anyio
 
 EXPECTED_APPS = {
-    "ceo": {"qa", "legal_review", "report", "sales_profile", "hr_headcount"},
-    "sales_staff": {"qa", "sales_profile"},
-    "sales_head": {"qa", "report", "sales_profile", "hr_headcount"},
-    "eng_staff": {"qa"},
-    "legal_staff": {"qa", "legal_review"},
-    "hr_staff": {"qa", "hr_headcount", "hr_screening"},
+    # hr_candidates (D-14): anyone with role employee, manager or ceo may start it; the graph then
+    # shows only requisitions the caller hires for and denies the rest explicitly
+    "ceo": {"qa", "legal_review", "report", "sales_profile", "hr_headcount", "hr_candidates"},
+    "sales_staff": {"qa", "sales_profile", "hr_candidates"},
+    "sales_head": {"qa", "report", "sales_profile", "hr_headcount", "hr_candidates"},
+    "eng_staff": {"qa", "hr_candidates"},
+    "legal_staff": {"qa", "legal_review", "hr_candidates"},
+    "hr_staff": {"qa", "hr_headcount", "hr_screening", "hr_candidates"},
     "platform_admin": {"qa"},
     "auditor": {"qa"},
 }

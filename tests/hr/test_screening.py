@@ -70,7 +70,7 @@ async def test_evidence_is_local_verbatim_and_scoreless(personas, planted_pairs,
     assert row["created_by"] == personas["hr_staff"].user_id and row["model_route"] == "local"
     assert row["level"] == 4 and sorted(row["acl_groups"]) == sorted([f"req:{ev.req_id}", "head:hr"])
     assert row["subject_ids"] == [cid] and not (_keys(row["evidence"]) & FORBIDDEN_KEYS)
-    audits = owner_rows("SELECT * FROM audit.log WHERE run_id = %s AND event = 'tool_call'", (run_id,))
+    audits = owner_rows("SELECT * FROM audit.log WHERE run_id = %s AND event = 'hr_screening'", (run_id,))
     assert audits and audits[-1]["details"]["evidence_id"] == ev.evidence_id
     assert prepared.text not in json.dumps(audits[-1]["details"])  # metadata only
 

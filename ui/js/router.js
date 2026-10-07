@@ -1,5 +1,7 @@
 // Hash router. Each route shows exactly one <section id="view-…"> from index.html;
 // tests/ui/test_static.py checks that every view id listed here exists in the page.
+// Every milestone route is listed here already and rendered by its own view_<name>.js, so a milestone
+// never edits this file; deeper pages use the route's args (#/legal/<review_id> → args ["<review_id>"]).
 (function () {
   "use strict";
   var KB = (window.KB = window.KB || {});
@@ -17,8 +19,10 @@
     {path: "sales", view: "view-sales", nav: "apps", icon: "target", app: "sales_profile"},
     {path: "headcount", view: "view-headcount", nav: "apps", icon: "users", app: "hr_headcount"},
     {path: "hr", view: "view-hr", nav: "apps", icon: "usercheck", app: "hr_screening"},
+    {path: "candidates", view: "view-candidates", nav: "apps", icon: "search", app: "hr_candidates"},
     {path: "approvals", view: "view-approvals", nav: "work", icon: "inbox", label: "nav_approvals"},
     {path: "compare", view: "view-compare", nav: "work", icon: "columns", label: "nav_compare"},
+    {path: "metrics", view: "view-metrics", nav: "work", icon: "trending", label: "nav_metrics"},
     {path: "trace", view: "view-trace", nav: "work", icon: "activity", label: "nav_trace"},
     {path: "audit", view: "view-audit", nav: "ops", icon: "shieldcheck", label: "nav_audit", need: "audit"},
     {path: "admin", view: "view-admin", nav: "ops", icon: "toggle", label: "nav_admin", need: "admin"},

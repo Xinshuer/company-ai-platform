@@ -14,7 +14,8 @@
     {id: "report", route: "report", icon: "chart", milestone: "M3"},
     {id: "sales_profile", route: "sales", icon: "target", milestone: "M4"},
     {id: "hr_headcount", route: "headcount", icon: "users", milestone: "M4"},
-    {id: "hr_screening", route: "hr", icon: "usercheck", milestone: "M4"}
+    {id: "hr_screening", route: "hr", icon: "usercheck", milestone: "M4"},
+    {id: "hr_candidates", route: "candidates", icon: "search", milestone: "M4"}
   ];
 
   function appCard(app, meApp) {
@@ -73,6 +74,7 @@
       root.appendChild(el("div", {class: "app-grid"}, [
         toolCard("approvals", "inbox", "nav_approvals", "tool_approvals_desc", true, badge),
         toolCard("compare", "columns", "nav_compare", "tool_compare_desc", true),
+        toolCard("metrics", "trending", "nav_metrics", "tool_metrics_desc", true),
         toolCard("trace", "activity", "nav_trace", "tool_trace_desc", true),
         toolCard("audit", "shieldcheck", "nav_audit", can.audit ? "tool_audit_desc" : "tool_audit_locked", !!can.audit),
         toolCard("admin", "toggle", "nav_admin", can.admin ? "tool_admin_desc" : "tool_admin_locked", !!can.admin)
