@@ -25,6 +25,8 @@ L1, L2, L3, L4 = Level.L1, Level.L2, Level.L3, Level.L4
 
 # ---- patterns -------------------------------------------------------------------------------
 
+# KB- (like the kb_ package prefix below) is from the company's former name, Kestrelbyte. It stays: the
+# canaries are planted with this format and the recorded demo data quotes them.
 CANARY = re.compile(r"KB-CANARY-[0-9A-F]{8}")
 EMAIL = re.compile(r"(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]{1,63}(?:\.[A-Za-z0-9-]{1,63}){0,8}"
                    r"\.[A-Za-z]{2,24}(?![A-Za-z0-9-])")

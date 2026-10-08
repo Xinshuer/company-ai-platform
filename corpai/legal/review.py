@@ -129,6 +129,15 @@ def _clause_result(text: str, cr: ClauseReview, final: dict | None, playbook: Kb
     note = ""
     if embedded:
         verdict = "unacceptable"
+    elif (v.verdict == "flag" and cr.trace.model_verdict == "accept" and cr.trace.marks
+          and position != "outside"):
+        # The model accepted the clause but also called mark_for_review, which the vendored loop
+        # turns into flag. Live eval 2026-10-08: the real model does this to ask a lawyer to confirm
+        # something it cannot see (a referenced DPA), not because the clause is outside the
+        # playbook. Not acceptable (a person must look), not unacceptable either. Accept + outside
+        # is a contradiction and falls through to unacceptable below.
+        verdict = "fallback"
+        note = f" (The reviewer accepted the clause but asked a lawyer to confirm: {cr.trace.marks[0][:300]})"
     elif v.verdict in ("flag", "redline"):
         verdict = "unacceptable"
     elif position == "fallback":
@@ -175,18 +184,25 @@ def _clause_result(text: str, cr: ClauseReview, final: dict | None, playbook: Kb
 def _host(rule: KbRule, results: list[ClauseResult], clauses: dict[str, tuple[str, str]],
           playbook: KbPlaybook) -> ClauseResult | None:
     """The clause that should have carried the missing terms: chosen by code (playbook keywords
-    over the clause text and heading), so a misled model cannot hide the gap by mislabelling topics."""
+    over the clause text and heading), so a misled model cannot hide the gap by mislabelling topics.
+
+    An unacceptable clause keeps its own verdict and the gap gets an entry of its own, unless the
+    reviewer found that clause unacceptable under this very rule: then it carries the gap, one entry
+    for one problem (live eval 2026-10-08: the real model rejects "Each party complies with
+    applicable data protection law" under KB-03, which is exactly the missing Article 28 terms)."""
+    same = [r for r in results if r.verdict == "unacceptable" and not r.embedded_instruction
+            and r.clause_id in clauses and (r.rule or "").split("@")[0] == rule.id]
+    candidates = same or [r for r in results if r.verdict != "unacceptable" and r.clause_id in clauses]
     best: tuple[int, ClauseResult] | None = None
-    for r in results:
-        # an unacceptable clause keeps its own verdict; the gap then gets an entry of its own
-        if r.clause_id is None or r.verdict == "unacceptable" or r.clause_id not in clauses:
-            continue
+    for r in candidates:
         body, path = clauses[r.clause_id]
         score = next((sc for rr, sc in relevant_rules(playbook, body, path) if rr.id == rule.id), 0)
         if score and (best is None or score > best[0]):
             best = (score, r)
     if best is not None:
         return best[1]
+    if same:
+        return same[0]
     return next((r for r in results if r.topic == rule.topic and r.clause_id is not None
                  and r.verdict != "unacceptable"), None)
 

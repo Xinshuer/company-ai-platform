@@ -63,6 +63,68 @@ async def test_missing_dpa_clause_is_reported_missing(personas, contracts, fake_
     assert "6" in r.summary["needs_attention"] and r.summary["overall_risk"] == "high"
 
 
+async def test_clause_rejected_under_the_missing_rule_carries_the_gap(personas, contracts, run_id):
+    """Live eval 2026-10-08: the real model rejects C-0005 clause 6 ("complies with applicable data
+    protection law") under KB-03 itself. That clause then carries the missing Article 28 terms: one
+    entry for one problem, not an unacceptable clause plus a separate missing entry."""
+    fake = get_fake()
+
+    def strict(messages, *, route, json_mode):
+        reply = review_responder(messages, route=route, json_mode=json_mode)
+        data = json.loads(reply) if isinstance(reply, str) else None
+        if isinstance(data, dict) and data.get("clause_id") == "6":
+            data.update(topic="data_processing", verdict="flag", risk_level="high", rule_ids=["KB-03"],
+                        position="outside", rationale="No Article 28 terms although personal data is processed.")
+            return json.dumps(data)
+        return reply
+
+    fake.register("legal.review", strict)
+    try:
+        r = await review_contract(personas["legal_head"], text=contracts["C-0005"]["text"], contract_id="C-0005",
+                                  run_id=run_id, store=False)
+    finally:
+        fake.register("legal.review", review_responder)
+    dp = _by_id(r)["6"]
+    assert dp.verdict == "missing" and dp.rule == "KB-03@2026-10-01" and dp.risk == "high"
+    assert dp.suggestion is not None and dp.suggestion.position == "preferred"
+    assert [c.clause_id for c in r.clauses if c.verdict == "missing"] == ["6"]  # no second, clause-less entry
+    assert not [c.clause_id for c in r.clauses if c.verdict == "unacceptable" and c.rule.startswith("KB-03@")]
+
+
+@pytest.mark.parametrize("position,expected", [("fallback", "fallback"), ("preferred", "fallback"),
+                                               ("not_applicable", "fallback"), ("outside", "unacceptable")])
+async def test_accepted_but_marked_for_review_is_fallback(personas, run_id, position, expected):
+    """Live eval 2026-10-08: the real model accepts a clause that refers to a separately signed DPA and
+    also calls mark_for_review ("a lawyer should confirm the DPA"). The vendored loop turns that into
+    flag; the platform shows it as fallback with the reason, not as unacceptable. A model that contradicts
+    itself (accept, but outside the playbook) still gets the stricter verdict."""
+    fake = get_fake()
+    text = ("Agreement (test)\n\n## 6. Data protection\nThe Data Processing Agreement signed by the parties on "
+            "1 March 2026 governs all processing of personal data under this agreement.\n")
+
+    def marks_then_accepts(messages, *, route, json_mode):
+        if not any(m.get("role") == "tool" for m in messages):
+            return {"content": "", "tool_calls": [{"id": "m1", "type": "function", "function": {
+                "name": "mark_for_review", "arguments": json.dumps(
+                    {"clause_id": "6", "reason": "A lawyer should confirm the referenced DPA meets Article 28(3)."})}}]}
+        return json.dumps({"clause_id": "6", "topic": "data_processing", "verdict": "accept", "risk_level": "low",
+                           "rule_ids": ["KB-03"], "rationale": "A signed DPA governs the processing.",
+                           "confidence": "medium", "anchor_text": None, "replacement": None,
+                           "consulted_clauses": [], "position": position,
+                           "quotes": ["governs all processing of personal data"], "embedded_instruction": False})
+
+    fake.register("legal.review", marks_then_accepts)
+    try:
+        r = await review_contract(personas["legal_head"], text=text, contract_id=None, run_id=run_id, store=False)
+    finally:
+        fake.register("legal.review", review_responder)
+    c = _by_id(r)["6"]
+    assert c.verdict == expected and c.tool_calls == ["mark_for_review"]
+    if expected == "fallback":
+        assert "asked a lawyer to confirm: A lawyer should confirm the referenced DPA" in c.explanation
+        assert r.summary["needs_attention"] == [] and r.findings == []
+
+
 async def test_missing_term_without_a_host_clause_gets_its_own_entry(personas, fake_llm, run_id):
     text = ("Order C-X\n\n## 1. Order\nFleetPilot for 40 vehicles; fees billed quarterly. ABC Tech stores "
             "driver names and personal data of the Customer's drivers.\n\n## 2. Governing law\nSwedish law.\n")

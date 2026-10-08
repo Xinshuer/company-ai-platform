@@ -3,7 +3,8 @@ résumé, and the HR person's screening decision.
 
 - Reads go through the MCP client as the app's agent (hr_candidates or hr_screening), so the user's
   tool rules ∩ the agent's allowlist ∩ the one-tool token ∩ RLS apply exactly as inside a graph,
-  and the tool servers audit every call. The caller must be allowed to start that app first.
+  and the tool servers audit every call. The caller must be allowed to start that app first; a
+  refusal is 403 and audited (deps.require_app).
 - The decision is the person's own action (corpai/agents/hr/decision.py): never a model's.
 Errors follow §18: NoPermission -> 403 forbidden, ValueError -> 400 bad_request.
 """
@@ -34,13 +35,10 @@ _CAND = re.compile(r"^CAND-[0-9]{3,6}$")
 CANDIDATE_FIELDS = ("candidate_id", "req_id", "name", "stage", "applied_on", "source", "resume_text")
 
 
-def _route_for(p: Principal, app: str) -> Any:
+async def _route_for(p: Principal, app: str, action: str) -> Any:
     if app not in READ_APPS:
         raise bad_request("app must be hr_candidates or hr_screening.")
-    try:
-        return app_router.resolve(p, app)
-    except app_router.RouterError as e:
-        raise ApiError(e.status, e.code, str(e)) from None
+    return await deps.require_app(p, app, action=action)
 
 
 def _tool_call(services: Any, p: Principal, agent: str):
@@ -55,7 +53,7 @@ async def _call(services: Any, p: Principal, agent: str, run_id: str, domain: st
 @router.get("/api/hr/candidates")
 async def candidates(app: str = "hr_candidates", req_id: str | None = None, p: Principal = Depends(deps.principal),
                      services: Any = Depends(deps.services)) -> dict:
-    route = _route_for(p, app)
+    route = await _route_for(p, app, "hr.candidates")
     if req_id is not None and not _REQ.match(req_id):
         raise bad_request("req_id looks like R-01.")
     try:
@@ -69,7 +67,7 @@ async def candidates(app: str = "hr_candidates", req_id: str | None = None, p: P
 @router.get("/api/hr/candidates/{candidate_id}")
 async def candidate(candidate_id: str, app: str = "hr_candidates", p: Principal = Depends(deps.principal),
                     services: Any = Depends(deps.services)) -> dict:
-    route = _route_for(p, app)
+    route = await _route_for(p, app, "hr.candidate")
     if not _CAND.match(candidate_id):
         raise not_found("No such candidate, or you have no permission to see them.")
     try:
@@ -103,6 +101,9 @@ async def screening_decision(body: DecisionIn, p: Principal = Depends(deps.princ
                             reason=body.reason, services=services, checkpointer=checkpointer)
     except DecisionRefused as e:
         raise ApiError(e.status, e.code, e.message) from None
+    except app_router.StartDenied as e:  # someone whose role changed since they started the screening
+        await deps.audit_start_denied(p, "hr_screening", "hr.decision")
+        raise ApiError(e.status, e.code, str(e)) from None
     except app_router.RouterError as e:
         raise ApiError(e.status, e.code, str(e)) from None
     except _runner.RunRefused as e:

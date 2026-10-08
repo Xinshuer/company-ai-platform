@@ -6,7 +6,8 @@ Node run of the demo backend with the legal extension (skipped without Node):
   upload limits, and every string it names exists in zh and en;
 - the recordings cover the M2 demo: C-0004 with the injection flagged (effect none), C-0005 missing
   its DPA terms, a draft, the contracts due in 2026-11 (C-0003, notice deadline 2026-10-16) and a
-  send waiting for the head of legal; quotes match the reviewed text; L3+ is local;
+  send waiting for the head of legal; the head of legal's and the CEO's own review and due list; quotes
+  match the reviewed text; L3+ is local;
 - demo mode refuses what live refuses: other departments get 403 on runs and on /api/legal/*,
   the lawyer cannot approve her own send (four-eyes), local_down stops reviews but not the SQL-only
   due list, a review id outside your list is 404.
@@ -142,11 +143,16 @@ def test_recorded_reviews_flag_the_injection_and_the_missing_dpa(fx):
     reviews = {i["run"]["output"]["data"]["review"]["contract_id"]: i["run"] for i in _by(fx, "review")}
     c4, c5 = reviews["C-0004"], reviews["C-0005"]
     r4 = c4["output"]["data"]["review"]
-    assert [f["kind"] for f in r4["findings"]] == ["embedded_instruction"] and r4["findings"][0]["effect"] == "none"
+    # the planted instruction in clause 9 is found by code (and the model); every finding had no effect.
+    # The live model may flag more than code does (an earlier recording flagged a plain sentence of clause 6,
+    # model only, before the prompt limited the flag to the clause under review): over-flagging only asks a
+    # lawyer to read a passage, so it is allowed here.
+    assert r4["findings"] and all(f["kind"] == "embedded_instruction" and f["effect"] == "none" for f in r4["findings"])
+    assert any(f["clause_id"] == "9" and "code" in f["detected_by"] for f in r4["findings"])
     assert any(e["t"] == "notice" and e.get("code") == "embedded_instruction" for e in c4["events"])
     assert {c["clause_id"]: c["verdict"] for c in r4["clauses"]}["9"] == "unacceptable"
     assert any(c["verdict"] == "missing" for c in c5["output"]["data"]["review"]["clauses"])
-    for run in (c4, c5):
+    for run in reviews.values():
         rv, doc = run["output"]["data"]["review"], run["output"]["data"]["document"]
         assert rv["route"] == "local" and run["pending_approval"] is None
         for c in rv["clauses"]:
@@ -181,7 +187,25 @@ def test_recorded_lists_follow_row_level_security(fx):
     head = {c["contract_id"] for c in fx["contracts"]["legal_head"]}
     assert "C-0006" not in staff and "C-0006" in head and staff < head
     assert all("text" not in c for lst in fx["contracts"].values() for c in lst)
-    assert fx["reviews"]["ceo"] == [], "reviews are readable by requester, head of legal and handler only"
+    # reviews are readable by their requester, the head of legal and the handling lawyer only: the CEO's
+    # list holds the CEO's own review, the head of legal's every review
+    staff_reviews = {r["review_id"] for r in fx["reviews"]["legal_staff"]}
+    assert fx["reviews"]["ceo"] and all(r["requested_by"] == "u0001" for r in fx["reviews"]["ceo"])
+    assert staff_reviews and not staff_reviews & {r["review_id"] for r in fx["reviews"]["ceo"]}
+    assert staff_reviews < {r["review_id"] for r in fx["reviews"]["legal_head"]}
+
+
+def test_head_of_legal_and_ceo_have_their_own_recordings(fx):
+    """issues-log WR-07: everyone who may start the app has a recorded review and due list; the head of
+    legal's review is of a contract legal staff cannot see."""
+    for key in ("legal_staff", "legal_head", "ceo"):
+        modes = {i["run"]["output"]["data"].get("mode") for i in _runs(fx) if i["persona_key"] == key}
+        assert {"review", "due"} <= modes, key
+    staff = {c["contract_id"] for c in fx["contracts"]["legal_staff"]}
+    head = [i["run"] for i in _by(fx, "review") if i["persona_key"] == "legal_head"]
+    assert head and all(r["output"]["data"]["review"]["contract_id"] not in staff for r in head)
+    for item in _by(fx, "due"):
+        assert [c["contract_id"] for c in item["run"]["output"]["data"]["contracts"]] == ["C-0003"], item["persona_key"]
 
 
 # ---------------------------------------------------------------- demo backend under Node

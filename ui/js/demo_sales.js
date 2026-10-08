@@ -1,7 +1,7 @@
 // Demo-mode behaviour of Account profile (M4); owned by that milestone.
-// - Recordings live in fixtures/sales.js; this lookup prefers them (the shared runs.js still holds an
-//   older sample of this app). Every run it finds still goes through the shared rules in demo.js:
-//   start permission, the thread's level, the user's level and the outage switches.
+// - Recordings live in fixtures/sales.js (`python -m corpai demo-record --only sales`). Every run this
+//   lookup finds still goes through the shared rules in demo.js: start permission, the thread's level,
+//   the user's level and the outage switches.
 // - "/followup <contact>" is answered only in a conversation that holds that company's profile,
 //   like the live graph; anywhere else it is refused the same way (nothing is drafted).
 // - GET /api/sales/accounts answers from the recording of the persona's own CRM view.

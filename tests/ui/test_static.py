@@ -455,7 +455,8 @@ def test_router_gates_ops_pages_and_apps():
 RUN_KEYS = {"run_id", "thread_id", "app", "status", "output", "hwm", "route", "events", "pending_approval", "error"}
 ERROR_CODES = {"unauthenticated", "forbidden", "not_found", "bad_request", "local_unavailable",
                "external_unavailable", "gateway_busy", "budget_exceeded", "secret_detected"}
-EVENT_TYPES = {"classify", "retrieval", "tool", "hwm", "route", "approval", "notice"}
+# the §18 types plus the Q&A graph's citation check and refused tool choice (the UI labels both)
+EVENT_TYPES = {"classify", "retrieval", "tool", "hwm", "route", "approval", "notice", "citations", "policy"}
 PROPOSAL_KEYS = {"proposal_id", "created_at", "requester", "agent", "domain", "tool", "tier", "status", "summary",
                  "params", "params_hash", "can_approve", "why_not"}
 
@@ -589,7 +590,7 @@ def test_runs_obey_routing_and_level_rules(fixtures):
         for c in run["output"]["citations"]:
             assert c["level"] <= run["hwm"], (run["run_id"], c["doc_id"])
             if c["level"] >= 4:
-                assert c["snippet"] is None, "L4 excerpts never reach the UI"
+                assert not c["snippet"], "L4 excerpts never reach the UI (the API sends an empty snippet)"
         for e in run["events"]:
             if e["t"] == "hwm":
                 assert e["to"] > e["from"]
@@ -602,7 +603,9 @@ def test_runs_obey_routing_and_level_rules(fixtures):
 
 def test_required_demo_scenarios_present(fixtures):
     items = _run_items(fixtures)
-    public = [i for i in items if i["app"] == "qa" and i["run"]["route"] == "external" and i["run"]["hwm"] == 1]
+    # the public question also searches the company-wide (L2) pages; L1-L2 may go external
+    public = [i for i in items if i["app"] == "qa" and i["persona_key"] == "*" and i["run"]["route"] == "external"
+              and i["run"]["hwm"] <= 2]
     assert public, "a public Q&A run on the external route"
     sales = [i for i in items if i["persona_key"] == "sales_staff" and i["app"] == "qa" and not i.get("switches")
              and i["run"]["route"] == "local" and i["run"]["hwm"] == 3
@@ -615,6 +618,29 @@ def test_required_demo_scenarios_present(fixtures):
         assert any(i["app"] == app for i in items), f"sample run for {app}"
 
 
+def test_shared_samples_hold_only_company_wide_data(fixtures):
+    """issues-log SEC-1: js/demo.js serves a "*" recording to every persona, so it may hold only what every
+    persona may read (demo-record runs it as the platform admin and checks the documents' ACLs), and no
+    trace of it is kept (a trace is its runner's own)."""
+    from corpai.cli.demo_record import SHARED_COLLECTIONS, SHARED_TOOL_DOMAINS
+
+    traces = _all_traces(fixtures)
+    shared = [i for i in _run_items(fixtures) if i["persona_key"] == "*"]
+    assert shared
+    for item in shared:
+        run = item["run"]
+        assert run["run_id"] not in traces, run["run_id"]
+        for e in run["events"]:
+            if e["t"] == "retrieval":
+                assert set(e["collections"]) <= SHARED_COLLECTIONS, (run["run_id"], e)
+            if e["t"] == "tool":
+                assert e["domain"] in SHARED_TOOL_DOMAINS, (run["run_id"], e)
+        for t in (run["output"].get("data") or {}).get("tools") or []:
+            assert all(s.startswith(("rag.chunk:", "doc:")) for s in t["sources"]), (run["run_id"], t)
+        for c in run["output"]["citations"]:
+            assert c["collection"] in SHARED_COLLECTIONS, (run["run_id"], c)
+
+
 def test_compare_fixture_shows_different_citations(fixtures):
     cmp_ = fixtures["compare"]
     assert cmp_["personas"] == ["sales_staff", "eng_staff", "ceo"]
@@ -625,9 +651,15 @@ def test_compare_fixture_shows_different_citations(fixtures):
     assert set(cmp_["personas"]) <= set(runs)
     cits = [frozenset(c["doc_id"] for c in runs[k]["output"]["citations"]) for k in cmp_["personas"]]
     assert len(set(cits)) == 3, "each person sees different citations"
-    # the engineer may not use CRM tools: the denial is explicit in the events
-    assert any(e["t"] == "tool" and e["domain"] == "crm" and e["decision"] == "deny"
-               for e in runs["eng_staff"]["events"])
+    # the engineer may not use CRM tools, so the Q&A graph never offers them: no CRM call, no CRM record cited
+    eng = runs["eng_staff"]
+    assert not any(e["t"] == "tool" and e.get("domain") == "crm" and e.get("decision") == "allow"
+                   for e in eng["events"])
+    assert not any(c["collection"] == "tool:crm" or c["doc_id"].startswith("crm.") for c in eng["output"]["citations"])
+    # the people who may read the account do get its CRM data
+    for key in ("sales_staff", "ceo"):
+        assert any(e["t"] == "tool" and e.get("domain") == "crm" and e.get("decision") == "allow"
+                   for e in runs[key]["events"]), key
 
 
 def test_proposals_fixture_shapes_and_four_eyes(fixtures):
@@ -773,18 +805,31 @@ def test_zh_labels_read_naturally(i18n):
     assert zh["trace_spans"] == "span 数量"
 
 
-# The demo recordings were made with the offline fake model (issues-log D-07). Until they are re-recorded
-# with the real one, every page that shows model text labels it (C.fakeModelNote); once they are, flip
-# REAL_RECORDINGS and no fixture may carry the fake model's "[fake/" tag any more.
-REAL_RECORDINGS = False
+# The demo recordings are real DeepSeek output (`python -m corpai demo-record` with CORPAI_LLM=live,
+# issues-log D-07). Every page that shows model text labels it (C.fakeModelNote: "[fake/" text as the
+# offline fake model's, demo runs as recordings of the real model, with the recording date). No fixture
+# may carry the fake model's "[fake/" tag, and each recorded file says it was recorded live, on the date
+# the note and the footer name.
+REAL_RECORDINGS = True
 _SHOWS_MODEL_TEXT = ("components.js", "view_report.js", "view_sales.js", "view_hr.js")
+_RECORDED = ("legal", "report", "sales", "hr", "runs")  # the files demo-record writes with a "recorded" stamp
 
 
-def test_fake_model_text_is_labelled_until_real_recordings_exist():
+def test_demo_recordings_are_real_model_output(fixtures, i18n):
+    from corpai.gateway import load_config
+    from corpai.types import Route
+
     fake = [p.name for p in sorted((UI / "fixtures").glob("*.js")) if "[fake/" in p.read_text(encoding="utf-8")]
-    if REAL_RECORDINGS:
-        assert fake == [], f"re-recorded with the real model, yet fake-model text remains in {fake}"
-        return
-    assert fake, "no fake-model text left: set REAL_RECORDINGS = True"
     for name in _SHOWS_MODEL_TEXT:
         assert "fakeModelNote(" in (UI / "js" / name).read_text(encoding="utf-8"), name
+    if not REAL_RECORDINGS:
+        assert fake, "no fake-model text left: set REAL_RECORDINGS = True"
+        return
+    assert fake == [], f"re-recorded with the real model, yet fake-model text remains in {fake}"
+    for name in _RECORDED:
+        rec = fixtures[name]["recorded"]
+        assert rec["mode"] == "live" and rec["model"] == load_config().routes[Route.LOCAL].model, name
+        assert rec["company"] == "full" and rec["seed"] == 7, name
+        for lang in ("zh", "en"):
+            assert rec["on"] in i18n[lang]["demo_recorded_note"] and rec["on"] in i18n[lang]["footer_disclaimer"], \
+                (name, lang, "the note and the footer name the recording date")

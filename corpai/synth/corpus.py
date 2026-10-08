@@ -123,7 +123,7 @@ def _general() -> list[Doc]:
         _gen("gen-employee-handbook", "Employee handbook", source="general.handbook", dept="hr", owner="u0050",
              body="# Employee handbook\n\n## Working hours\nCore hours 10:00-15:00, flexible otherwise.\n\n## Holidays"
                   "\n30 days per year plus public holidays at your work location.\n\n## Sick leave\nTell your manager "
-                  "before 10:00; a doctor's note is needed from the fourth day.\n\n## Equipment\nLaptop and "
+                  "before 10:00; a doctor's note is needed from the eighth day.\n\n## Equipment\nLaptop and "
                   "headset on day one; return them on your last day.\n"),
         _gen("gen-travel-policy", "Travel policy", dept="finance", owner="u0040",
              body="# Travel policy\n\n## Booking\nTrain for trips under 5 hours; economy flights otherwise. Book "

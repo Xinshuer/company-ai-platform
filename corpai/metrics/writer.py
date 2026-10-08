@@ -28,6 +28,9 @@ from corpai.metrics.signals import SignalResult
 from corpai.types import Level, Principal
 
 PURPOSE = "report.write"
+# The CEO's table holds about 90 placeholders; with 1500 the live model's text was cut off before it named
+# the issues, so every attempt failed and code's template replaced it (rule 6 of the prompt keeps it short).
+MAX_TOKENS = 3000
 _BLOCK_START, _BLOCK_END = "PLACEHOLDERS (key | name | value):", "END PLACEHOLDERS"
 _SIGNAL_UNITS = (("_eur", "EUR"), ("_pct", "pct"), ("days", "days"), ("_runs", "count"))
 _SIGNAL_TITLES = {
@@ -148,7 +151,10 @@ def _messages(table: Mapping[str, MetricValue], signals: Mapping[str, SignalResu
         "every issue by its ref exactly as listed (for example A-0001 or sales), and say plainly when a figure "
         "or issue is not available to the reader; (4) no tables, no invented metrics, no advice beyond the "
         "facts; (5) write an id or a date only if it is listed below (the report title, a placeholder key or "
-        "an issue line), never one of your own.")
+        "an issue line), never one of your own; (6) write the body only, in a few short paragraphs: first "
+        "every issue, then the figures that matter most. The reader sees every figure in a table beside your "
+        "text, so do not restate them all; code adds the title, the header and the list of what the reader "
+        "may not see.")
     user = _shown(table, signals, lang, title)
     msgs = [{"role": "system", "content": system}, {"role": "user", "content": user}]
     if feedback:
@@ -237,7 +243,7 @@ async def write_report_text(principal: Principal, *, run_id: str, table: Mapping
         attempts += 1
         result = await gw.chat(ChatRequest(
             messages=_messages(full, signals, lang, title, feedback), principal=principal, hwm=level,
-            purpose=PURPOSE, run_id=run_id, agent=agent, max_tokens=1500, temperature=0.2))
+            purpose=PURPOSE, run_id=run_id, agent=agent, max_tokens=MAX_TOKENS, temperature=0.2))
         route = str(result.route)
         template = result.text
         try:

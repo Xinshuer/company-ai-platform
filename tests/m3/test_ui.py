@@ -45,8 +45,9 @@ def fx() -> dict:
     return json.loads(m.group(1))
 
 
-def _runs(fx: dict) -> dict[str, dict]:
-    return {i["persona_key"]: i["run"] for i in fx["runs"]}
+def _runs(fx: dict, lang: str = "zh") -> dict[str, dict]:
+    """persona -> the recorded report in `lang` (each persona is recorded in Chinese and in English)."""
+    return {i["persona_key"]: i["run"] for i in fx["runs"] if i["run"]["output"]["data"]["lang"] == lang}
 
 
 # ---- static checks of the pages -------------------------------------------------------------------
@@ -89,16 +90,26 @@ def test_export_downloads_in_live_and_shows_the_watermark_in_demo():
 # ---- the recorded reports -------------------------------------------------------------------------
 
 def test_recordings_exist_for_the_management_personas(fx):
-    runs = _runs(fx)
-    assert set(runs) == set(RECORDED)
-    for key, run in runs.items():
-        assert run["app"] == "report" and run["status"] == "done" and run["error"] is None, key
-        assert run["hwm"] >= 3 and run["route"] == "local", key
-        assert run["output"]["data"]["period"] == "2026-Q3", key
+    from corpai.agents.report.request import parse_request
+    from corpai.clock import today
+
+    assert len(fx["runs"]) == 2 * len(RECORDED)
+    for lang in ("zh", "en"):
+        runs = _runs(fx, lang)
+        assert set(runs) == set(RECORDED), lang
+        for key, run in runs.items():
+            assert run["app"] == "report" and run["status"] == "done" and run["error"] is None, key
+            assert run["hwm"] >= 3 and run["route"] == "local", key
+            assert run["output"]["data"]["period"] == "2026-Q3", key
+            # the demo shows the model's narrative: it passed every number, id, date and issue check
+            assert run["output"]["data"]["used_fallback"] is False, (key, lang, run["output"]["data"]["problems"])
+    for item in fx["runs"]:  # each recording is written in its input's language, as live reads it
+        assert parse_request(item["input"], today()).lang == item["run"]["output"]["data"]["lang"]
 
 
 def test_recorded_reports_rerender_and_verify(fx):
-    for key, run in _runs(fx).items():
+    for item in fx["runs"]:
+        key, run = item["persona_key"], item["run"]
         data = run["output"]["data"]
         full = table_from_view(data["table"])
         assert render(data["template"], full, lang=data["lang"]) == run["output"]["text"], key
@@ -110,17 +121,20 @@ def test_recorded_reports_rerender_and_verify(fx):
 
 
 def test_recorded_ceo_and_cto_reports_differ_and_deny_explicitly(fx):
-    runs = _runs(fx)
-    ceo, cto = runs["ceo"], runs["eng_head"]
-    for ref in ("A-0001", "C-0003", "P-02", "R-02", "C-0005"):
-        assert ref in ceo["output"]["text"], ref
-    sections = {s["domain"]: s["status"] for s in cto["output"]["data"]["sections"]}
-    assert sections["legal"] == "no_permission" and "法务：整个部分无权限查看或尚未发布" in cto["output"]["text"]
-    assert any(e["t"] == "tool" and e["decision"] == "deny" for e in cto["events"])
-    ceo_keys = {k for k, v in ceo["output"]["data"]["table"].items() if v["status"] != "unavailable"}
-    cto_keys = {k for k, v in cto["output"]["data"]["table"].items() if v["status"] != "unavailable"}
-    assert ceo_keys != cto_keys and "A-0001" not in cto["output"]["text"]
-    assert ceo["output"]["data"]["export"]["domain"] == "company" and cto["output"]["data"]["export"]["domain"] == "eng"
+    denied = {"zh": "法务：整个部分无权限查看或尚未发布", "en": "no permission for this whole section"}
+    for lang in ("zh", "en"):
+        runs = _runs(fx, lang)
+        ceo, cto = runs["ceo"], runs["eng_head"]
+        for ref in ("A-0001", "C-0003", "P-02", "R-02", "C-0005"):
+            assert ref in ceo["output"]["text"], (lang, ref)
+        sections = {s["domain"]: s["status"] for s in cto["output"]["data"]["sections"]}
+        assert sections["legal"] == "no_permission" and denied[lang] in cto["output"]["text"], lang
+        assert any(e["t"] == "tool" and e["decision"] == "deny" for e in cto["events"])
+        ceo_keys = {k for k, v in ceo["output"]["data"]["table"].items() if v["status"] != "unavailable"}
+        cto_keys = {k for k, v in cto["output"]["data"]["table"].items() if v["status"] != "unavailable"}
+        assert ceo_keys != cto_keys and "A-0001" not in cto["output"]["text"], lang
+        assert ceo["output"]["data"]["export"]["domain"] == "company"
+        assert cto["output"]["data"]["export"]["domain"] == "eng"
 
 
 def test_board_rows_carry_the_acls_of_their_definitions(fx, personas):
@@ -167,9 +181,11 @@ def _err(r, name, status, code=None):
 
 
 def test_demo_report_runs_follow_the_persona_and_the_shared_rules(r, fx):
-    runs = _runs(fx)
+    runs, en = _runs(fx), _runs(fx, "en")
+    # the recording in the input's language, as live writes it
     assert r["ceo_run"]["value"]["run_id"] == runs["ceo"]["run_id"]
-    assert r["ceo_run_q_first"]["value"]["run_id"] == runs["ceo"]["run_id"]
+    assert r["ceo_run_en"]["value"]["run_id"] == en["ceo"]["run_id"]
+    assert r["ceo_run_q_first"]["value"]["run_id"] == en["ceo"]["run_id"]
     assert r["ceo_run_zh_quarter"]["value"]["run_id"] == runs["ceo"]["run_id"]
     assert r["cto_run"]["value"]["run_id"] == runs["eng_head"]["run_id"]
     _err(r, "ceo_run_unrecorded_period", 404, "demo_not_recorded")

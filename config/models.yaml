@@ -45,7 +45,7 @@ retry:
 # Upper bound for ChatRequest.max_tokens; larger requests are clamped, not refused.
 max_tokens_cap: 4096
 
-# Per department, per simulation day (clock.today()). The limits themselves live in
+# Per department, per UTC day (ops.budget_day(), decided in SQL; not the simulation date). The limits live in
 # ops.budget_defaults (migration 010); this file only documents them.
 budgets:
   default_daily_tokens: 2000000

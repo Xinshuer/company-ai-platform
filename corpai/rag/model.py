@@ -51,6 +51,7 @@ class Hit:
     collection: str
     score: float
     source_uri: str
+    subject_ids: tuple[str, ...] = ()  # the document's GDPR data subjects: recorded on the trace span, not shown
 
 
 @dataclass(frozen=True)

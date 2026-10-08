@@ -1,12 +1,13 @@
-"""Security headers on every response (architecture §14) and the session cookie.
+"""Security headers on every response (architecture §14), the Host/Origin check and the session cookie.
 
-A plain ASGI middleware rather than BaseHTTPMiddleware, so the MCP endpoints' responses pass
+Plain ASGI middlewares rather than BaseHTTPMiddleware, so the MCP endpoints' responses pass
 through untouched apart from the headers.
 """
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Iterable
+from urllib.parse import urlsplit
 
 from corpai.identity import directory, tokens
 from corpai.types import Principal
@@ -44,6 +45,47 @@ class SecurityHeaders:
             await send(message)
 
         return await self.app(scope, receive, wrapped)
+
+
+LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
+_SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+
+
+def host_name(netloc: str) -> str:
+    """A Host header or URL netloc -> the lower-case host name, without port or IPv6 brackets."""
+    h = netloc.strip().lower()
+    if h.startswith("["):
+        return h[1:h.index("]")] if "]" in h else ""
+    return h.rsplit(":", 1)[0] if h.count(":") == 1 else h
+
+
+class HostCheck:
+    """DNS rebinding and cross-site writes (issues-log FN-26). A page whose name an attacker rebinds to
+    127.0.0.1 is same-origin with this server, so SameSite cookies do not help; but its requests still
+    carry the attacker's name in Host. Only loopback names (any port, like the MCP SDK's own check) and
+    the configured ones are served. A state-changing request that carries an Origin must come from
+    this same host (the UI only calls its own origin)."""
+
+    def __init__(self, app: Any, allowed: Iterable[str] = ()):
+        self.app = app
+        self.allowed = LOOPBACK_HOSTS | {host_name(h) for h in allowed if h and h.strip()}
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        from corpai.api.errors import error_response
+
+        headers = dict(scope.get("headers") or [])
+        host = headers.get(b"host", b"").decode("latin-1")
+        if host_name(host) not in self.allowed:
+            resp = error_response(400, "bad_request", "Unknown host name; open the platform at http://127.0.0.1.")
+            return await resp(scope, receive, send)
+        origin = headers.get(b"origin")
+        if origin is not None and scope.get("method", "GET") not in _SAFE_METHODS:
+            if urlsplit(origin.decode("latin-1")).netloc.lower() != host.strip().lower():
+                resp = error_response(403, "forbidden", "Requests from another site are refused.")
+                return await resp(scope, receive, send)
+        return await self.app(scope, receive, send)
 
 
 def set_session_cookie(response: Any, token: str) -> None:

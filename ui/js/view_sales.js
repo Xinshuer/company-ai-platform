@@ -31,19 +31,45 @@
     return typeof v === "number" ? v.toLocaleString(KB.lang.current === "zh" ? "zh-CN" : "en-GB") : String(v);
   }
 
-  function list(items, mono) {
+  function list(items) {
     if (!items || !items.length) return el("span", {class: "muted"}, "—");
-    return el("ul", {class: "steps"}, items.map(function (x) {
-      return el("li", {}, mono ? C.mono(String(x), "small") : String(x));
-    }));
+    return el("ul", {class: "steps"}, items.map(function (x) { return el("li", {}, String(x)); }));
   }
 
-  function stepBadge(s) {
+  // A step's route and level. The intent step reports L3 (the CRM activity it reads), but when that
+  // read was refused it read nothing, so it shows the refusal instead of a level (issues-log WR-18).
+  function stepBadge(s, data) {
     var route = s.route === "code"
       ? el("span", {class: "badge badge-muted", title: t("sales_route_code_hint")}, [C.icon("cpu", "icon-xs"), t("sales_route_code")])
       : C.routeBadge(s.route);
     var label = KB.lang.has("sales_step_" + s.step) ? t("sales_step_" + s.step) : String(s.step);
-    return el("span", {class: "chip"}, [el("strong", {}, label), " ", route, " ", C.levelChip(s.level, {compact: true})]);
+    var refused = s.step === "intent" && ((data && data.intent) || {}).status !== "ok";
+    return el("span", {class: "chip"}, [el("strong", {}, label), " ", route, " ", refused
+      ? el("span", {class: "chip status status-bad chip-compact"}, [C.icon("lock", "icon-xs"), t("sales_step_refused")])
+      : C.levelChip(s.level, {compact: true})]);
+  }
+
+  // Codes of the extraction schema (corpai/sales/profile.py) in the page's language; bands and
+  // country codes read the same in both.
+  var CODED = {industry: "sales_ind_", funding_stage: "sales_fund_", growth_signals: "sales_sig_", tech_signals: "sales_sig_"};
+
+  function codeLabel(k, v) {
+    var key = CODED[k] ? CODED[k] + v : null;
+    return key && KB.lang.has(key) ? t(key) : String(v);
+  }
+
+  // A scoring reason of corpai/sales/scoring.py ("industry:parcel_delivery +25", "recency:12d +20")
+  // in words; the code itself stays in the tooltip.
+  var REASON_CODES = {industry: "industry", funding: "funding_stage"};
+
+  function reasonList(items) {
+    if (!items || !items.length) return el("span", {class: "muted"}, "—");
+    return el("ul", {class: "steps"}, items.map(function (r) {
+      var m = /^([a-z_]+):(.*) (\+\d+)$/.exec(String(r));
+      if (!m || !KB.lang.has("sales_reason_" + m[1])) return el("li", {}, C.mono(String(r), "small"));
+      var v = m[2] === "none" ? t("sales_reason_none") : (REASON_CODES[m[1]] ? codeLabel(REASON_CODES[m[1]], m[2]) : m[2]);
+      return el("li", {title: String(r)}, t("sales_reason_fmt", {what: t("sales_reason_" + m[1]), value: v, pts: m[3]}));
+    }));
   }
 
   function runHead(run) {
@@ -70,14 +96,15 @@
   }
 
   function fieldValue(k, v) {
-    if (v === null || v === undefined || v === "" || (Array.isArray(v) && !v.length)) {
+    if (v === null || v === undefined || v === "" || v === "unknown" || (Array.isArray(v) && !v.length)) {
       return el("span", {class: "muted"}, t("sales_unknown"));
     }
     if (k === "last_funding_eur") return num(v) + " EUR";
     if (Array.isArray(v)) {
-      return el("span", {class: "ev-tags"}, v.map(function (x) { return el("span", {class: "pill"}, String(x)); }));
+      return el("span", {class: "ev-tags"}, v.map(function (x) { return el("span", {class: "pill"}, codeLabel(k, x)); }));
     }
     if (k === "company") return el("strong", {}, String(v));
+    if (CODED[k]) return el("span", {title: String(v)}, codeLabel(k, v));
     return C.mono(String(v), "small");
   }
 
@@ -126,13 +153,13 @@
                  el("p", {class: "small muted"}, t("sales_scores_hint"))];
     if (fit) {
       parts.push(meter(t("score_fit"), t("score_fit_hint"), fit.score));
-      parts.push(el("details", {}, [el("summary", {class: "small"}, t("sales_reasons")), list(fit.reasons, true)]));
+      parts.push(el("details", {}, [el("summary", {class: "small"}, t("sales_reasons")), reasonList(fit.reasons)]));
     } else {
       parts.push(C.panel("muted", "info", t("score_fit"), [el("p", {}, t("sales_fit_missing"))]));
     }
     if (intent.status === "ok") {
       parts.push(meter(t("score_intent"), t("score_intent_hint"), intent.score));
-      parts.push(el("details", {}, [el("summary", {class: "small"}, t("sales_reasons")), list(intent.reasons, true)]));
+      parts.push(el("details", {}, [el("summary", {class: "small"}, t("sales_reasons")), reasonList(intent.reasons)]));
     } else {
       parts.push(C.denied(t("sales_intent_denied")));
     }
@@ -262,7 +289,7 @@
       body.push(refusedPanel(data.refused));
     } else if (run.status !== "error") {
       body.push(el("p", {class: "small"}, [t("sales_steps"), " "].concat((data.steps || []).map(function (s) {
-        return [stepBadge(s), " "];
+        return [stepBadge(s, data), " "];
       }))));
       body.push(flaggedPanel(data.web));
       if (data.account) {

@@ -403,8 +403,9 @@
     if (method === "GET" && (m = bare.match(/^\/api\/runs\/([^/]+)\/trace$/))) {
       var owner = runOwner(m[1]);
       var tr = traceFor(m[1]);
-      // own runs only: someone else's run is indistinguishable from a missing one
-      if (!tr || !(owner === key || owner === "*")) throw err(404, "not_found", "No such run among yours.");
+      // own runs only: someone else's run is indistinguishable from a missing one. A shared ("*") sample
+      // is nobody's own run: its trace would show what its recording persona retrieved (issues-log SEC-1).
+      if (!tr || owner !== key) throw err(404, "not_found", "No such run among yours.");
       return U.copy(tr);
     }
     if (method === "GET" && bare === "/api/proposals") {
@@ -608,10 +609,9 @@
       var p = personaList().filter(function (x) { return x.persona_key === key; })[0];
       return p ? p.name + " (" + p.title + ")" : String(key);
     },
-    // Whether the trace page would answer for this run as the current persona (own runs only).
+    // Whether the trace page would answer for this run as the current persona (own runs only, never "*").
     hasTrace: function (runId) {
-      var owner = runOwner(runId);
-      return !!(S.persona && traceFor(runId) && (owner === S.persona || owner === "*"));
+      return !!(S.persona && traceFor(runId) && runOwner(runId) === S.persona);
     },
     persona: function () { return S.persona; },
     setTampered: function (on) { S.tampered = !!on; },

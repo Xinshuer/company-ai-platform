@@ -87,24 +87,32 @@
     });
   }
 
+  // A failed sign-off or refresh: the toast names the error in the page's language, and the error box
+  // next to the control keeps the server's own words with it (issues-log WR-14).
+  function failed(e, msg) {
+    if (e && e.status === 401) return KB.app.sessionLost();
+    var code = (e && e.code) || "unknown";
+    U.toast(KB.lang.has("err_" + code) ? t("err_" + code) : t("err_unknown"), "bad");
+    U.clear(msg).appendChild(C.errorBox(e));
+  }
+
   function actions(picked, period, state) {
+    var msg = el("div", {class: "small"});  // the error box is an alert of its own
     function chosen() { return Object.keys(picked).filter(function (k) { return picked[k]; }); }
     function act(path, toastKey) {
       var ids = chosen();
       if (!ids.length) { U.toast(t("metrics_select_first"), "bad"); return; }
+      U.clear(msg);
       KB.api.post(path, {period: period, metric_ids: ids}).then(function (r) {
         U.toast(t(toastKey, {n: (r.changed || []).length, s: (r.skipped || []).length}), "ok");
         state.reload();
-      }).catch(function (e) {
-        if (e.status === 401) return KB.app.sessionLost();
-        U.toast(e.serverMessage || e.code, "bad");
-      });
+      }).catch(function (e) { failed(e, msg); });
     }
     var sign = el("button", {class: "btn btn-primary btn-sm", type: "button"}, [C.icon("check", "icon-sm"), t("metrics_sign")]);
     var pub = el("button", {class: "btn btn-outline btn-sm", type: "button"}, [C.icon("send", "icon-sm"), t("metrics_publish")]);
     sign.addEventListener("click", function () { act("/api/metrics/sign", "metrics_signed_toast"); });
     pub.addEventListener("click", function () { act("/api/metrics/publish", "metrics_published_toast"); });
-    return el("div", {class: "row-actions"}, [sign, pub]);
+    return el("div", {}, [el("div", {class: "row-actions"}, [sign, pub]), msg]);
   }
 
   // The CFO's demo refresh, outside the board: it must work when no period has snapshots yet (right
@@ -121,18 +129,17 @@
     }));
     var re = el("button", {class: "btn btn-ghost btn-sm", type: "button", title: t("metrics_refresh_hint")},
       [C.icon("refresh", "icon-sm"), t("metrics_refresh")]);
+    var msg = el("div", {class: "small"});  // the error box is an alert of its own
     re.addEventListener("click", function () {
       re.disabled = true;
+      U.clear(msg);
       KB.api.post("/api/metrics/refresh", {period: sel.value}).then(function (r) {
         U.toast(t("metrics_refreshed_toast", {period: r.period, rows: r.rows}), "ok");
         done(r.period);
-      }).catch(function (e) {
-        if (e.status === 401) return KB.app.sessionLost();
-        U.toast(e.serverMessage || e.code, "bad");
-      }).then(function () { re.disabled = false; });
+      }).catch(function (e) { failed(e, msg); }).then(function () { re.disabled = false; });
     });
     return el("div", {class: "card pad form-inline"}, [el("label", {for: selId, class: "label"}, t("metrics_refresh_period")),
-      sel, re, el("span", {class: "small muted"}, t("metrics_refresh_hint"))]);
+      sel, re, el("span", {class: "small muted"}, t("metrics_refresh_hint")), msg]);
   }
 
   KB.views = KB.views || {};

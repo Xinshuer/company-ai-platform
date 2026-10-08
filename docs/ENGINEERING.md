@@ -23,9 +23,11 @@ python -m corpai metrics sign|publish --period 2026-09 --as finance_head --all  
 python -m corpai metrics list|show ...                             # what a persona can see
 python -m corpai prune [--days N] # delete checkpoints of threads idle > N days (default CORPAI_CHECKPOINT_TTL_DAYS or 30)
 python -m corpai serve [--host 127.0.0.1] [--port 8000] [--allow-network-demo-login]   # API + MCP servers + UI on http://127.0.0.1:8000; refuses a non-loopback host while demo login is on
-# planned, not implemented: python -m corpai demo-record (record UI fixtures from real runs; milestone recordings go to
-# ui/fixtures/<x>.js, not runs.js). Today only `python -m tests.m3.record_fixtures [--small]` records ui/fixtures/report.js
-# (own Postgres under .data/record/<pid>, fake LLM); the other fixtures are hand-written.
+CORPAI_LLM=live python -m corpai demo-record [--only report,legal,sales,hr,qa] [--small] [--daily-tokens N]
+# records the demo fixtures from real runs through the in-process API, as each persona: report|legal|sales|hr.js
+# (milestone recordings go to ui/fixtures/<x>.js, not runs.js) and, for qa, the shared runs.js, traces.js and
+# audit.js. Own Postgres under .data/record/<pid>, deleted at the end; live mode calls DeepSeek (costs money,
+# refuses to start without the key), CORPAI_LLM=fake records offline-model text for dry runs (--out-dir elsewhere).
 python -m pytest                # all tests, fake LLM, fake embedder
 python -m pytest -m security    # permission matrix, routing canaries, chaos, red team
 python -m pytest -m eval        # eval suites, fake model (testpaths include tests/, so this never goes live)
@@ -34,7 +36,9 @@ CORPAI_LLM=live CORPAI_EVAL_RUNS=3 python -m pytest evals/legal -m eval   # live
 
 Reports cite signed snapshots only: after `synth` and `ingest`, run `metrics refresh` for the periods you want and sign them (CFO in the UI, or `metrics sign`).
 
-Live evals call the real DeepSeek API and cost money. A run is live only when `CORPAI_LLM=live` **and** every path on the command line lies under `evals/` (for example `evals`, `evals/legal`, `evals/qa`). With no paths, or with any path outside `evals/`, the session stays on the fake model and the API key is removed from the process. The pytest header says which mode the session is in.
+Live evals call the real DeepSeek API and cost money. A run is live only when `CORPAI_LLM=live` **and** every path on the command line lies under `evals/` (for example `evals`, `evals/legal`, `evals/qa`). With no paths, or with any path outside `evals/`, the session stays on the fake model and the API key is removed from the process. The pytest header says which mode the session is in. In a live session `evals/conftest.py` prints the model calls, tokens and latency per purpose from the audit log at the end (it does nothing in fake mode), and `evals/legal/conftest.py` raises the legal department's daily token budget in the throwaway database only; run with `-s` to see per-case pass counts. Record the results in [evals-live.md](evals-live.md).
+
+When a change touches a trust boundary (a new tool, route, egress destination, model purpose or data store), update [threat-model.md](threat-model.md) and, where personal data is involved, the matching file in [compliance/](../compliance/README.md) in the same change.
 
 ## Async and Windows
 

@@ -28,6 +28,7 @@ class Settings:
     api_base: str
     sim_today: date
     checkpoint_ttl_days: int = 30
+    allowed_hosts: tuple[str, ...] = ()  # host names the API serves besides loopback (api.security.HostCheck)
 
     @property
     def pg_dir(self) -> Path:
@@ -64,6 +65,7 @@ def _load() -> Settings:
         api_base=os.environ.get("CORPAI_API_BASE", "http://127.0.0.1:8000").rstrip("/"),
         sim_today=date.fromisoformat(os.environ.get("CORPAI_SIM_TODAY", "2026-10-01")),
         checkpoint_ttl_days=_positive_int(os.environ.get("CORPAI_CHECKPOINT_TTL_DAYS"), 30),
+        allowed_hosts=tuple(h.strip() for h in os.environ.get("CORPAI_ALLOWED_HOSTS", "").split(",") if h.strip()),
     )
 
 

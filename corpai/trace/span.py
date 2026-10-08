@@ -8,15 +8,20 @@ drops it and a CHECK constraint in trace.spans refuses it).
 Spans are written through trace.write_span() on their own short-lived autocommit connection with
 the principal's session variables, so a rolled-back business transaction keeps its trace and the
 database decides whose span it is.
+
+A span also records the GDPR data subjects of what it read (Span.add_subjects: the subject_ids of
+tool rows and retrieved documents), so an erasure request reaches traces too (migration 103,
+trace.erase_subject). Subjects are erasure metadata: no trace reader returns them.
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import re
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import Any, AsyncIterator, Callable
+from typing import Any, AsyncIterator, Callable, Iterable
 
 import psycopg
 
@@ -32,10 +37,12 @@ Masker = Callable[[str, Level], "str | None"]
 
 _MAX_ATTR_KEY = 64
 _MAX_ATTR_BYTES = 4096  # attrs are metadata; a cap keeps content from being smuggled in bulk
+MAX_SUBJECTS = 500  # trace.spans CHECK; more are dropped and the span says so (attrs.subjects_truncated)
+_SUBJECT_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9:._-]{0,63}")  # row ids (fullmatch), as trace.write_span checks
 
 _WRITE_SQL = (
     "SELECT trace.write_span(%s::text, %s::text, %s::text, %s::text, %s::text, %s::smallint, "
-    "%s::timestamptz, %s::timestamptz, %s::text, %s::jsonb, %s::text, %s::text)"
+    "%s::timestamptz, %s::timestamptz, %s::text, %s::jsonb, %s::text, %s::text, %s::text[])"
 )
 _SET = "SELECT set_config(%s, %s, true)"
 
@@ -86,6 +93,7 @@ class Span:
         self._input = input
         self._output: str | None = None
         self._attrs: dict[str, Any] = {}
+        self._subjects: set[str] = set()
 
     @property
     def level(self) -> Level:
@@ -106,6 +114,17 @@ class Span:
     def set_level(self, level: Level | int) -> None:
         """Raise the span's level. Lower values are ignored: levels only go up (rule 3)."""
         self._level = max(self._level, Level(level))
+
+    def add_subjects(self, ids: Iterable[Any]) -> None:
+        """Record data subjects (employee, contact, candidate ids) this span read. Like the level they
+        only accumulate. Anything that is not a row id is ignored, so text never lands here."""
+        for i in (ids,) if isinstance(ids, str) else ids or ():
+            if not (isinstance(i, str) and _SUBJECT_RE.fullmatch(i)) or i in self._subjects:
+                continue
+            if len(self._subjects) >= MAX_SUBJECTS:
+                self._attrs["subjects_truncated"] = True
+                return
+            self._subjects.add(i)
 
 
 class Tracer:
@@ -131,7 +150,7 @@ class Tracer:
 
         params = (span.span_id, span.run_id, span.parent_id, span.name, span.kind, int(span.level),
                   started_at, ended_at, status, json.dumps(attrs, ensure_ascii=False, allow_nan=False),
-                  input_text, output_text)
+                  input_text, output_text, sorted(span._subjects))
         conn = await psycopg.AsyncConnection.connect(pg.app_dsn(), autocommit=True)
         async with conn:
             async with conn.transaction():

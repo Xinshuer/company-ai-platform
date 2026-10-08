@@ -146,16 +146,11 @@
       var box = KB.state.approvalsBox || (me.can && me.can.approve ? "to_approve" : "mine");
       root.appendChild(C.pageHeader("h-approvals", "nav_approvals", "approvals_sub"));
 
-      var tabs = el("div", {class: "tabs", role: "tablist", "aria-label": t("nav_approvals")});
-      var panel = el("div", {class: "tab-panel", role: "tabpanel", id: "approvals-panel"});
+      var tabs = C.tabs("approvals", t("nav_approvals"), [["to_approve", "box_to_approve"], ["mine", "box_mine"]], box,
+                        function (k) { KB.state.approvalsBox = k; KB.router.refresh(); });
+      var panel = tabs.panel;
       var resultSlot = el("div", {class: "result-slot"});
-      [["to_approve", "box_to_approve"], ["mine", "box_mine"]].forEach(function (b) {
-        var tab = el("button", {class: "tab", role: "tab", type: "button", "aria-selected": b[0] === box ? "true" : "false",
-                                "aria-controls": "approvals-panel"}, t(b[1]));
-        tab.addEventListener("click", function () { KB.state.approvalsBox = b[0]; KB.router.refresh(); });
-        tabs.appendChild(tab);
-      });
-      root.appendChild(tabs);
+      root.appendChild(tabs.list);
       root.appendChild(resultSlot);
       root.appendChild(panel);
 

@@ -4,7 +4,7 @@
 
 这是一个能实际运行的模拟项目：一家约 70 人的 B2B SaaS 公司内部会用的 AI 平台。包括按权限过滤的 RAG、MCP 工具服务器、LangGraph 应用、按数据级别选线路的模型网关、所有写操作都要人审批，以及带哈希链的审计日志。公司叫 **ABC Tech AB**，是虚构的：总部在瑞典斯德哥尔摩，做物流路线规划 SaaS（欧盟，适用 GDPR，币种欧元）。
 
-> **这里的一切都是模拟的。** 公司、员工、客户、合同、总账和简历全部由 `corpai/synth` 生成，所有域名都以 `.example` 结尾。两条模型线路底层都调用 DeepSeek API：`local` 线路只是“扮演”公司内网部署的模型，所以在实时模式下，演示里“留在本地”的数据实际上也发给了 DeepSeek。测试和离线演示用确定性的假模型，不需要 API key。
+> **这里的一切都是模拟的。** 公司、员工、客户、合同、总账和简历全部由 `corpai/synth` 生成，所有域名都以 `.example` 结尾。两条模型线路底层都调用 DeepSeek API：`local` 线路只是“扮演”公司内网部署的模型，所以在实时模式下，演示里“留在本地”的数据实际上也发给了 DeepSeek。测试用确定性的假模型，不需要 API key；离线演示也不需要，它回放的是 2026-10-08 用真实 DeepSeek 模型录制的运行。
 
 这个项目想展示的是：
 
@@ -131,7 +131,7 @@ python -m corpai                       # 列出所有命令（db、synth、inges
 
 ### 2. 离线演示（不需要后端）
 
-用浏览器打开 `ui/index.html`（双击，或者 `Start-Process ui\index.html`）。从磁盘打开时页面运行在**演示模式**：选 14 个演示身份中的任意一个，就能点开录制好的运行、审批、审计日志和宕机开关。界面默认中文，点 `EN` 切换英文。由离线假模型回答的运行会有明确标注。
+用浏览器打开 `ui/index.html`（双击，或者 `Start-Process ui\index.html`）。从磁盘打开时页面运行在**演示模式**：选 14 个演示身份中的任意一个，就能点开录制好的运行、审批、审计日志和宕机开关。界面默认中文，点 `EN` 切换英文。这些运行里的模型文字是 2026-10-08 用 `python -m corpai demo-record` 真实调用 DeepSeek 录下来的（完整规模的公司，种子 7），页面上标明是录制；连接服务器运行时会重新调用模型，措辞可能不同。
 
 ### 3. 运行平台（假模型）
 
@@ -146,7 +146,7 @@ python -m corpai metrics publish --period 2026-Q3 --as finance_head --all
 python -m corpai serve                       # http://127.0.0.1:8000
 ```
 
-报告只引用已签核的快照，所以这里先以 CFO 的身份签核 2026-Q3；2026-09 保持草稿，留给她在界面上签。`--as` 是不需要密码的演示登录，每次使用都按演示登录记入审计。
+报告只引用已签核的快照，所以这里先以 CFO 的身份签核 2026-Q3；2026-09 保持草稿，留给 CFO 在界面上签。`--as` 是不需要密码的演示登录，每次使用都按演示登录记入审计。
 
 打开 <http://127.0.0.1:8000>，选一个演示身份登录。可以试试：
 
@@ -155,15 +155,15 @@ python -m corpai serve                       # http://127.0.0.1:8000
 | Erik Lindqvist（销售） | 知识问答 | `What does GDPR Article 28 require from a processor?` | L1，线路 `external` |
 | Erik Lindqvist（销售） | 知识问答，同一会话 | `Which accounts do I own and what is their status?` | 用到 CRM 数据：L3，从这里起都走 `local` |
 | Viktor Sandberg（法务） | 合同审查 | 合同 `C-0004` | 标出合同里夹带的指令，走本地，没有生成提议 |
-| Helena Lindberg 对比 Anders Nyberg | 管理层报告 | `2026-Q3 management report` | CTO 的报告隐藏了财务和销售部分，并在附录里说明 |
+| Helena Lindberg 对比 Anders Nyberg | 管理层报告 | `2026-Q3 management report` | CTO 的报告略去了财务问题、销售管道数字和整个法务部分，并在“无权限或未展示的内容”里列出 |
 | Erik Lindqvist（销售） | 客户画像 | `Havenmeer Distributie B.V.` | 网页抽取走 `external`、L1，评分和策略走 `local` |
-| Elin Forsberg（HR） | 简历筛查 | `CAND-007` | 去掉受保护的个人特征，标出注入，只给证据，等她做决定 |
+| Elin Forsberg（HR） | 简历筛查 | `CAND-007` | 去掉受保护的个人特征，标出注入，只给证据，等 Elin 做决定 |
 | Ida Lund（审计员） | 审计日志 | | 哈希链校验通过；上面每一步都有记录 |
 | Daniel Sjögren（管理员） | 宕机开关 | 打开 `local_down` | 机密请求直接报错，而不是改走外部 |
 
 （演示数据以英文为主，提问用英文最容易命中；默认的假 embedding 只按共同的词匹配，跨语言检索需要下面的 fastembed。）
 
-只要演示登录开着，`python -m corpai serve` 就拒绝绑定非回环地址的 `--host`。用 `Ctrl+C` 停止服务，再运行 `python -m corpai db down`。
+只要演示登录开着，`python -m corpai serve` 就拒绝绑定非回环地址的 `--host`；服务器只回答发给回环名称或所给 `--host` 的请求（其他名称写进 `CORPAI_ALLOWED_HOSTS`），这样挡住了 DNS 重绑定。用 `Ctrl+C` 停止服务，再运行 `python -m corpai db down`。
 
 ### 4. 实时模式（真实的 DeepSeek API，会产生费用）
 
@@ -186,7 +186,7 @@ python -m corpai serve
 ### 5. 测试和评测
 
 ```powershell
-python -m pytest                                    # 全量测试，假模型（约 4,600 个，约 10 分钟）
+python -m pytest                                    # 全量测试，假模型（约 4,700 个，约 11 分钟）
 python -m pytest tests/security                     # 权限矩阵、金丝雀、混沌、红队、Rule of Two（约 2.5 分钟）
 python -m pytest tests/security/test_rule_of_two.py # 单个文件
 python -m pytest evals -m eval                      # 评测集，用假模型（约 2 分钟）
@@ -212,7 +212,10 @@ python -m corpai db reset --yes            # 删除数据库（旧的审计锚�
 python -m corpai metrics list --as sales_staff
 python -m corpai metrics show --period 2026-Q3 --as ceo --metric opex_actual
 python -m corpai prune                     # 删除闲置超过 30 天的会话的 checkpoint
+python -m corpai demo-record --small --out-dir $env:TEMP\demo-fixtures   # 试跑演示录制（假模型）
 ```
+
+离线演示的 fixtures（`ui/fixtures/*.js`）是用 `$env:CORPAI_LLM = "live"; python -m corpai demo-record` 录的：它自己起一个临时 Postgres，生成完整规模的公司，以各个身份调用真实的 API（约 15 分钟、45 万 token；`--only legal` 等只重录一个应用）。不加 `--out-dir` 会覆盖仓库里的 fixtures；换一天录制，还要改 `ui/js/i18n.js` 里的日期（有测试检查）。
 
 环境变量（`CORPAI_DATA_DIR`、`CORPAI_LLM`、`CORPAI_EMBED`、`CORPAI_DEMO_LOGIN`、`CORPAI_SIM_TODAY` 等）见 [架构 §3](docs/architecture.zh.md#3-核心类型冻结)。模拟日期是 2026-10-01；安全控制（登录会话和授权的过期、预算）按真实时间运行。
 
@@ -288,12 +291,21 @@ compliance/             模拟公司的合规文件
 
 ## 已知局限
 
-> **占位，收尾分诊之后补全。** 下面是目前已知的几条，还不是最终清单。
+截至 2026-10-08 收尾分诊之后。每一条的来龙去脉和状态见[问题记录第十五节](docs/issues-log.md#十五收尾阶段实时模型文档合规低危问题评估2026-10-08)，风险评级见[威胁模型第 8 节](docs/threat-model.zh.md#8-未解决的风险)。
 
-- **这是演示，不是生产部署。** 单进程、内嵌 Postgres、不用密码的演示登录，两条线路都是 DeepSeek API。要改什么见 [docs/real-deployment.zh.md](docs/real-deployment.zh.md)。
+- **这是演示，不是生产部署。** 单进程、内嵌 Postgres、不用密码的演示登录，两条线路都是 DeepSeek API。如果换成真实数据，机密内容会发到一个第三国的 API，既没有数据处理协议，也没有跨境传输机制：这是上线前第一件要改的事（[compliance/](compliance/README.md)）。其他要改的见 [docs/real-deployment.zh.md](docs/real-deployment.zh.md)。
+- **默认信任本机。** 内嵌的 Postgres 对本机的所有连接都不要密码，本机上的任何进程都能连上，并设置行级安全所依赖的 `app.*` 事务变量；所以这里的 RLS 防的是应用自己的 bug，防不了能登录这台机器的人。
 - **状态在进程内。** 法务上传的合同存在进程内存里；“一个会话同时只跑一个运行”的锁和网关的并发上限都是每个进程各一份，所以服务不能直接开多个 worker。
 - **审计锚点和数据库在同一台机器上**（`.data/` 下的一个文件加一个 HMAC 密钥）；最新锚点之后追加的行，被删掉仍然发现不了。
 - **检索：** 默认的假 embedding 只按共同的词匹配，跨语言提问需要 `CORPAI_EMBED=fastembed`；全文检索用英文配置，中文不分词。
-- **分级靠规则和人名表。** 拿不准时往高处判，但一条没有任何可检测特征的机密信息仍可能被判为 L2，走外部线路。
-- **还没做：** break-glass 流程（审计事件已预留）、能提交代码工单的 Agent、定时刷新指标。
-- *（集成：补上收尾分诊里仍未解决的事项）*
+- **分级靠规则和人名表。** 拿不准时往高处判，但没有任何可检测特征的机密信息（不带金额的合同条款、不在任何表里的人名）仍可能被判为 L2，走外部线路。
+- **简历脱敏靠模式匹配**，覆盖英文、德文、中文和瑞典文。其他语言的简历，或者模式没覆盖到的说法，会原样送进筛查模型；合成简历是英文、德文和中文，瑞典文的模式只有测试在验证。
+- **GDPR 删除和保留期限只做了一部分。** `trace.erase_subject` 能覆盖工具和检索的 span，覆盖不到 checkpoint、领域代码自己发起的模型调用（HR 筛查、法务审查、报告）和 `legal.reviews`。会按时间删除的只有 checkpoint（`prune`，要手动跑）和内存里的上传；trace、出口日志、提议和审查记录都一直保留。
+- **缺少面向数据主体的流程：** 销售跟进邮件没有退订和屏蔽名单，没有给候选人的告知，也没法不经过 AI 这一步直接对候选人做决定（[compliance/](compliance/README.md)）。
+- **模型质量只在一天（2026-10-08）用一个模型版本衡量过**（[docs/evals-live.md](docs/evals-live.md)）。法务审查仍会标记一条带条件的 AI 法案条款，而黄金集期望接受它；`legal.draft`、报告写作、销售抽取和编制说明没有实时评测。一次法务审查大约 35 次模型调用、9 万 token，按默认的每日预算，每个部门一天大约能审 20 份。
+- **配额和令牌：** 预算按部门、按天算，不按人，API 没有限流；工具令牌和网关令牌在过期之前可以重复使用（没有 `jti` 缓存）。
+- **数据库角色：** 指标刷新的 SQL 用表主人角色执行，靠 `EXPLAIN` 检查它读哪些表、再加只读事务来约束，没有专门的只读角色。
+- **API 细节：** 图的输入错误以状态 `done` 加 `output.data.error` 返回，不是 400；等人做决定的运行状态是 `done`，靠 `awaiting_decision` 判断（没有 `waiting_input` 状态）；导出报告时在会话的 checkpoint 里最多往回找 200 个；销售意向分被拒绝时，API 的步骤列表里这一步仍写 L3（界面会显示拒绝）。
+- **可能出乎意料的策略选择：** HR 普通员工看不了各部门人数汇总（默认拒绝）；每个人的导航里都有“候选人”，不负责招聘的人会得到明确的回答；离职日都在月末，工资按整月算；`config/agents.yaml` 里逐节点的工具约定由各图的 Rule of Two 测试保证，不由加载器检查；审查发起人只有在演示登录开着时才显示姓名，否则显示用户编号。
+- **供应链：** 依赖固定了版本但没有哈希；没有 SBOM、漏洞扫描和密钥扫描钩子。
+- **还没做：** break-glass 流程（审计事件已预留）、能提交代码工单或记账分录的 Agent（有三个写工具没有任何 Agent 持有）、定时刷新指标。

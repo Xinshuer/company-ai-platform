@@ -71,6 +71,23 @@
     return KB.lang.has(key) ? t(key) : String(p || "");
   }
 
+  // Contract type and status codes of legal.contracts (migration 042), in the page's language.
+  function ctype(c) {
+    var key = "legal_ctype_" + String(c || "").toLowerCase();
+    return KB.lang.has(key) ? t(key) : String(c || "");
+  }
+
+  function cstatus(s) {
+    var key = "legal_cstatus_" + s;
+    return KB.lang.has(key) ? t(key) : String(s || "");
+  }
+
+  // "What to do" for a contract due, from its fields (the server's `action` text is English only).
+  function dueAction(r) {
+    return r.auto_renew ? t("legal_action_auto_renew", {d: r.notice_deadline})
+      : t("legal_action_ends", {expires: r.expires_on, d: r.notice_deadline});
+  }
+
   function kv(rows) {
     return el("dl", {class: "kv kv-inline"}, rows.reduce(function (acc, r) {
       if (r[1] === null || r[1] === undefined || r[1] === "") return acc;
@@ -266,8 +283,8 @@
         var days = r.notice_deadline_passed ? el("span", {class: "chip status status-bad"}, t("legal_days_passed"))
           : el("span", {class: "chip status status-" + (r.days_to_notice_deadline <= 30 ? "wait" : "ok")},
                t("legal_days_n", {n: r.days_to_notice_deadline}));
-        return [C.mono(r.contract_id, "nowrap"), r.counterparty, r.contract_type, el("span", {class: "nowrap"}, r.expires_on),
-                t("legal_days_n", {n: r.notice_days}), el("strong", {class: "nowrap"}, r.notice_deadline), days, t(r.auto_renew ? "legal_yes" : "legal_no"), r.action];
+        return [C.mono(r.contract_id, "nowrap"), r.counterparty, ctype(r.contract_type), el("span", {class: "nowrap"}, r.expires_on),
+                t("legal_days_n", {n: r.notice_days}), el("strong", {class: "nowrap"}, r.notice_deadline), days, t(r.auto_renew ? "legal_yes" : "legal_no"), dueAction(r)];
       })));
     return box;
   }
@@ -395,7 +412,8 @@
       var list = (res && res.contracts) || [];
       U.clear(pick);
       list.forEach(function (c) {
-        var label = t("legal_contract_option", {id: c.contract_id, party: c.counterparty, type: c.contract_type, status: c.status});
+        var label = t("legal_contract_option", {id: c.contract_id, party: c.counterparty, type: ctype(c.contract_type),
+                                                status: cstatus(c.status)});
         // demo: a contract whose review has no recording is marked and cannot be picked
         var recorded = KB.appPage.recorded(APP, JSON.stringify({mode: "review", contract_id: c.contract_id}));
         pick.appendChild(el("option", {value: c.contract_id, disabled: !recorded, "data-unrecorded": recorded ? null : "1"},
@@ -556,9 +574,10 @@
   function reviewsTab(panel) {
     var out = el("div", {class: "result-slot"}, [C.loading()]);
     panel.appendChild(out);
-    KB.api.get("/api/legal/reviews").then(function (res) {
+    Promise.all([KB.api.get("/api/legal/reviews"), C.userNames()]).then(function (got) {
       U.clear(out);
-      var list = (res && res.reviews) || [];
+      var list = (got[0] && got[0].reviews) || [];
+      var names = got[1];
       if (!list.length) {
         out.appendChild(el("div", {class: "empty-state"}, [C.icon("inbox", "icon-lg"), el("p", {}, t("legal_reviews_empty"))]));
         return;
@@ -572,7 +591,7 @@
                   r.contract_id ? C.mono(r.contract_id) : "—", riskChip(s.overall_risk),
                   t("legal_counts", {acceptable: c.acceptable || 0, fallback: c.fallback || 0,
                                      unacceptable: c.unacceptable || 0, missing: c.missing || 0}),
-                  r.requested_by, U.fmtTime(r.created_at), C.levelChip(r.level, {compact: true})];
+                  C.userLabel(names, r.requested_by), U.fmtTime(r.created_at), C.levelChip(r.level, {compact: true})];
         })));
     }).catch(function (e) { fail(out, e); });
   }
@@ -605,16 +624,10 @@
         return;
       }
       var current = KB.state.legalTab || "review";
-      var panelId = U.uid("legal-panel");
-      var tabs = el("div", {class: "tabs", role: "tablist", "aria-label": t("app_legal_review")});
-      TABS.forEach(function (tb) {
-        var tab = el("button", {class: "tab", role: "tab", type: "button", "aria-selected": tb[0] === current ? "true" : "false",
-                                "aria-controls": panelId}, t(tb[1]));
-        tab.addEventListener("click", function () { KB.state.legalTab = tb[0]; KB.router.refresh(); });
-        tabs.appendChild(tab);
-      });
-      var panel = el("div", {class: "tab-panel", role: "tabpanel", id: panelId});
-      root.appendChild(tabs);
+      var tabs = C.tabs("legal", t("app_legal_review"), TABS, current,
+                        function (k) { KB.state.legalTab = k; KB.router.refresh(); });
+      var panel = tabs.panel;
+      root.appendChild(tabs.list);
       root.appendChild(panel);
       if (current === "draft") draftTab(panel);
       else if (current === "due") dueTab(panel);

@@ -98,8 +98,12 @@ def test_sales_fixture_scenarios():
     (mine,) = [p for p in boxes["sales_staff"]["mine"] if p["proposal_id"] == pid]
     (head,) = [p for p in boxes["sales_head"]["to_approve"] if p["proposal_id"] == pid]
     assert mine["can_approve"] is False and head["can_approve"] is True and mine["params"] == head["params"]
-    # sales_head has no recorded profile run: the shared sample check (tests/ui) stays meaningful
-    assert not [r for r in fx["runs"] if r["persona_key"] == "sales_head"]
+    # issues-log WR-07: the head of sales has recordings too; for the company whose CRM activity sales
+    # staff may not see, the head gets the intent score and the playbook
+    head_run = by[("sales_head", "Elbstrom Paketdienst GmbH")]["output"]["data"]
+    assert head_run["intent"]["status"] == "ok" and head_run["playbook"] is not None
+    # the follow-up and the strategy text are the model's (no fake-model tag, a draft with a body)
+    assert follow["output"]["data"]["draft"]["body"].strip() and "[fake/" not in json.dumps(fx)
 
 
 def test_hr_fixture_scenarios():
@@ -147,7 +151,10 @@ def test_demo_followup_only_after_a_profile_in_the_same_thread(r):
 
 def test_demo_sales_denials_and_switches(r):
     assert r["staff_elbstrom"]["value"]["output"]["data"]["intent"]["status"] == "no_permission"
-    assert {a["account_id"] for a in r["staff_accounts"]["value"]["accounts"]} == {"A-0002", "A-0004", "A-0006"}
+    # sales staff's own accounts (the named ones and, in the full company, filler accounts), never Elbstrom's
+    staff = {a["account_id"] for a in r["staff_accounts"]["value"]["accounts"]}
+    head = {a["account_id"] for a in _fixture("sales")["accounts"]["by_persona"]["sales_head"]}
+    assert {"A-0002", "A-0004", "A-0006"} <= staff < head and "A-0008" not in staff
     _err(r, "eng_accounts", 403, "forbidden")
     _err(r, "eng_sales_run", 403, "forbidden")
     down = r["staff_profile_local_down"]["value"]

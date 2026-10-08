@@ -32,3 +32,14 @@ destinations:
     hosts: []
     max_level: null
     note: ops.outbox; emails and contracts are "sent" by writing a row after human approval
+  embed.model_download:
+    kind: http
+    hosts: [huggingface.co]
+    max_level: null
+    note: >-
+      opt-in, only with CORPAI_EMBED=fastembed: fastembed's own downloader fetches the embedding model
+      (qdrant/paraphrase-multilingual-MiniLM-L12-v2-onnx-Q, about 0.2 GB) into cache_dir/fastembed the first
+      time, when it is not there yet. It sends no company data (max_level null: check_egress refuses every
+      payload) and is not routed through check_egress. The Hub may redirect the file transfer to its storage
+      hosts under hf.co. Deployments without internet copy cache_dir/fastembed from a build machine and set
+      HF_HUB_OFFLINE=1, so this entry is never used (issues-log D-17).

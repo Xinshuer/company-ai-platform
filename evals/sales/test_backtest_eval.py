@@ -9,15 +9,15 @@ Data: the full-size synthetic company for seeds 1-20 (pooled; a single small wor
 of closed deals), cut-off 2026-04-01, outcomes closed between the cut-off and the simulation date.
 Pure computation on in-memory worlds: no database, no model calls.
 
-What the synthetic data supports (measured, seeds 1-20 pooled, n=249):
-intent AUC 0.68, combined 0.66, fit ≈ 0.56; win rate high > medium > low.
+What the synthetic data supports (measured 2026-10-08, seeds 1-20 pooled, n=257):
+intent AUC 0.67, combined 0.66, fit ≈ 0.57; win rate high > medium > low.
 
 Read those numbers with the baseline next to them. In the generator (corpai/synth/crm.py) prospects
 can only lose and existing customers win about 3:1, and interactions are weighted by status. The
 trivial score "is the account a customer" reaches AUC 0.69 on the same rows, so the pooled intent AUC
 and the pooled tier ordering mostly reflect account status, not buying intent. Within customer
-accounts only (172 won, 47 lost) intent AUC is 0.58 and combined 0.59: a weak signal above chance, and
-the tiers are not ordered there (high 0.84, medium 0.76, low 0.78). The eval therefore reports the
+accounts only (179 won, 48 lost) intent AUC is 0.57 and combined 0.59: a weak signal above chance, and
+the tiers are not ordered there (high 0.83, medium 0.77, low 0.78). The eval therefore reports the
 status baseline and the within-customer AUC, and asserts the within-customer AUC, not just the pooled
 one. Firmographics were not generated to predict outcomes, so fit is reported but not asserted. A
 generator that drew outcomes from interaction recency or sentiment, independent of status, would be

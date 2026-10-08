@@ -9,7 +9,8 @@
   var el = U.el;
   function t(k, v) { return KB.lang.t(k, v); }
 
-  // nav: where the route appears in the side navigation ("apps" only when the persona has the app)
+  // nav: where the route appears in the side navigation ("apps" only when the persona has the app);
+  // notRoles: roles the page always refuses (it still says so explicitly when opened directly)
   KB.ROUTES = [
     {path: "login", view: "view-login", auth: false},
     {path: "home", view: "view-home", nav: "main", icon: "home", label: "nav_home"},
@@ -22,7 +23,8 @@
     {path: "candidates", view: "view-candidates", nav: "apps", icon: "search", app: "hr_candidates"},
     {path: "approvals", view: "view-approvals", nav: "work", icon: "inbox", label: "nav_approvals"},
     {path: "compare", view: "view-compare", nav: "work", icon: "columns", label: "nav_compare"},
-    {path: "metrics", view: "view-metrics", nav: "work", icon: "trending", label: "nav_metrics"},
+    {path: "metrics", view: "view-metrics", nav: "work", icon: "trending", label: "nav_metrics",
+     notRoles: ["platform_admin", "security_auditor"]},
     {path: "trace", view: "view-trace", nav: "work", icon: "activity", label: "nav_trace"},
     {path: "audit", view: "view-audit", nav: "ops", icon: "shieldcheck", label: "nav_audit", need: "audit"},
     {path: "admin", view: "view-admin", nav: "ops", icon: "toggle", label: "nav_admin", need: "admin"},
@@ -65,6 +67,7 @@
         if (r.nav !== g[0]) return false;
         if (r.app && !apps[r.app]) return false;
         if (r.need && !can[r.need]) return false;
+        if (r.notRoles && r.notRoles.indexOf(me.role) >= 0) return false;
         return true;
       });
       if (!items.length) return;

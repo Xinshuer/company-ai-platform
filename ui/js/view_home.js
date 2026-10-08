@@ -53,6 +53,8 @@
     render: function (root) {
       var me = KB.state.me;
       var can = me.can || {};
+      // the platform roles never see company metrics (the metrics page and the API refuse them)
+      var metrics = me.role !== "platform_admin" && me.role !== "security_auditor";
       var byId = {};
       (me.apps || []).forEach(function (a) { byId[a.id] = a; });
 
@@ -74,7 +76,7 @@
       root.appendChild(el("div", {class: "app-grid"}, [
         toolCard("approvals", "inbox", "nav_approvals", "tool_approvals_desc", true, badge),
         toolCard("compare", "columns", "nav_compare", "tool_compare_desc", true),
-        toolCard("metrics", "trending", "nav_metrics", "tool_metrics_desc", true),
+        toolCard("metrics", "trending", "nav_metrics", metrics ? "tool_metrics_desc" : "tool_metrics_locked", metrics),
         toolCard("trace", "activity", "nav_trace", "tool_trace_desc", true),
         toolCard("audit", "shieldcheck", "nav_audit", can.audit ? "tool_audit_desc" : "tool_audit_locked", !!can.audit),
         toolCard("admin", "toggle", "nav_admin", can.admin ? "tool_admin_desc" : "tool_admin_locked", !!can.admin)

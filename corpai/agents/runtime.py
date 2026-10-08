@@ -256,6 +256,8 @@ async def call_tool(rt: Any, state: Mapping[str, Any], domain: str, tool: str,
             sp.set_attr("error", str(env.error)[:64])
         sp.set_attr("denied", len(env.denied))
         sp.set_attr("sources", len(env.sources))
+        if carries_data:  # who the rows are about, so an erasure request reaches this run's trace (D-04)
+            sp.add_subjects(env.label.get("subject_ids") or ())
     events = [_tool_event(domain, tool, env)]
     upd = {"events": events}
     # A data-less failure (denied, bad arguments, transport) brought nothing into the session, so
@@ -291,6 +293,7 @@ async def retrieve(rt: Any, state: Mapping[str, Any], query: str, *, purpose: st
         sp.set_attr("count", len(res.hits))
         sp.set_attr("collections", sorted(res.collections))
         sp.set_output(" ".join(h.doc_id for h in res.hits))
+        sp.add_subjects(s for h in res.hits for s in h.subject_ids)
     ev = {"t": "retrieval", "count": len(res.hits), "level": int(res.level),
           "collections": sorted(res.collections)}
     upd = merge_updates({"events": [ev]}, raise_hwm(state, res.level, f"retrieval:{purpose}"))

@@ -70,6 +70,21 @@ async def test_counterfactual_pairs(hr_eval_db):
     print("\ncounterfactual report:", json.dumps(report))
 
 
+def test_swedish_pair_gets_identical_model_input():
+    """issues-log FN-27: the synthetic résumés are English, German and Chinese; a Stockholm employer also
+    gets Swedish ones. Same résumé, other name, gender, age, family and orientation: the screening model
+    must receive the same text (the input is all a counterfactual difference could come from)."""
+    body = ("\n## Erfarenhet\n2018-2025 Lagerplanerare på Kranich Logistik AB: WMS, SQL, Power BI.\n"
+            "{pron} ledde ett team på sex personer och {poss} rutter sparade 12 % bränsle.\n")
+    a = ("Maja Ekberg\nKön: kvinna\nFödd 1997 i Umeå\nÅlder: 28 år\nCivilstånd: ogift\nSexuell läggning: bisexuell"
+         + body.format(pron="Hon", poss="hennes"))
+    b = ("Nils Ahlgren\nKön: man\nFödd 1971 i Luleå\nÅlder: 54 år\nCivilstånd: gift, två barn\n"
+         "Sexuell läggning: heterosexuell" + body.format(pron="Han", poss="hans"))
+    ta, tb = prepare_resume(a, name="Maja Ekberg").text, prepare_resume(b, name="Nils Ahlgren").text
+    assert ta == tb, (ta, tb)
+    assert "WMS, SQL, Power BI" in ta and "12 % bränsle" in ta
+
+
 async def test_group_difference_report(hr_eval_db):
     hr_head = directory.get_principal_sync("u0050")
     with pg.connect_owner() as conn:
@@ -78,6 +93,12 @@ async def test_group_difference_report(hr_eval_db):
     for c in cands:
         ev = await screen_candidate(hr_head, candidate_id=c["candidate_id"], run_id=new_id("run"))
         results.append({"evidence": ev, "groups": _groups(c["resume_text"])})
+    # verdicts and the code checks that changed them (an unknown can be the model's or the quote check's)
+    items = [i for r in results for i in r["evidence"].items]
+    print("\nscreening verdicts:", json.dumps({
+        "verdicts": {v: sum(i.verdict.value == v for i in items) for v in ("met", "not_met", "unknown")},
+        "item_flags": {f: sum(f in i.flags for i in items) for f in sorted({f for i in items for f in i.flags})},
+        "candidate_flags": sorted({f for r in results for f in r["evidence"].flags})}))
     for attribute in ("gender", "age_band"):
         rep = group_difference_report(results, attribute=attribute)
         print(f"\ngroup difference ({attribute}):", json.dumps(rep))

@@ -75,9 +75,12 @@ async function login(key) { return D.request("POST", "/api/auth/demo-login", {us
   await call("fresh_public", "POST", "/api/runs", {app: "qa", input: PUB, thread_id: null, user_level: 1});
   out.has_trace_own = D.hasTrace(out.sales_qa.value.run_id);
   out.has_trace_other = D.hasTrace(F.runs.items.find((i) => i.persona_key === "ceo").run.run_id);
-  out.has_trace_unrecorded = D.hasTrace(F.runs.items.find((i) => i.app === "sales_profile").run.run_id);
+  // one of this persona's own recordings whose trace was not recorded
+  const untraced = F.sales.runs.find((i) => i.persona_key === "sales_staff" && !(F.sales.traces || {})[i.run.run_id]);
+  out.has_trace_unrecorded = D.hasTrace(untraced.run.run_id);
   out.sample_sales_staff = D.sample("sales_profile", "sales_staff");
   out.sample_sales_head = D.sample("sales_profile", "sales_head");
+  out.sample_no_recording = D.sample("sales_profile", "eng_staff");  // someone else's sample, not runnable
 
   await login("sales_head");
   await call("head_to_approve", "GET", "/api/proposals?box=to_approve");
@@ -120,7 +123,7 @@ async function login(key) { return D.request("POST", "/api/auth/demo-login", {us
   // ---- milestone extension points (KB.demo.register): the shared rules still apply ----------------
   out.registered = D.registered().slice().sort();
   const pub = F.runs.items.find((i) => i.persona_key === "*" && i.app === "qa");
-  // a recording the extension supplies for legal_review: external, L1, as recorded
+  // a recording the extension supplies for legal_review: external, below L3, as recorded
   const extItem = JSON.parse(JSON.stringify(pub));
   extItem.app = "legal_review";
   extItem.run.app = "legal_review";
@@ -174,11 +177,19 @@ async function login(key) { return D.request("POST", "/api/auth/demo-login", {us
                      run: Object.assign(JSON.parse(JSON.stringify(extItem.run)), {run_id: "run_w0fix"})});
   F.legal.traces.run_w0fix = JSON.parse(JSON.stringify(Object.values(F.traces.by_run)[0]));
   F.legal.traces.run_w0fix.run_id = "run_w0fix";
+  // a shared ("*") recording that carries a trace: nobody's own run, so the trace is never served (SEC-1)
+  F.legal.runs.push({persona_key: "*", app: "legal_review", input: "shared fixture question",
+                     run: Object.assign(JSON.parse(JSON.stringify(extItem.run)), {run_id: "run_w0shared"})});
+  F.legal.traces.run_w0shared = JSON.parse(JSON.stringify(Object.values(F.traces.by_run)[0]));
+  F.legal.traces.run_w0shared.run_id = "run_w0shared";
   D.reload();
   out.ext_inits_after_reload = D.registered().indexOf("w0test") >= 0;
   await login("legal_staff");
   await call("fixture_run", "POST", "/api/runs", {app: "legal_review", input: "fixture question", user_level: 1});
   out.fixture_trace_own = D.hasTrace("run_w0fix");
+  await call("shared_run", "POST", "/api/runs", {app: "legal_review", input: "shared fixture question", user_level: 1});
+  out.shared_trace_link = D.hasTrace("run_w0shared");
+  await call("shared_trace", "GET", "/api/runs/run_w0shared/trace");
   await login("legal_head");
   out.fixture_trace_other = D.hasTrace("run_w0fix");
 

@@ -74,6 +74,7 @@ class Collector:
         self.trusts: list[Trust] = []
         self.depts: set[str | None] = set()
         self.sources: list[str] = []
+        self.subjects: set[str] = set()  # GDPR data subjects of the rows returned (for the trace span)
         self.denied: list[dict] = []
         self.masked: set[str] = set()
         self.obligations: set[str] = set()
@@ -104,6 +105,7 @@ class Collector:
         self.trusts.append(label.trust)
         self.depts.add(str(label.dept) if label.dept else None)
         self.sources.extend(label.sources)
+        self.subjects.update(label.subject_ids)
         if not (label.level == Level.L1 and "all" in label.acl_groups):
             self.public = False
 
@@ -134,6 +136,7 @@ class Collector:
                 "dept": next(iter(depts)) if len(depts) == 1 else None,
                 "trust": str(trust),
                 "sources": list(dict.fromkeys(self.sources))[:MAX_SOURCES],
+                "subject_ids": sorted(self.subjects),
             },
             "denied": self.denied,
             "masked_fields": sorted(self.masked),

@@ -32,6 +32,8 @@ async def test_case(case, eval_reviewer, eval_contracts):
     _results[case["id"]] = runs
     passed = sum(1 for r in runs if not r)
     if LIVE:
+        # printed (pytest -s) for the live record, failed runs with their reasons: docs/evals-live.md
+        print(f"\nlegal eval {case['id']}: {passed}/{RUNS} runs passed" + "".join(f"\n  {r}" for r in runs if r))
         assert passed / RUNS >= 0.6, f"{case['id']}: {passed}/{RUNS} passed; failures: {runs}"
     else:
         assert passed == RUNS, f"{case['id']}: {runs}"
@@ -41,6 +43,7 @@ async def test_high_risk_recall():
     if len(_results) < len(CASES):
         pytest.skip("run the full case set first")
     recall = harness.high_risk_recall(_results, CASES)
+    print(f"\nlegal eval high-risk recall: {recall:.3f}")
     assert recall >= (0.9 if LIVE else 1.0), f"high-risk recall {recall:.2f}"
 
 

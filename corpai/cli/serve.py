@@ -9,6 +9,9 @@ no credential, and the session cookie is not Secure (plain http). That is only a
 loopback interface: serve refuses a non-loopback --host while demo login is on, unless
 --allow-network-demo-login says the operator really wants every machine on the network to be able
 to log in as anyone (then it warns loudly).
+
+Whatever the interface, the app answers only requests whose Host is a loopback name, the --host given,
+CORPAI_API_BASE's host or one in CORPAI_ALLOWED_HOSTS (DNS rebinding; corpai/api/security.py HostCheck).
 """
 
 from __future__ import annotations
@@ -57,7 +60,10 @@ def main(argv: list[str]) -> int:
 
     from corpai.api import create_app
 
-    config = uvicorn.Config(create_app(), host=args.host, port=args.port, loop="none", lifespan="on",
-                            log_level="info")
+    # the API answers loopback names only (DNS rebinding); a concrete --host is the name clients use too.
+    # Other names (a DNS name behind 0.0.0.0) go in CORPAI_ALLOWED_HOSTS.
+    extra = () if args.host.strip() in ("0.0.0.0", "::", "[::]", "") else (args.host,)
+    config = uvicorn.Config(create_app(extra_hosts=extra), host=args.host, port=args.port, loop="none",
+                            lifespan="on", log_level="info")
     asyncio.run(uvicorn.Server(config).serve(), loop_factory=asyncio.SelectorEventLoop)
     return 0

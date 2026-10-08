@@ -26,7 +26,7 @@ MAX_QUERY_CHARS = 2000
 # can leave far fewer than CANDIDATES rows (issues-log). 200 keeps recall up at this corpus size.
 EF_SEARCH = 200
 
-_COLS = "chunk_id, doc_id, version, title, heading, text, level, trust, collection, source_uri"
+_COLS = "chunk_id, doc_id, version, title, heading, text, level, trust, collection, source_uri, subject_ids"
 _FILTER = ("collection = ANY(%(cols)s) AND level <= %(max_level)s AND acl_groups && %(groups)s::text[] "
            "AND trust = ANY(%(trusts)s) AND status = ANY(%(statuses)s)")
 # No tie-breaker after the distance: a second sort key can stop the HNSW index from providing the order.
@@ -59,7 +59,8 @@ def _fuse(vec_rows: list[dict], txt_rows: list[dict], k: int) -> list[Hit]:
     return [Hit(chunk_id=cid, doc_id=rows[cid]["doc_id"], version=rows[cid]["version"], title=rows[cid]["title"],
                 heading=rows[cid]["heading"], text=rows[cid]["text"], level=Level(rows[cid]["level"]),
                 trust=Trust(rows[cid]["trust"]), collection=rows[cid]["collection"], score=scores[cid],
-                source_uri=rows[cid]["source_uri"]) for cid in best]
+                source_uri=rows[cid]["source_uri"], subject_ids=tuple(rows[cid]["subject_ids"] or ()))
+            for cid in best]
 
 
 async def _search(p: Principal, flt: RagFilter, cols: frozenset[str], query: str, k: int,

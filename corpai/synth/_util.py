@@ -46,7 +46,8 @@ def faker_for(seed: int, locale: str, topic: str) -> Faker:
 
 
 def canary(seed: int, index: int) -> str:
-    """KB-CANARY-XXXXXXXX: 8 uppercase hex chars derived from the seed (classify treats it as L4)."""
+    """KB-CANARY-XXXXXXXX: 8 uppercase hex chars derived from the seed (classify treats it as L4).
+    KB- is from the former name Kestrelbyte, like _SALT, and stays for the same reason."""
     h = hashlib.sha256(f"{_SALT}-canary:{seed}:{index}".encode()).hexdigest()[:8].upper()
     return f"KB-CANARY-{h}"
 

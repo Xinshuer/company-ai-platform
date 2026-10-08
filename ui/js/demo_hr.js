@@ -1,6 +1,6 @@
 // Demo-mode behaviour of the HR apps (M4); owned by that milestone. Mirrors the live API:
-// - hr_screening and hr_headcount runs come from fixtures/hr.js (the shared runs.js still holds older
-//   samples) and still go through the shared rules in demo.js (start permission, levels, switches);
+// - hr_screening and hr_headcount runs come from fixtures/hr.js (`python -m corpai demo-record --only hr`)
+//   and still go through the shared rules in demo.js (start permission, levels, switches);
 // - POST /api/hr/screenings/decision: only on the persona's own screening conversation that waits for
 //   exactly this candidate, with a decision of advance / hold / reject and a non-empty reason; every
 //   attempt is audited as hr_decision, refusals included; the resumed run is built here, without

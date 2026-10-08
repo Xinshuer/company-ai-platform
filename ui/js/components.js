@@ -101,6 +101,62 @@
     return C.panel("bad", "lock", t("denied_title"), [el("p", {}, what || t("denied_generic"))]);
   };
 
+  // A tab list as in the WAI-ARIA tabs pattern (manual activation): one tab stop, Left/Right/Home/End
+  // move focus between the tabs, Enter/Space or a click selects. onSelect(key) re-renders the page,
+  // after which focus returns to the selected tab instead of the page heading (issues-log WR-13).
+  // items: [[key, labelKey], ...]. Returns {list, panel}; the panel is labelled by the selected tab.
+  C.tabs = function (id, label, items, current, onSelect) {
+    var keys = items.map(function (it) { return it[0]; });
+    function tabId(k) { return id + "-tab-" + k; }
+    var list = el("div", {class: "tabs", role: "tablist", "aria-label": label});
+    var buttons = items.map(function (it) {
+      var on = it[0] === current;
+      var b = el("button", {class: "tab", role: "tab", type: "button", id: tabId(it[0]),
+                            "aria-selected": on ? "true" : "false", "aria-controls": id + "-panel",
+                            tabindex: on ? "0" : "-1"}, t(it[1]));
+      b.addEventListener("click", function () {
+        onSelect(it[0]);
+        var now = document.getElementById(tabId(it[0]));  // the re-rendered page's tab
+        if (now) now.focus();
+      });
+      b.addEventListener("keydown", function (ev) {
+        var i = keys.indexOf(it[0]);
+        var n = keys.length;
+        var j = ev.key === "ArrowRight" ? (i + 1) % n : ev.key === "ArrowLeft" ? (i + n - 1) % n
+          : ev.key === "Home" ? 0 : ev.key === "End" ? n - 1 : -1;
+        if (j < 0) return;
+        ev.preventDefault();
+        buttons[j].focus();
+      });
+      list.appendChild(b);
+      return b;
+    });
+    var panel = el("div", {class: "tab-panel", role: "tabpanel", id: id + "-panel", tabindex: "0",
+                           "aria-labelledby": tabId(keys.indexOf(current) >= 0 ? current : keys[0])});
+    return {list: list, panel: panel};
+  };
+
+  // Display names for user ids (a saved review's requester): the persona list of GET /api/personas,
+  // loaded once. Without it (demo login off, or the request failed) the id is shown as it is.
+  var namesP = null;
+  C.userNames = function () {
+    if (!namesP) {
+      namesP = KB.api.get("/api/personas").then(function (list) {
+        var m = {};
+        (list || []).forEach(function (p) { if (p && p.user_id && p.name) m[p.user_id] = String(p.name); });
+        return m;
+      }, function () { namesP = null; return {}; });
+    }
+    return namesP;
+  };
+
+  C.userLabel = function (names, id) {
+    if (!id) return el("span", {class: "muted"}, "—");
+    var me = KB.state.me || {};
+    var name = (names && names[id]) || (me.user_id === id ? me.name : null);
+    return name ? el("span", {title: String(id)}, String(name)) : C.mono(id, "small");
+  };
+
   C.loading = function (label) {
     return el("div", {class: "loading", role: "status"}, [el("span", {class: "spinner", "aria-hidden": "true"}),
       el("span", {}, label || t("loading"))]);
@@ -337,16 +393,16 @@
     return KB.api.mode !== "demo" || KB.demo.hasTrace(run.run_id);
   };
 
-  // Model text written by the offline fake model (tests, `CORPAI_LLM=fake`, and every demo recording
-  // so far: issues-log D-07) starts with "[fake/<route>]". Say so next to it, so nobody takes the
-  // wording for what the real model writes. Demo recordings that hold no such tag were made the same
-  // way (or written by hand), so in demo mode the note is shown whenever a run called a model.
+  // The note next to model text. Text of the offline fake model (tests, a server on `CORPAI_LLM=fake`)
+  // starts with "[fake/<route>]": say so, so nobody takes the wording for what the real model writes.
+  // In demo mode every run that called a model is a recording of the real model (`python -m corpai
+  // demo-record`, issues-log D-07): say when it was recorded and that a live run writes anew.
   C.isFakeText = function (text) { return /^\s*\[fake\//.test(String(text || "")); };
   C.fakeModelNote = function (run) {
     var text = run && run.output && run.output.text;
-    var demo = KB.api.mode === "demo" && run && run.route;
-    if (!C.isFakeText(text) && !demo) return null;
-    return el("p", {class: "small muted fake-note", role: "note"}, [C.icon("info", "icon-xs"), t("fake_model_note")]);
+    var key = C.isFakeText(text) ? "fake_model_note" : (KB.api.mode === "demo" && run && run.route ? "demo_recorded_note" : null);
+    if (!key) return null;
+    return el("p", {class: "small muted fake-note", role: "note"}, [C.icon("info", "icon-xs"), t(key)]);
   };
 
   // ---------------------------------------------------------------- the §18 run card

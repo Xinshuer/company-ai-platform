@@ -47,7 +47,11 @@ _CJK = re.compile(r"[㐀-鿿]+")
 _STOP = frozenset("""the and for are was were what which who whom whose how why when where does did do our
 our you your their them they this that these those with from into about have has had will would can could
 should shall may might must not any all some there here than then also just only very more most such
-tell show give list please abc tech abctech""".split())
+tell show give list please""".split())
+# The company's own name is in nearly every document, so it says nothing about relevance; it is dropped
+# as a phrase ("ABC Tech", "abc-tech", "abctech"), not word by word, so "tech debt" or "ABC analysis"
+# keep their content words.
+_OWN_NAME = re.compile(r"\babc[\s_-]{0,3}tech\b")
 
 TOOLS_SYSTEM = ("You are ABC Tech's internal assistant. Decide whether a tool would help answer the "
                 "question. Call only the tools listed below, with arguments the question supports; "
@@ -85,7 +89,7 @@ class _NoRouteBadgeStep(Step):
 
 
 def _terms(text: str) -> set[str]:
-    words = {w for w in _WORD.findall(text.lower()) if w not in _STOP}
+    words = {w for w in _WORD.findall(_OWN_NAME.sub(" ", text.lower())) if w not in _STOP}
     # crude plural folding, enough for English questions ("contracts" vs "contract")
     return words | {w[:-1] for w in words if w.endswith("s") and len(w) > 3}
 
@@ -241,7 +245,11 @@ def _context(state: QAState) -> str:
     if results:
         parts.append("Tool results:")
         for r in results:
-            parts.append(f"[tool:{r['domain']}.{r['tool']}] sources: {', '.join(r['sources']) or '-'}")
+            # Each source as the exact [doc:<id>] marker to cite. Shown as a plain list ("sources: a, b"
+            # under a "[tool:...]" header), the live model cited "[legal.contract:C-0003]" or the header
+            # itself, which check_citations cannot match, so tool data lost every citation.
+            cite = " ".join(f"[doc:{s}]" for s in r["sources"]) or "none"
+            parts.append(f"Tool {r['domain']}.{r['tool']} result, sources to cite: {cite}")
             if r.get("flagged"):
                 parts.append(_qa_guard.CONTEXT_WARNING)
             parts.append(r["text"])

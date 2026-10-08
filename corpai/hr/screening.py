@@ -105,10 +105,14 @@ async def screen_candidate(principal: Principal, *, candidate_id: str, run_id: s
     async with pg.principal_tx(principal, run_id=run_id) as conn:
         await conn.execute("SELECT hr.write_screening_evidence(%s, %s, %s::jsonb, %s)",
                            (evidence_id, row["candidate_id"], json.dumps(stored.to_json()), route))
+    # Which kinds were removed (health, religion, ...) says something about the candidate: the kinds stay in
+    # the L4 evidence row; the append-only log, which the L2 security auditor reads, gets a count only
+    # (issues-log FN-28).
     await audit.arecord("hr_screening", actor=principal.user_id, act_chain=[f"agent:{AGENT}"],
                         action="hr.screen_candidate", resource=f"hr.candidate:{row['candidate_id']}",
                         decision="allow", reason="evidence_stored", route=route, level=4, run_id=run_id,
                         details={"evidence_id": evidence_id, "req_id": row["req_id"], "requirements": len(items),
                                  "verdicts": {v.value: sum(i.verdict is v for i in items) for v in Verdict},
-                                 "flags": sorted(set(flags))})
+                                 "flags": sorted({f for f in flags if not f.startswith("protected_removed:")}),
+                                 "protected_removed": len(set(prepared.removed_kinds))})
     return stored

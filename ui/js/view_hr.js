@@ -16,6 +16,7 @@
 
   var DECISIONS = ["advance", "hold", "reject"];
   var NOT_HM = "you are not the hiring manager or recruiter of any requisition";
+  var NO_PERMISSION = "no permission";
 
   // Per-page state that survives navigation but never a change of persona.
   function st(name) {
@@ -68,7 +69,25 @@
   }
 
   function deniedReason(d) {
-    return d.reason === NOT_HM ? t("hr_not_hiring_manager") : (d.reason === "no permission" ? t("hr_no_permission") : String(d.reason || ""));
+    return d.reason === NOT_HM ? t("hr_not_hiring_manager") : (d.reason === NO_PERMISSION ? t("hr_no_permission") : String(d.reason || ""));
+  }
+
+  // A candidate's source ("careers page", "job board", ...) in the page's language.
+  function sourceLabel(s) {
+    return translated("hr_source_", String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, "_"));
+  }
+
+  // Why a requisition shows no candidates (corpai/agents/hr/candidates.py collect()):
+  // - "refused": the tool rule refused the caller, no call was made ("no permission");
+  // - "empty":   the caller's own requisition (req:<id>, so row-level security shows all of its
+  //              candidates) came back empty: nobody has applied yet (issues-log WR-12);
+  // - "unseen":  someone else's requisition came back empty: no candidates, or none visible to the
+  //              caller (row-level security does not say which).
+  function reqState(data, r) {
+    if (!r.denied) return "list";
+    var id = "hr.requisition:" + r.req_id;
+    var refused = (data.denied || []).some(function (d) { return d.id === id && d.reason === NO_PERMISSION; });
+    return refused ? "refused" : (r.own ? "empty" : "unseen");
   }
 
   // ---------------------------------------------------------------- résumé (untrusted text)
@@ -83,6 +102,9 @@
         var c = (r && r.candidate) || {};
         U.clear(slot).appendChild(C.panel("muted", "eyeoff", t("hr_resume_title", {id: String(c.candidate_id || candidateId)}), [
           el("p", {class: "small"}, [C.levelChip(r.level, {compact: true}), " ", t("hr_resume_untrusted")]),
+          // the hiring manager reads the unredacted résumé with no evidence table: say before the
+          // text what must not count, as the HR page does (issues-log WR-17)
+          app === "hr_candidates" ? el("p", {class: "small", role: "note"}, [C.icon("shield", "icon-xs"), t("hr_resume_bias_hm")]) : null,
           el("div", {class: "answer"}, String(c.resume_text || ""))
         ]));
       }, function (e) { failed(slot, e); }).then(function () { btn.disabled = false; });
@@ -217,19 +239,33 @@
       (data.denied || []).forEach(function (d) { out.push(C.denied(deniedReason(d))); });
       return out;
     }
+    function reqLabel(r) {
+      return [C.mono(r.req_id), " ", String(r.title || ""), " ",
+        r.status ? el("span", {class: "pill"}, translated("hr_req_status_", r.status)) : null];
+    }
+    // Requisitions the tool rule refused share one alert: a screen reader announces the denial once,
+    // not once per requisition (issues-log WR-19).
+    var refused = reqs.filter(function (r) { return reqState(data, r) === "refused"; });
+    if (refused.length) {
+      out.push(C.panel("bad", "lock", t("denied_title"), [el("p", {}, t("hr_reqs_denied", {n: refused.length})),
+        el("ul", {class: "steps"}, refused.map(function (r) { return el("li", {}, reqLabel(r)); }))]));
+    }
     reqs.forEach(function (r) {
-      var head = el("h3", {class: "label"}, [C.mono(r.req_id), " ", String(r.title || ""), " ",
-        r.status ? el("span", {class: "pill"}, translated("hr_req_status_", r.status)) : null, " ",
-        r.own ? el("span", {class: "pill pill-strong"}, t("hr_own_req")) : null]);
-      if (r.denied) {
-        out.push(el("div", {class: "card pad"}, [head, C.denied(t("hr_req_denied", {id: r.req_id}))]));
+      var state = reqState(data, r);
+      if (state === "refused") return;
+      var head = el("h3", {class: "label"}, reqLabel(r).concat([" ",
+        r.own ? el("span", {class: "pill pill-strong"}, t("hr_own_req")) : null]));
+      var cands = r.candidates || [];
+      if (state !== "list" || !cands.length) {
+        out.push(el("div", {class: "card pad"}, [head, el("p", {class: "muted small"}, [
+          C.icon(state === "unseen" ? "eyeoff" : "inbox", "icon-xs"), t(state === "unseen" ? "hr_req_unseen" : "hr_req_empty")])]));
         return;
       }
       out.push(el("div", {class: "card pad"}, [head, table(
         [t("hr_col_candidate"), t("hr_col_name"), t("hr_col_stage"), t("hr_col_applied"), t("hr_col_source"), ""],
-        (r.candidates || []).map(function (c) {
+        cands.map(function (c) {
           return [C.mono(c.candidate_id), String(c.name || ""), translated("hr_stage_", c.stage), String(c.applied_on || ""),
-                  String(c.source || ""), onPick(c)];
+                  sourceLabel(c.source), onPick(c)];
         }))]));
     });
     return out;

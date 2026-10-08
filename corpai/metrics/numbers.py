@@ -213,6 +213,16 @@ def _key_patterns(table: Mapping[str, MetricValue]) -> list[re.Pattern[str]]:
     return [re.compile(r"(?<![\w.])" + re.escape(k) + r"(?![\w])") for k in sorted(table, key=len, reverse=True)]
 
 
+def _name_patterns(table: Mapping[str, MetricValue]) -> list[re.Pattern[str]]:
+    """A metric's own name written out in full ("赢单率（近 12 个月）", "Receivables more than 60 days
+    overdue") is a name, not a figure, also where no placeholder of it is near: a text that says the win
+    rate is not available names the metric instead of citing it. Only the whole name matches, so the
+    constant in it cannot be changed; a name without a digit needs no pattern."""
+    names = {n for mv in table.values() for n in (mv.name_en, mv.name_zh) if n and any(c.isdigit() for c in n)}
+    return [re.compile(r"(?<![A-Za-z0-9_])" + re.escape(n) + r"(?![A-Za-z0-9_])")
+            for n in sorted(names, key=len, reverse=True)]
+
+
 def _mask(text: str, patterns: list[re.Pattern[str]]) -> str:
     masked = list(text)
     for pat in patterns:
@@ -309,8 +319,9 @@ def verify_template(template: str, table: Mapping[str, MetricValue]) -> list[Pro
     (an invented, swapped, scaled or glued number) is a Problem. Variance direction words must agree
     with the value's sign."""
     text = template.translate(_FULLWIDTH)
-    # Table keys and signal keys may be named in prose ("ar_overdue_60d"); they are identifiers, not figures.
-    scan = _mask(text, [_ANY_PLACEHOLDER_RE, *_key_patterns(table), *_EXEMPT_PATTERNS])
+    # Table keys and signal keys may be named in prose ("ar_overdue_60d"), and metrics by their full names;
+    # they are identifiers, not figures.
+    scan = _mask(text, [_ANY_PLACEHOLDER_RE, *_key_patterns(table), *_name_patterns(table), *_EXEMPT_PATTERNS])
     consts = _name_constants(table)
     anchors = _anchor_index(text, table, rendered=False)
     problems: list[Problem] = []
@@ -345,7 +356,7 @@ def verify_numbers(text: str, table: Mapping[str, MetricValue]) -> list[Problem]
     for m in _ANY_PLACEHOLDER_RE.finditer(text):
         problems.append(Problem("unrendered_placeholder", m.group(0), m.start(), m.end(),
                                 "placeholder left in the final text"))
-    scan = _mask(text, [_ANY_PLACEHOLDER_RE, *_key_patterns(table), *_EXEMPT_PATTERNS])
+    scan = _mask(text, [_ANY_PLACEHOLDER_RE, *_key_patterns(table), *_name_patterns(table), *_EXEMPT_PATTERNS])
     allowed = allowed_values(table)
     by_value: dict[Decimal, set[str]] = {}
     for unit, v in allowed:

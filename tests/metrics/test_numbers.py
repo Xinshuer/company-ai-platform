@@ -182,3 +182,16 @@ def test_the_writer_falls_back_when_the_model_writes_a_figure_that_is_in_the_tab
     text = "Revenue was EUR 74,500 and margin {metric:gross_margin_pct}."
     assert verify_numbers(render(text, TABLE), TABLE) == []
     assert [p.token for p in verify_template(text, TABLE)] == ["74,500"]
+
+
+def test_a_metric_named_in_full_is_a_name_not_a_figure():
+    """Live finding (demo recording 2026-10-08): the model wrote "赢单率（近 12 个月）当前无权限或尚未发布" for a
+    metric the reader may not see. The 12 belongs to the name; only the whole name counts, so a changed
+    constant, or the constant on its own, is still a figure."""
+    table = {**TABLE, "win_rate_pct": unavailable("win_rate_pct", "2026-09", None, "pct", name_zh="赢单率（近 12 个月）",
+                                                   name_en="Win rate (last 12 months)")}
+    for text in ("赢单率（近 12 个月）当前无权限或尚未发布。", "The Win rate (last 12 months) is not available to you."):
+        assert verify_template(text, table) == [], text
+        assert verify_numbers(text, table) == [], text
+    for text in ("赢单率（近 13 个月）当前无权限。", "Win rate over 12 months is not available."):
+        assert verify_template(text, table), text

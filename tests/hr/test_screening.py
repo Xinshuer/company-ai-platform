@@ -75,6 +75,24 @@ async def test_evidence_is_local_verbatim_and_scoreless(personas, planted_pairs,
     assert prepared.text not in json.dumps(audits[-1]["details"])  # metadata only
 
 
+async def test_audit_row_does_not_say_which_protected_attributes_a_resume_held(personas, planted_pairs,
+                                                                                 clone_candidate, fake_llm, run_id):
+    """issues-log FN-28: the append-only audit log (read by the L2 security auditor) gets a count of the removed
+    kinds; the kinds themselves (health, religion, ...) stay in the L4 evidence row."""
+    source = planted_pairs[0]["candidates"][0]
+    cid = clone_candidate(source, _candidate(source)["resume_text"]
+                          + "\nHealth: diagnosed with diabetes in 2015\nReligion: Catholic\n")
+    ev = await screen_candidate(personas["hr_staff"], candidate_id=cid, run_id=run_id)
+    assert {"protected_removed:health", "protected_removed:religion"} <= set(ev.flags)
+    (audit,) = owner_rows("SELECT details FROM audit.log WHERE run_id = %s AND event = 'hr_screening' "
+                          "AND resource = %s", (run_id, f"hr.candidate:{cid}"))
+    details = json.dumps(audit["details"])
+    assert "protected_removed:" not in details and "health" not in details and "religion" not in details
+    assert audit["details"]["protected_removed"] == len({f for f in ev.flags if f.startswith("protected_removed:")})
+    (row,) = owner_rows("SELECT evidence FROM hr.screening_evidence WHERE evidence_id = %s", (ev.evidence_id,))
+    assert "protected_removed:health" in row["evidence"]["flags"]
+
+
 async def test_model_input_has_no_protected_attributes_or_identity(personas, planted_pairs, fake_llm, run_id):
     for pair in planted_pairs:
         for cid in pair["candidates"]:

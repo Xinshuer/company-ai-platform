@@ -3,6 +3,8 @@
 // web text can carry prompt-injection or markup).
 (function () {
   "use strict";
+  // window.KB: the one namespace of the page scripts. The name is from the company's former name
+  // (Kestrelbyte) and stays, like the kb_ and KB- prefixes on the server side.
   var KB = (window.KB = window.KB || {});
   var U = (KB.util = {});
 

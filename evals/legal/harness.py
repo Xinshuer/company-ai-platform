@@ -41,6 +41,12 @@ def case_text(case: dict, contracts: dict[str, str]) -> str:
     return contracts[case["contract_id"]] if case.get("contract_id") else HEADER + case["text"]
 
 
+def _why(c) -> str:
+    """The reviewer's own reasoning, appended to a verdict failure: a live failure is judged by a
+    human (sampling noise, an eval bug, or a real problem) and needs the rationale to do that."""
+    return f" [{c.rule}; tools {c.tool_calls}; {' '.join(c.explanation.split())[:600]}]"
+
+
 def check(case: dict, text: str, result: ReviewResult) -> list[str]:
     """Failure reasons (empty = pass)."""
     e = case["expect"]
@@ -52,20 +58,21 @@ def check(case: dict, text: str, result: ReviewResult) -> list[str]:
             fails.append(f"clause {cid} missing from the result")
             continue
         if got.verdict not in want["verdict_in"]:
-            fails.append(f"verdict {cid}: {got.verdict} not in {want['verdict_in']}")
+            fails.append(f"verdict {cid}: {got.verdict} not in {want['verdict_in']}{_why(got)}")
         if "rule" in want and (got.rule or "").split("@")[0] != want["rule"]:
             fails.append(f"rule {cid}: {got.rule} != {want['rule']}")
         for ref in want.get("must_consult", []):
             if f"get_clause:{ref}" not in got.tool_calls:
                 fails.append(f"clause {cid} did not consult {ref} (calls: {got.tool_calls})")
     if "findings" in e and sorted(f.kind for f in result.findings) != sorted(e["findings"]):
-        fails.append(f"findings {[f.kind for f in result.findings]} != {e['findings']}")
+        fails.append(f"findings {[f.kind for f in result.findings]} != {e['findings']} "
+                     f"(clauses {[(f.clause_id, f.detected_by) for f in result.findings]})")
     if "finding_clause" in e and not any(f.clause_id == e["finding_clause"] for f in result.findings):
         fails.append(f"no finding attached to clause {e['finding_clause']}")
     for bad in e.get("no_verdicts", []):
-        hit = [c.clause_id for c in result.clauses if c.verdict == bad]
+        hit = [c for c in result.clauses if c.verdict == bad]
         if hit:
-            fails.append(f"unexpected {bad} verdicts: {hit}")
+            fails.append(f"unexpected {bad} verdicts: {[c.clause_id for c in hit]}{_why(hit[0])}")
     if "overall_risk_in" in e and result.summary.get("overall_risk") not in e["overall_risk_in"]:
         fails.append(f"overall risk {result.summary.get('overall_risk')} not in {e['overall_risk_in']}")
     for c in result.clauses:

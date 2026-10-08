@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import os
 import re
+import subprocess
+import sys
 from urllib.parse import urlsplit
 
 import psycopg
@@ -22,6 +25,8 @@ def test_inventory_lists_required_destinations():
     assert inv["model.local"].max_level == Level.L4 and inv["model.local"].simulated_onprem
     assert inv["search.mock"].max_level == Level.L1 and inv["search.mock"].kind == "in_process"
     assert inv["email.outbox"].max_level is None and inv["email.outbox"].kind == "simulated"
+    # the one-time embedding model download (D-17) is listed, and no payload may ever go there
+    assert inv["embed.model_download"].max_level is None and inv["embed.model_download"].hosts == {"huggingface.co"}
 
 
 def test_every_model_route_is_listed_with_its_host():
@@ -44,6 +49,7 @@ def test_every_model_route_is_listed_with_its_host():
     ("model.external", "https://api.deepseek.com", 9),                # invalid level
     ("search.mock", None, Level.L2),
     ("email.outbox", None, Level.L1),                                 # model payloads never go there
+    ("embed.model_download", "https://huggingface.co", Level.L1),     # model files come in, nothing goes out
 ])
 def test_check_egress_denies(dest, url, level):
     with pytest.raises(EgressDenied):
@@ -86,6 +92,31 @@ def test_no_unlisted_hosts_in_code_or_config():
                     continue
                 bad.append(f"{path.relative_to(ROOT)}: {host}")
     assert bad == [], "hosts missing from config/egress.yaml:\n" + "\n".join(bad)
+
+
+_TRACER_PROBE = (
+    "import corpai\n"
+    "from langchain_core.callbacks.manager import CallbackManager\n"
+    "from langchain_core.tracers.context import _tracing_v2_is_enabled\n"
+    "from langchain_core.tracers.langchain import LangChainTracer\n"
+    "cm = CallbackManager.configure()\n"
+    "print(bool(_tracing_v2_is_enabled()), any(isinstance(h, LangChainTracer) for h in cm.handlers))\n"
+)
+
+
+@pytest.mark.parametrize("first", ["", "import langchain_core.tracers.context as c; c._tracing_v2_is_enabled()\n"],
+                         ids=["corpai-first", "langsmith-read-first"])
+def test_langsmith_tracing_cannot_be_switched_on_by_environment(first):
+    """issues-log FN-25: LANGSMITH_TRACING / LANGCHAIN_TRACING_V2 would make LangChain attach its tracer to
+    every graph run and send the state (up to L4) to an unlisted host, past check_egress and masking.
+    Importing corpai forces them off, also when LangSmith already read (and cached) them."""
+    env = {k: v for k, v in os.environ.items() if k != "DEEPSEEK_API_KEY"}
+    env.update(LANGSMITH_TRACING="true", LANGCHAIN_TRACING_V2="true", LANGSMITH_API_KEY="not-a-key", PYTHONUTF8="1")
+    proc = subprocess.run([sys.executable, "-c", first + _TRACER_PROBE], cwd=ROOT, env=env, capture_output=True,
+                          text=True, encoding="utf-8", timeout=180)
+    assert proc.returncode == 0, proc.stderr[-2000:]
+    assert proc.stdout.split() == ["False", "False"], "no LangSmith tracer on a graph run"
+    assert "LANGSMITH_TRACING" in proc.stderr and "LANGCHAIN_TRACING_V2" in proc.stderr, "the override is said"
 
 
 def test_only_the_gateway_imports_model_sdks():

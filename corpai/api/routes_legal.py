@@ -11,6 +11,12 @@ gets an explicit 403, and the refusal is audited like any other start denial. Wi
 security decides which rows come back (handling lawyer, head of legal, CEO), so a review or contract
 someone may not read answers 404, the same as a missing one. Errors use the §18 shape and fixed
 messages: PermissionError -> 403, ValueError -> 400, missing -> 404.
+
+These pages read legal.contracts and legal.reviews directly as the person (principal_tx, RLS), not
+through an agent's MCP tools. So that the trail still shows who read which contract list or saved
+review (issues-log WR-11), every read writes a metadata-only `retrieval` row: ids, counts and the
+highest level, never contract or review text. The contract list is the data of legal.search_contracts,
+so it also needs that tool's rule (tool_allowed for the legal_review agent).
 """
 
 from __future__ import annotations
@@ -25,7 +31,7 @@ from corpai.agents.legal import AGENT, uploads
 from corpai.api import deps
 from corpai.api.errors import bad_request, forbidden, not_found
 from corpai.db import pg
-from corpai.policy import may_start
+from corpai.policy import may_start, tool_allowed
 from corpai.types import Principal
 
 router = APIRouter()
@@ -50,10 +56,23 @@ def _iso(row: dict) -> dict:
     return {k: (v.isoformat() if hasattr(v, "isoformat") else v) for k, v in row.items()}
 
 
+async def _audit_read(p: Principal, action: str, resource: str, *, level: int | None, details: dict,
+                      decision: str = "allow", reason: str = "rls") -> None:
+    """One `retrieval` row per read (WR-11). Metadata only; ids here are validated or come from the DB."""
+    await audit.arecord("retrieval", actor=p.user_id, action=action, resource=resource, decision=decision,
+                        reason=reason, level=level, details=details)
+
+
 @router.get("/api/legal/contracts")
 async def list_contracts(status: str | None = None, limit: int = 100,
                          p: Principal = Depends(deps.principal)) -> dict:
     await _legal_user(p, "legal.list_contracts")
+    rule = tool_allowed(p, AGENT, "legal", "search_contracts")
+    if not rule.allow:
+        await audit.arecord("policy_decision", actor=p.user_id, act_chain=[f"agent:{AGENT}"],
+                            action="legal.list_contracts", resource="tool:legal.search_contracts", decision="deny",
+                            reason=rule.rule_id)
+        raise forbidden("Your role may not list contracts.")
     if status is not None and status not in _STATUSES:
         raise bad_request("status must be one of " + ", ".join(_STATUSES) + ".")
     if not 1 <= limit <= 200:
@@ -63,6 +82,9 @@ async def list_contracts(status: str | None = None, limit: int = 100,
             f"SELECT {', '.join(_CONTRACT_FIELDS)} FROM legal.contracts"  # column names are constants
             " WHERE (%s::text IS NULL OR status = %s) ORDER BY contract_id LIMIT %s", (status, status, limit))
         rows = [_iso(dict(r)) for r in await cur.fetchall()]
+    await _audit_read(p, "legal.list_contracts", "legal.contracts",
+                      level=max((int(r["level"]) for r in rows), default=None),
+                      details={"count": len(rows), "status": status, "contract_ids": [r["contract_id"] for r in rows]})
     return {"contracts": rows, "count": len(rows)}
 
 
@@ -76,6 +98,9 @@ async def reviews(contract_id: str | None = None, limit: int = 50, p: Principal 
     if not 1 <= limit <= 200:
         raise bad_request("limit must be between 1 and 200.")
     rows = await list_reviews(p, contract_id=contract_id, limit=limit)
+    await _audit_read(p, "legal.list_reviews", f"legal.contract:{contract_id}" if contract_id else "legal.reviews",
+                      level=max((int(r["level"]) for r in rows), default=None),
+                      details={"count": len(rows), "review_ids": [r["review_id"] for r in rows]})
     return {"reviews": [_iso(r) for r in rows], "count": len(rows)}
 
 
@@ -88,7 +113,12 @@ async def review(review_id: str, p: Principal = Depends(deps.principal)) -> dict
         raise not_found("No such review among those you may read.")
     found = await get_review(p, review_id)
     if found is None:
+        # hidden by RLS and missing are one reason here too
+        await _audit_read(p, "legal.get_review", f"legal.review:{review_id}", level=None, details={},
+                          decision="deny", reason="not_found_or_not_visible")
         raise not_found("No such review among those you may read.")
+    await _audit_read(p, "legal.get_review", f"legal.review:{review_id}", level=found.level,
+                      details={"contract_id": found.contract_id, "run_id": found.run_id})
     return found.model_dump(mode="json")
 
 

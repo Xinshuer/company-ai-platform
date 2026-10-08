@@ -1,0 +1,14 @@
+# Line endings (issues-log RN-07). Text files are stored and checked out with LF on every machine,
+# whatever core.autocrlf says. A file already committed with CRLF is left as it is (text=auto does not
+# renormalise it), so adding this file changes no diff; `git add --renormalize .` would convert them.
+* text=auto eol=lf
+
+# Applied migrations are checksummed byte for byte (core.schema_migrations): never convert their line
+# endings, or a database migrated from one checkout would refuse to start from another.
+migrations/*.sql -text
+
+*.png binary
+*.jpg binary
+*.pdf binary
+*.pptx binary
+*.onnx binary

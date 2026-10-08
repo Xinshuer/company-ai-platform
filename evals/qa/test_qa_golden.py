@@ -13,6 +13,7 @@ zero leaks. CORPAI_EVAL_RUNS repeats each run.
 from __future__ import annotations
 
 import fnmatch
+import json
 import os
 from pathlib import Path
 
@@ -82,7 +83,12 @@ async def test_golden_question(case, app_client, personas):
                 assert run["status"] == "done", (case["id"], key, run["error"])
                 cited = [c["doc_id"] for c in run["output"]["citations"]]
                 hit, leaks = check_group(group, cited, p)
-                _results[f"{case['id']}/{key}/{gi}/{n}"] = {"hit": hit, "leaks": leaks}
+                answer = " ".join((run["output"]["text"] or "").split())[:200]
+                _results[f"{case['id']}/{key}/{gi}/{n}"] = {
+                    "hit": hit, "leaks": leaks, "cited": cited, "answer": answer,
+                    "dropped": (run["output"].get("data") or {}).get("dropped_citations", 0)}
+                if LIVE and not case["question"].isascii():  # does the answer keep the question's language?
+                    print(f"\n{case['id']}/{key}: {answer}")
                 if leaks:
                     failures.append(f"{key}: cited without permission {leaks}")
                 if hit is False and not LIVE:
@@ -97,5 +103,11 @@ def test_hit_rate_and_leaks():
     graded = [v["hit"] for v in _results.values() if v["hit"] is not None]
     rate = sum(graded) / len(graded)
     leaks = [k for k, v in _results.items() if v["leaks"]]
+    # printed for live runs (pytest -s): a miss is judged by a human from the citations and the answer
+    print("\nqa golden:", json.dumps({
+        "mode": settings().llm_mode, "runs": len(_results), "graded": len(graded), "hit_rate": round(rate, 3),
+        "leaks": leaks, "dropped_citations": sum(v["dropped"] for v in _results.values()),
+        "misses": {k: {"cited": v["cited"], "answer": v["answer"]} for k, v in _results.items() if v["hit"] is False},
+    }, ensure_ascii=False))
     assert leaks == []
     assert rate >= (LIVE_MIN_HIT_RATE if LIVE else 1.0), f"hit rate {rate:.2f}"

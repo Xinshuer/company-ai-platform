@@ -47,6 +47,7 @@ const RUN = {app: "report", thread_id: null, user_level: 1};
   // ---- report runs
   await login("ceo");
   const ceo = await call("ceo_run", "POST", "/api/runs", Object.assign({input: "2026-Q3 管理层报告"}, RUN));
+  await call("ceo_run_en", "POST", "/api/runs", Object.assign({input: "2026-Q3 management report"}, RUN));
   await call("ceo_run_q_first", "POST", "/api/runs", Object.assign({input: "Q3 2026 report"}, RUN));
   await call("ceo_run_zh_quarter", "POST", "/api/runs", Object.assign({input: "2026年第三季度"}, RUN));
   await call("ceo_run_unrecorded_period", "POST", "/api/runs", Object.assign({input: "2026-Q1 管理层报告"}, RUN));

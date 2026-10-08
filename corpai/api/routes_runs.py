@@ -37,6 +37,9 @@ async def start_run(body: RunIn, p: Principal = Depends(deps.principal), service
         return await _runner.start_run(p, app=body.app, text=text, thread_id=body.thread_id,
                                        user_level=Level(body.user_level), services=services,
                                        checkpointer=checkpointer)
+    except app_router.StartDenied as e:
+        await deps.audit_start_denied(p, body.app, "start")  # like every other start refusal (WR-10)
+        raise ApiError(e.status, e.code, str(e)) from None
     except app_router.RouterError as e:
         raise ApiError(e.status, e.code, str(e)) from None
     except _runner.RunRefused as e:

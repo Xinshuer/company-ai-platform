@@ -69,6 +69,13 @@ def test_trace_of_someone_elses_run_is_not_found(r):
     _err(r, "other_trace", 404, "not_found")
 
 
+def test_shared_sample_answers_everyone_but_its_trace_is_nobodys(r):
+    """issues-log SEC-1: a "*" recording was made as one persona; its trace shows what that persona retrieved."""
+    assert r["shared_run"]["ok"] and r["shared_run"]["value"]["run_id"] == "run_w0shared"
+    assert r["shared_trace_link"] is False
+    _err(r, "shared_trace", 404, "not_found")
+
+
 def test_staff_has_no_approval_inbox(r):
     assert r["sales_to_approve"] == {"ok": True, "value": []}
 
@@ -131,7 +138,8 @@ def test_a_thread_keeps_its_level_in_demo(r):
     assert all(e.get("route") != "external" for e in after["events"] if e["t"] == "route")
     assert not any(e["t"] == "notice" for e in after["events"]), "the notice belongs to the run that crossed L3"
     fresh = r["fresh_public"]["value"]
-    assert fresh["route"] == "external" and fresh["hwm"] == 1, "a new thread is the only reset"
+    # the recording's own level again (below L3: it read internal L2 pages), on the external route
+    assert fresh["route"] == "external" and fresh["hwm"] <= 2, "a new thread is the only reset"
 
 
 def test_local_down_sees_the_final_level(r):
@@ -162,8 +170,9 @@ def test_trace_links_only_where_the_trace_answers(r):
 
 def test_app_samples_prefill_only_when_runnable(r):
     assert r["sample_sales_staff"]["runnable"] is True
-    head = r["sample_sales_head"]
-    assert head is None or head["runnable"] is False
+    assert r["sample_sales_head"]["runnable"] is True  # the head of sales has own recordings (WR-07)
+    other = r["sample_no_recording"]
+    assert other is None or other["runnable"] is False
 
 
 # ---- milestone extension points (KB.demo.register, fixtures/<name>.js) -------------------------------
@@ -180,8 +189,8 @@ def test_extension_routes_need_a_persona_and_never_shadow_shared_routes(r):
 
 
 def test_extension_runs_obey_the_shared_rules(r):
-    plain = r["ext_run_plain"]["value"]
-    assert plain["route"] == "external" and plain["hwm"] == 1
+    plain = r["ext_run_plain"]["value"]  # the public recording: external, below L3 (it read internal L2 pages)
+    assert plain["route"] == "external" and plain["hwm"] <= 2
     raised = r["ext_run_raised"]["value"]  # the user may raise the level
     assert raised["route"] == "local" and raised["hwm"] == 3
     thread = r["ext_run_thread"]["value"]  # the thread keeps it

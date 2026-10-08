@@ -10,9 +10,23 @@ from __future__ import annotations
 import pytest
 
 
+# A live run with CORPAI_EVAL_RUNS=3 used about 1.7M tokens on 2026-10-08 (docs/evals-live.md):
+# every clause call carries the whole contract. That is close to the legal department's daily
+# budget (2M, migration 010), so a live session raises it, in its own throwaway database only.
+LIVE_LEGAL_BUDGET = 8_000_000
+
+
 @pytest.fixture(scope="session")
 def legal_eval_db(seeded):
     """The small synthetic company (seed 7) in the session database."""
+    from corpai.config import settings
+
+    if settings().llm_mode == "live":
+        from corpai.db import pg
+
+        with pg.connect_owner() as conn:
+            for table in ("ops.budget_defaults", "ops.budgets"):
+                conn.execute(f"UPDATE {table} SET token_limit = %s WHERE dept = 'legal'", (LIVE_LEGAL_BUDGET,))
     return seeded
 
 

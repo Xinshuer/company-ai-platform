@@ -1,42 +1,64 @@
 window.FIXTURES.runs = {
+ "recorded": {
+  "mode": "live",
+  "model": "deepseek-flash",
+  "on": "2026-10-08",
+  "company": "full",
+  "seed": 7
+ },
  "items": [
   {
    "persona_key": "*",
    "app": "qa",
    "input": "FleetPilot 3.0 有哪些新功能？",
    "run": {
-    "run_id": "run_01m4c0a1pub0fp30x7k2",
-    "thread_id": "thr_01m4c0a1pubthr9q2w",
+    "run_id": "run_01m4d8qy7e5c59zfjmet",
+    "thread_id": "thr_01m4d8qy7bpn92j1dweq",
     "app": "qa",
     "status": "done",
     "output": {
-     "text": "FleetPilot 3.0 于 2025-10-07 发布，重点是多仓库（multi-depot）优化：\n1. 一次规划可以跨多个仓库分配订单和车辆，不再按仓库分别排线；\n2. 新的优化引擎支持时间窗、车辆容量和司机班次等约束；\n3. 调度员可以在地图上手动调整，系统会实时重新计算剩余路线。\n冷链模块（温度窗约束）是单独的扩展模块。公开资料可参考：https://www.abctech.example/fleetpilot",
+     "text": "根据现有资料，FleetPilot 3.0 的新功能是**多仓库优化（multi-depot optimisation）**。\n\n- 新闻稿明确说明：FleetPilot 3.0 发布，带来多仓库优化功能 [doc:pub-press-2025-10-fleetpilot-3]。\n\n资料中没有提到 FleetPilot 3.0 的其他新功能。",
      "citations": [
       {
        "doc_id": "pub-press-2025-10-fleetpilot-3",
        "title": "FleetPilot 3.0 brings multi-depot optimisation",
        "level": 1,
        "collection": "public",
-       "snippet": "FleetPilot 3.0 plans orders and vehicles across several depots in one run…"
-      },
-      {
-       "doc_id": "pub-fleetpilot",
-       "title": "FleetPilot product overview",
-       "level": 1,
-       "collection": "public",
-       "snippet": "Route planning and dispatch for logistics fleets: time windows, capacities, driver shifts…"
-      },
-      {
-       "doc_id": "pub-coldchain",
-       "title": "FleetPilot cold-chain module",
-       "level": 1,
-       "collection": "public",
-       "snippet": "Temperature-window constraints for refrigerated fleets, available as an add-on…"
+       "snippet": "# FleetPilot 3.0 brings multi-depot optimisation\n\n*Stockholm, 2025-10-07*\n\nFleetPilot 3.0 released with multi-depot optimisation.\n\nAbout ABC Tech: ABC Tech AB builds FleetPilot, route planning and dis"
       }
      ],
-     "data": {}
+     "data": {
+      "tools": [
+       {
+        "domain": "docs",
+        "tool": "search_docs",
+        "ok": true,
+        "level": 1,
+        "sources": [
+         "rag.chunk:pub-press-2025-10-fleetpilot-3@v1#0",
+         "rag.chunk:pub-press-2026-07-rutamar@v1#0",
+         "rag.chunk:pub-fleetpilot@v1#0",
+         "rag.chunk:pub-jd-R-02@v1#0",
+         "rag.chunk:pub-jd-R-03@v1#0"
+        ],
+        "denied": []
+       },
+       {
+        "domain": "docs",
+        "tool": "get_doc",
+        "ok": true,
+        "level": 1,
+        "sources": [
+         "doc:pub-press-2025-10-fleetpilot-3"
+        ],
+        "denied": []
+       }
+      ],
+      "dropped_citations": 0,
+      "flagged_sources": []
+     }
     },
-    "hwm": 1,
+    "hwm": 2,
     "route": "external",
     "events": [
      {
@@ -46,18 +68,47 @@ window.FIXTURES.runs = {
      },
      {
       "t": "retrieval",
-      "count": 6,
-      "level": 1,
+      "count": 8,
+      "level": 2,
       "collections": [
-       "public",
-       "general"
+       "general",
+       "public"
       ]
+     },
+     {
+      "t": "hwm",
+      "from": 1,
+      "to": 2,
+      "reason": "retrieval:qa"
+     },
+     {
+      "t": "tool",
+      "domain": "docs",
+      "tool": "search_docs",
+      "decision": "allow",
+      "level": 1,
+      "ok": true,
+      "denied": []
+     },
+     {
+      "t": "tool",
+      "domain": "docs",
+      "tool": "get_doc",
+      "decision": "allow",
+      "level": 1,
+      "ok": true,
+      "denied": []
      },
      {
       "t": "route",
       "route": "external",
-      "level": 1,
+      "level": 2,
       "reason": "route_by_level"
+     },
+     {
+      "t": "citations",
+      "kept": 1,
+      "dropped": 0
      }
     ],
     "pending_approval": null,
@@ -69,29 +120,91 @@ window.FIXTURES.runs = {
    "app": "qa",
    "input": "Havenmeer 的合同什么时候续约？我们需要提前多久通知？",
    "run": {
-    "run_id": "run_01m4c0b7sal3hvn8r2qe",
-    "thread_id": "thr_01m4c0b7salthr4kz1",
+    "run_id": "run_01m4d8r4c5w05n23d0es",
+    "thread_id": "thr_01m4d8r4c3g9wjz8mkmr",
     "app": "qa",
     "status": "done",
     "output": {
-     "text": "Havenmeer Distributie B.V.（A-0002，你负责的客户）的订单 C-0003 将于 2026-11-30 到期，并且会自动续约。\n合同要求提前 45 天书面通知，所以如果要调整条款或价格，最晚要在 2026-10-16 之前发出通知——距离今天（2026-10-01）只剩 15 天。\n客户计划里提到 P-04 门店配送优化项目已进入上线阶段，可以把它作为续约沟通的切入点。\n注意：你没有法务合同库的权限，合同到期查询被拒绝；以上到期日期来自 CRM 和客户计划。如需合同原文，请向法务提出合同请求。",
+     "text": "根据现有资料，我只能确认以下内容：\n\n**续约时间**：Havenmeer 的续约（Havenmeer renewal 2026）目前处于 negotiation 阶段，金额 EUR 132,000.00 [doc:sales-plan-A-0002]。资料中只标注了“2026”，没有给出具体的续约日期。\n\n**提前通知期限**：现有资料中没有关于需要提前多久通知的任何信息。合同条款、通知期限这类内容不在我检索到的来源中。\n\n建议：具体续约日期和通知期限需要查阅合同本身，或联系负责该客户的同事（Procurement Manager 为 Charlotte Teunissen [doc:crm.contact:CT-00005]）。",
      "citations": [
-      {
-       "doc_id": "crm.account:A-0002",
-       "title": "Havenmeer Distributie B.V. (CRM)",
-       "level": 3,
-       "collection": "crm",
-       "snippet": "Tier key · ARR EUR 132,000 · renewal 2026-11-30 (auto-renew) · owner Erik Lindqvist"
-      },
       {
        "doc_id": "sales-plan-A-0002",
        "title": "Account plan Havenmeer Distributie B.V.",
        "level": 3,
        "collection": "sales",
-       "snippet": "Order form auto-renews on 2026-11-30; 45 days' written notice. Expansion: store-delivery optimisation (P-04)…"
+       "snippet": "# Account plan: Havenmeer Distributie B.V.\n\n## Snapshot\nRetail distribution, Rotterdam, about 860 employees and 310 vehicles. Status customer, tier key, ARR EUR 132,000.00.\n\n## Buying centre\n- Esila B"
+      },
+      {
+       "doc_id": "crm.contact:CT-00005",
+       "title": "crm.contact:CT-00005",
+       "level": 3,
+       "collection": "tool:crm",
+       "snippet": ""
       }
      ],
-     "data": {}
+     "data": {
+      "tools": [
+       {
+        "domain": "crm",
+        "tool": "search_accounts",
+        "ok": true,
+        "level": 3,
+        "sources": [
+         "crm.account:A-0002"
+        ],
+        "denied": []
+       },
+       {
+        "domain": "crm",
+        "tool": "get_account",
+        "ok": true,
+        "level": 3,
+        "sources": [
+         "crm.account:A-0002",
+         "crm.contact:CT-00004",
+         "crm.contact:CT-00005",
+         "crm.contact:CT-00006"
+        ],
+        "denied": []
+       },
+       {
+        "domain": "docs",
+        "tool": "search_docs",
+        "ok": true,
+        "level": 3,
+        "sources": [
+         "rag.chunk:sales-plan-A-0002@v1#0",
+         "rag.chunk:gen-ai-usage-guideline@v1#0",
+         "rag.chunk:GDPR-Art-14@v1#0",
+         "rag.chunk:hr-handbook-onboarding@v1#0",
+         "rag.chunk:GDPR-Art-30@v1#0",
+         "rag.chunk:GDPR-Art-28@v1#0",
+         "rag.chunk:GDPR-Art-49@v1#0",
+         "rag.chunk:GDPR-Art-13@v1#0"
+        ],
+        "denied": []
+       },
+       {
+        "domain": "docs",
+        "tool": "search_docs",
+        "ok": true,
+        "level": 3,
+        "sources": [
+         "rag.chunk:gen-expense-policy@v1#0",
+         "rag.chunk:sales-plan-A-0002@v1#0",
+         "rag.chunk:gen-ai-usage-guideline@v1#0",
+         "rag.chunk:pub-trust@v1#0",
+         "rag.chunk:GDPR-Art-14@v1#0",
+         "rag.chunk:gen-data-protection-policy@v1#0",
+         "rag.chunk:gen-code-of-conduct@v1#0",
+         "rag.chunk:gen-it-security-policy@v2#0"
+        ],
+        "denied": []
+       }
+      ],
+      "dropped_citations": 0,
+      "flagged_sources": []
+     }
     },
     "hwm": 3,
     "route": "local",
@@ -103,12 +216,12 @@ window.FIXTURES.runs = {
      },
      {
       "t": "retrieval",
-      "count": 6,
+      "count": 1,
       "level": 3,
       "collections": [
-       "public",
        "general",
        "legal_regs",
+       "public",
        "sales"
       ]
      },
@@ -116,7 +229,22 @@ window.FIXTURES.runs = {
       "t": "hwm",
       "from": 1,
       "to": 3,
-      "reason": "retrieval:sales"
+      "reason": "retrieval:qa"
+     },
+     {
+      "t": "notice",
+      "code": "local_mode",
+      "zh": "本会话已切换到本地模式",
+      "en": "This session now uses the local model"
+     },
+     {
+      "t": "tool",
+      "domain": "crm",
+      "tool": "search_accounts",
+      "decision": "allow",
+      "level": 3,
+      "ok": true,
+      "denied": []
      },
      {
       "t": "tool",
@@ -124,20 +252,26 @@ window.FIXTURES.runs = {
       "tool": "get_account",
       "decision": "allow",
       "level": 3,
+      "ok": true,
       "denied": []
      },
      {
       "t": "tool",
-      "domain": "legal",
-      "tool": "contracts_expiring",
-      "decision": "deny",
-      "level": 1,
-      "denied": [
-       {
-        "id": "legal.contracts_expiring",
-        "reason": "tool rule: legal tools are for the legal department and the CEO"
-       }
-      ]
+      "domain": "docs",
+      "tool": "search_docs",
+      "decision": "allow",
+      "level": 3,
+      "ok": true,
+      "denied": []
+     },
+     {
+      "t": "tool",
+      "domain": "docs",
+      "tool": "search_docs",
+      "decision": "allow",
+      "level": 3,
+      "ok": true,
+      "denied": []
      },
      {
       "t": "route",
@@ -146,10 +280,9 @@ window.FIXTURES.runs = {
       "reason": "route_by_level"
      },
      {
-      "t": "notice",
-      "code": "local_mode",
-      "zh": "本会话已切换到本地模式",
-      "en": "This session now uses the local model"
+      "t": "citations",
+      "kept": 2,
+      "dropped": 0
      }
     ],
     "pending_approval": null,
@@ -164,8 +297,8 @@ window.FIXTURES.runs = {
     "local_down": true
    },
    "run": {
-    "run_id": "run_01m4c0f4sal8dwn2q9hc",
-    "thread_id": "thr_01m4c0f4salthr5v7j",
+    "run_id": "run_01m4d8ra7eq2d5em3578",
+    "thread_id": "thr_01m4d8ra7c76dbhpgck7",
     "app": "qa",
     "status": "error",
     "output": {
@@ -183,12 +316,12 @@ window.FIXTURES.runs = {
      },
      {
       "t": "retrieval",
-      "count": 6,
+      "count": 1,
       "level": 3,
       "collections": [
-       "public",
        "general",
        "legal_regs",
+       "public",
        "sales"
       ]
      },
@@ -196,15 +329,13 @@ window.FIXTURES.runs = {
       "t": "hwm",
       "from": 1,
       "to": 3,
-      "reason": "retrieval:sales"
+      "reason": "retrieval:qa"
      },
      {
-      "t": "tool",
-      "domain": "crm",
-      "tool": "get_account",
-      "decision": "allow",
-      "level": 3,
-      "denied": []
+      "t": "notice",
+      "code": "local_mode",
+      "zh": "本会话已切换到本地模式",
+      "en": "This session now uses the local model"
      },
      {
       "t": "route",
@@ -216,7 +347,7 @@ window.FIXTURES.runs = {
     "pending_approval": null,
     "error": {
      "code": "local_unavailable",
-     "message": "The local model is unavailable. Confidential requests never fall back to the external route; try again later or ask the platform admin."
+     "message": "The local model is unavailable. Confidential requests never fall back to the external route; try again later."
     }
    }
   },
@@ -225,16 +356,20 @@ window.FIXTURES.runs = {
    "app": "qa",
    "input": "Havenmeer 的合同什么时候续约？我们需要提前多久通知？",
    "run": {
-    "run_id": "run_01m4c0c2eng5hvn1t8yb",
-    "thread_id": "thr_01m4c0c2engthr6m3d",
+    "run_id": "run_01m4d8rakp110m9exyyg",
+    "thread_id": "thr_01m4d8rakng9j0xr4c2m",
     "app": "qa",
     "status": "done",
     "output": {
-     "text": "我没有找到你有权限查看的、关于 Havenmeer 合同续约的资料。\nCRM 客户数据和法务合同库都不在你的权限范围内，这两个查询被拒绝了（见事件时间线）。\n公开资料和内部手册里没有这家客户的合同信息。如果你需要了解续约安排，请联系客户负责人或销售负责人 Karin Holm。",
+     "text": "我无法回答这个问题，因为没有提供任何来源，也没有可用的工具结果。\n\n请提供相关文档或工具结果，我会根据其中的内容回答，并按 格式引用来源。",
      "citations": [],
-     "data": {}
+     "data": {
+      "tools": [],
+      "dropped_citations": 1,
+      "flagged_sources": []
+     }
     },
-    "hwm": 2,
+    "hwm": 1,
     "route": "external",
     "events": [
      {
@@ -244,52 +379,25 @@ window.FIXTURES.runs = {
      },
      {
       "t": "retrieval",
-      "count": 3,
-      "level": 2,
+      "count": 0,
+      "level": 1,
       "collections": [
-       "public",
+       "eng",
        "general",
        "legal_regs",
-       "eng"
-      ]
-     },
-     {
-      "t": "hwm",
-      "from": 1,
-      "to": 2,
-      "reason": "retrieval:general"
-     },
-     {
-      "t": "tool",
-      "domain": "crm",
-      "tool": "get_account",
-      "decision": "deny",
-      "level": 1,
-      "denied": [
-       {
-        "id": "crm.get_account",
-        "reason": "tool rule: CRM tools are for the sales department and the CEO"
-       }
-      ]
-     },
-     {
-      "t": "tool",
-      "domain": "legal",
-      "tool": "contracts_expiring",
-      "decision": "deny",
-      "level": 1,
-      "denied": [
-       {
-        "id": "legal.contracts_expiring",
-        "reason": "tool rule: legal tools are for the legal department and the CEO"
-       }
+       "public"
       ]
      },
      {
       "t": "route",
       "route": "external",
-      "level": 2,
+      "level": 1,
       "reason": "route_by_level"
+     },
+     {
+      "t": "citations",
+      "kept": 0,
+      "dropped": 1
      }
     ],
     "pending_approval": null,
@@ -301,38 +409,90 @@ window.FIXTURES.runs = {
    "app": "qa",
    "input": "Havenmeer 的合同什么时候续约？我们需要提前多久通知？",
    "run": {
-    "run_id": "run_01m4c0d9ceo2hvn6p4wa",
-    "thread_id": "thr_01m4c0d9ceothr2x8n",
+    "run_id": "run_01m4d8rdmf9q8psm683b",
+    "thread_id": "thr_01m4d8rdmeb03m0rjjpz",
     "app": "qa",
     "status": "done",
     "output": {
-     "text": "Havenmeer Distributie B.V. 的订单 C-0003 于 2026-11-30 到期并自动续约，通知期 45 天，截止日是 2026-10-16。\n合同库显示这份订单年费 EUR 132,000，没有价格上调条款；如果计划在续约时调价，必须在截止日前书面通知。\nQ3 董事会更新把 Havenmeer 列为续约风险之一（P-04 上线后的成效评估还没完成）。建议由销售负责人在 10 月第二周前确认续约策略。",
+     "text": "Havenmeer Distributie B.V. (account A-0002) has one contract in the next 12 months:\n\n- **Contract C-0003** — order form, expires **2026-11-30**, auto-renews: yes, notice period: **45 days**, notice deadline: **2026-10-16** [doc:legal.contract:C-0003]\n\nSo the renewal date is 2026-11-30, and you must give notice at least 45 days in advance — by **2026-10-16** at the latest. Note that this deadline is only about two weeks away from today (2026-10-01).\n\nAccount context: Havenmeer Distributie B.V. is a key-tier customer in Rotterdam, NL [doc:crm.account:A-0002]. Relevant contacts include Charlotte Teunissen (Procurement Manager) [doc:crm.contact:CT-00005].",
      "citations": [
       {
+       "doc_id": "legal.contract:C-0003",
+       "title": "legal.contract:C-0003",
+       "level": 3,
+       "collection": "tool:legal",
+       "snippet": ""
+      },
+      {
        "doc_id": "crm.account:A-0002",
-       "title": "Havenmeer Distributie B.V. (CRM)",
+       "title": "crm.account:A-0002",
        "level": 3,
-       "collection": "crm",
-       "snippet": "Tier key · ARR EUR 132,000 · renewal 2026-11-30 (auto-renew) · owner Erik Lindqvist"
+       "collection": "tool:crm",
+       "snippet": ""
       },
       {
-       "doc_id": "C-0003",
-       "title": "order_form C-0003 Havenmeer Distributie B.V.",
+       "doc_id": "crm.contact:CT-00005",
+       "title": "crm.contact:CT-00005",
        "level": 3,
-       "collection": "legal",
-       "snippet": "Term ends 2026-11-30; renews automatically for 12 months unless either party gives 45 days' written notice…"
-      },
-      {
-       "doc_id": "exec-board-update-2026-Q3",
-       "title": "Board update Q3 2026 (draft)",
-       "level": 4,
-       "collection": "exec",
-       "snippet": null
+       "collection": "tool:crm",
+       "snippet": ""
       }
      ],
-     "data": {}
+     "data": {
+      "tools": [
+       {
+        "domain": "crm",
+        "tool": "search_accounts",
+        "ok": true,
+        "level": 3,
+        "sources": [
+         "crm.account:A-0002"
+        ],
+        "denied": []
+       },
+       {
+        "domain": "legal",
+        "tool": "contracts_expiring",
+        "ok": true,
+        "level": 1,
+        "sources": [],
+        "denied": []
+       },
+       {
+        "domain": "crm",
+        "tool": "get_account",
+        "ok": true,
+        "level": 3,
+        "sources": [
+         "crm.account:A-0002",
+         "crm.contact:CT-00004",
+         "crm.contact:CT-00005",
+         "crm.contact:CT-00006"
+        ],
+        "denied": []
+       },
+       {
+        "domain": "legal",
+        "tool": "contracts_expiring",
+        "ok": true,
+        "level": 3,
+        "sources": [
+         "legal.contract:C-0003",
+         "legal.contract:C-0025",
+         "legal.contract:C-0015",
+         "legal.contract:C-0005",
+         "legal.contract:C-0030",
+         "legal.contract:C-0009",
+         "legal.contract:C-0016"
+        ],
+        "denied": []
+       }
+      ],
+      "dropped_citations": 0,
+      "flagged_sources": []
+     }
     },
-    "hwm": 4,
+    "hwm": 3,
     "route": "local",
     "events": [
      {
@@ -342,20 +502,44 @@ window.FIXTURES.runs = {
      },
      {
       "t": "retrieval",
-      "count": 8,
-      "level": 4,
+      "count": 0,
+      "level": 1,
       "collections": [
-       "public",
+       "exec",
        "general",
        "legal_regs",
-       "exec"
+       "public"
       ]
+     },
+     {
+      "t": "tool",
+      "domain": "crm",
+      "tool": "search_accounts",
+      "decision": "allow",
+      "level": 3,
+      "ok": true,
+      "denied": []
      },
      {
       "t": "hwm",
       "from": 1,
-      "to": 4,
-      "reason": "retrieval:exec"
+      "to": 3,
+      "reason": "tool:crm.search_accounts"
+     },
+     {
+      "t": "notice",
+      "code": "local_mode",
+      "zh": "本会话已切换到本地模式",
+      "en": "This session now uses the local model"
+     },
+     {
+      "t": "tool",
+      "domain": "legal",
+      "tool": "contracts_expiring",
+      "decision": "allow",
+      "level": 1,
+      "ok": true,
+      "denied": []
      },
      {
       "t": "tool",
@@ -363,6 +547,7 @@ window.FIXTURES.runs = {
       "tool": "get_account",
       "decision": "allow",
       "level": 3,
+      "ok": true,
       "denied": []
      },
      {
@@ -371,19 +556,19 @@ window.FIXTURES.runs = {
       "tool": "contracts_expiring",
       "decision": "allow",
       "level": 3,
+      "ok": true,
       "denied": []
      },
      {
       "t": "route",
       "route": "local",
-      "level": 4,
+      "level": 3,
       "reason": "route_by_level"
      },
      {
-      "t": "notice",
-      "code": "local_mode",
-      "zh": "本会话已切换到本地模式",
-      "en": "This session now uses the local model"
+      "t": "citations",
+      "kept": 3,
+      "dropped": 0
      }
     ],
     "pending_approval": null,
@@ -395,29 +580,171 @@ window.FIXTURES.runs = {
    "app": "qa",
    "input": "P-02 为什么一直卡在测试阶段？",
    "run": {
-    "run_id": "run_01m4c0g1eng7p02k3mz",
-    "thread_id": "thr_01m4c0g1engthr8b2c",
+    "run_id": "run_01m4d8rm2qcqfhe1vesr",
+    "thread_id": "thr_01m4d8rm2nwn152k217n",
     "app": "qa",
     "status": "done",
     "output": {
-     "text": "P-02（Donauzeile 冷链路线）自 2026-07-14 起停留在测试阶段。\n最近 10 次 CI 全部失败，失败集中在温度窗约束的回归用例（2026-08-19 起）。\n注意：工单 T-0214 写着“测试已完成”，但这与 CI 结果矛盾，建议在站会上确认。",
+     "text": "P-02（Donauzeile cold-chain routing）目前确实仍处于 **testing** 阶段，自 2026-07-14 起未推进，健康状态为 **red**，计划上线日期为 2026-08-31 [doc:eng.project:P-02]。\n\n从工单情况看，卡在测试阶段的主要原因是有多项测试/缺陷类工作尚未关闭：\n\n**未关闭的缺陷（bug）**\n- FP-1297：取消站点时 ETA 偏差超过 10 分钟（in_progress）[doc:eng.ticket:FP-1297]\n- FP-1272：收费道路场景下 ETA 偏差超过 10 分钟（open）[doc:eng.ticket:FP-1272]\n- FP-1249：取消站点时 ETA 偏差超过 10 分钟（open）[doc:eng.ticket:FP-1249]\n- FP-1220：收费道路场景下调度看板卡死（open）[doc:eng.ticket:FP-1220]\n- FP-1239：地图瓦片过期后产生重复站点（in_progress）[doc:eng.ticket:FP-1239]\n- FP-1263：CSV 导入拒绝司机休息记录（in_progress）[doc:eng.ticket:FP-1263]\n- FP-1214：路径优化器在拆分配送时忽略司机休息（open）[doc:eng.ticket:FP-1214]\n\n**未关闭的测试相关任务/杂项**\n- FP-1295：升级 routing-api 到当前小版本（open）[doc:eng.ticket:FP-1295]\n- FP-1292：清理 routing-api 中的死代码（in_progress）[doc:eng.ticket:FP-1292]\n- FP-1271：轮换 telematics-ingest 的测试夹具（in_progress）[doc:eng.ticket:FP-1271]\n- FP-1257：编写 eta-service 运行手册步骤（open）[doc:eng.ticket:FP-1257]\n\n**未关闭的需求（story）**\n- FP-1283：调度员希望查看每条路线的 CO2 估算（open）[doc:eng.ticket:FP-1283]\n- FP-1281：车队经理希望将站点锁定到指定司机（in_progress）[doc:eng.ticket:FP-1281]\n- FP-1209：调度员希望只重新规划下午波次（in_progress）[doc:eng.ticket:FP-1209]\n\n值得注意的是，QA 签署工单 FP-1287（冷链路回归测试完成）已标记为 done [doc:eng.ticket:FP-1287]，但上述多个缺陷和任务仍未关闭，说明测试阶段虽已通过一轮回归，但后续发现的缺陷与未完成工作使项目无法进入下一阶段。",
      "citations": [
       {
-       "doc_id": "code.project:P-02",
-       "title": "P-02 Donauzeile cold-chain routing (status)",
+       "doc_id": "eng.project:P-02",
+       "title": "eng.project:P-02",
        "level": 3,
-       "collection": "eng",
-       "snippet": "Stage: testing since 2026-07-14 · health red · last 10 CI runs failed"
+       "collection": "tool:code",
+       "snippet": ""
       },
       {
-       "doc_id": "eng-P-02-runbook",
-       "title": "Donauzeile cold-chain routing runbook",
+       "doc_id": "eng.ticket:FP-1297",
+       "title": "eng.ticket:FP-1297",
        "level": 3,
-       "collection": "eng",
-       "snippet": "Regression suite: temperature-window constraints must hold for every stop…"
+       "collection": "tool:code",
+       "snippet": ""
+      },
+      {
+       "doc_id": "eng.ticket:FP-1272",
+       "title": "eng.ticket:FP-1272",
+       "level": 3,
+       "collection": "tool:code",
+       "snippet": ""
+      },
+      {
+       "doc_id": "eng.ticket:FP-1249",
+       "title": "eng.ticket:FP-1249",
+       "level": 3,
+       "collection": "tool:code",
+       "snippet": ""
+      },
+      {
+       "doc_id": "eng.ticket:FP-1220",
+       "title": "eng.ticket:FP-1220",
+       "level": 3,
+       "collection": "tool:code",
+       "snippet": ""
+      },
+      {
+       "doc_id": "eng.ticket:FP-1239",
+       "title": "eng.ticket:FP-1239",
+       "level": 3,
+       "collection": "tool:code",
+       "snippet": ""
+      },
+      {
+       "doc_id": "eng.ticket:FP-1263",
+       "title": "eng.ticket:FP-1263",
+       "level": 3,
+       "collection": "tool:code",
+       "snippet": ""
+      },
+      {
+       "doc_id": "eng.ticket:FP-1214",
+       "title": "eng.ticket:FP-1214",
+       "level": 3,
+       "collection": "tool:code",
+       "snippet": ""
+      },
+      {
+       "doc_id": "eng.ticket:FP-1295",
+       "title": "eng.ticket:FP-1295",
+       "level": 3,
+       "collection": "tool:code",
+       "snippet": ""
+      },
+      {
+       "doc_id": "eng.ticket:FP-1292",
+       "title": "eng.ticket:FP-1292",
+       "level": 3,
+       "collection": "tool:code",
+       "snippet": ""
+      },
+      {
+       "doc_id": "eng.ticket:FP-1271",
+       "title": "eng.ticket:FP-1271",
+       "level": 3,
+       "collection": "tool:code",
+       "snippet": ""
+      },
+      {
+       "doc_id": "eng.ticket:FP-1257",
+       "title": "eng.ticket:FP-1257",
+       "level": 3,
+       "collection": "tool:code",
+       "snippet": ""
+      },
+      {
+       "doc_id": "eng.ticket:FP-1283",
+       "title": "eng.ticket:FP-1283",
+       "level": 3,
+       "collection": "tool:code",
+       "snippet": ""
+      },
+      {
+       "doc_id": "eng.ticket:FP-1281",
+       "title": "eng.ticket:FP-1281",
+       "level": 3,
+       "collection": "tool:code",
+       "snippet": ""
+      },
+      {
+       "doc_id": "eng.ticket:FP-1209",
+       "title": "eng.ticket:FP-1209",
+       "level": 3,
+       "collection": "tool:code",
+       "snippet": ""
+      },
+      {
+       "doc_id": "eng.ticket:FP-1287",
+       "title": "eng.ticket:FP-1287",
+       "level": 3,
+       "collection": "tool:code",
+       "snippet": ""
       }
      ],
-     "data": {}
+     "data": {
+      "tools": [
+       {
+        "domain": "code",
+        "tool": "get_project_status",
+        "ok": true,
+        "level": 3,
+        "sources": [
+         "eng.project:P-02"
+        ],
+        "denied": []
+       },
+       {
+        "domain": "code",
+        "tool": "search_tickets",
+        "ok": true,
+        "level": 3,
+        "sources": [
+         "eng.ticket:FP-1283",
+         "eng.ticket:FP-1295",
+         "eng.ticket:FP-1297",
+         "eng.ticket:FP-1292",
+         "eng.ticket:FP-1286",
+         "eng.ticket:FP-1287",
+         "eng.ticket:FP-1257",
+         "eng.ticket:FP-1278",
+         "eng.ticket:FP-1281",
+         "eng.ticket:FP-1271",
+         "eng.ticket:FP-1263",
+         "eng.ticket:FP-1272",
+         "eng.ticket:FP-1236",
+         "eng.ticket:FP-1209",
+         "eng.ticket:FP-1237",
+         "eng.ticket:FP-1249",
+         "eng.ticket:FP-1220",
+         "eng.ticket:FP-1224",
+         "eng.ticket:FP-1239",
+         "eng.ticket:FP-1214"
+        ],
+        "denied": []
+       }
+      ],
+      "dropped_citations": 0,
+      "flagged_sources": []
+     }
     },
     "hwm": 3,
     "route": "local",
@@ -429,13 +756,13 @@ window.FIXTURES.runs = {
      },
      {
       "t": "retrieval",
-      "count": 5,
-      "level": 3,
+      "count": 0,
+      "level": 1,
       "collections": [
-       "public",
+       "eng",
        "general",
        "legal_regs",
-       "eng"
+       "public"
       ]
      },
      {
@@ -444,6 +771,7 @@ window.FIXTURES.runs = {
       "tool": "get_project_status",
       "decision": "allow",
       "level": 3,
+      "ok": true,
       "denied": []
      },
      {
@@ -453,133 +781,33 @@ window.FIXTURES.runs = {
       "reason": "tool:code.get_project_status"
      },
      {
+      "t": "notice",
+      "code": "local_mode",
+      "zh": "本会话已切换到本地模式",
+      "en": "This session now uses the local model"
+     },
+     {
+      "t": "tool",
+      "domain": "code",
+      "tool": "search_tickets",
+      "decision": "allow",
+      "level": 3,
+      "ok": true,
+      "denied": []
+     },
+     {
       "t": "route",
       "route": "local",
       "level": 3,
       "reason": "route_by_level"
      },
      {
-      "t": "notice",
-      "code": "local_mode",
-      "zh": "本会话已切换到本地模式",
-      "en": "This session now uses the local model"
+      "t": "citations",
+      "kept": 16,
+      "dropped": 0
      }
     ],
     "pending_approval": null,
-    "error": null
-   }
-  },
-  {
-   "persona_key": "sales_staff",
-   "app": "sales_profile",
-   "input": "Havenmeer Distributie B.V.",
-   "run": {
-    "run_id": "run_01m4c0h5sal6prf9d2ue",
-    "thread_id": "thr_01m4c0h5salthr3n6k",
-    "app": "sales_profile",
-    "status": "waiting_approval",
-    "output": {
-     "text": "Havenmeer Distributie B.V.：荷兰零售配送企业，约 210 辆车，现有客户（ARR EUR 132,000）。\n公开信号：2026 年 8 月宣布扩建鹿特丹配送中心（匹配度高）。CRM 互动：近 30 天 4 次联系，P-04 已进入上线阶段（意向高）。\n按 playbook “Sales follow-up by intent tier”（热）建议：续约前安排成效回顾电话，并介绍 2027 多仓库方案。\n已起草一封跟进邮件，发送前需要销售负责人审批。",
-     "citations": [
-      {
-       "doc_id": "web:havenmeer-distributie.example/news/2026-08-dc",
-       "title": "Havenmeer expands Rotterdam DC",
-       "level": 1,
-       "collection": "web",
-       "snippet": "Havenmeer Distributie invests in a second distribution centre…"
-      },
-      {
-       "doc_id": "crm.account:A-0002",
-       "title": "Havenmeer Distributie B.V. (CRM)",
-       "level": 3,
-       "collection": "crm",
-       "snippet": "4 interactions in the last 30 days · P-04 in release"
-      },
-      {
-       "doc_id": "pb-sales-followup",
-       "title": "Sales follow-up by intent tier",
-       "level": 3,
-       "collection": "playbooks",
-       "snippet": "Hot: offer a results review before renewal; propose expansion…"
-      }
-     ],
-     "data": {
-      "fit_score": 78,
-      "intent_score": 84,
-      "intent_tier": "hot",
-      "playbook": "pb-sales-followup@3",
-      "signals": {
-       "public": [
-        "dc_expansion_2026_08",
-        "fleet_size_200_plus"
-       ],
-       "crm": [
-        "interactions_30d=4",
-        "project_P-04=release"
-       ]
-      }
-     }
-    },
-    "hwm": 3,
-    "route": "local",
-    "events": [
-     {
-      "t": "classify",
-      "level": 1,
-      "findings": []
-     },
-     {
-      "t": "tool",
-      "domain": "web",
-      "tool": "search",
-      "decision": "allow",
-      "level": 1,
-      "denied": []
-     },
-     {
-      "t": "route",
-      "route": "external",
-      "level": 1,
-      "reason": "route_by_level"
-     },
-     {
-      "t": "tool",
-      "domain": "crm",
-      "tool": "get_interactions",
-      "decision": "allow",
-      "level": 3,
-      "denied": []
-     },
-     {
-      "t": "hwm",
-      "from": 1,
-      "to": 3,
-      "reason": "tool:crm.get_interactions"
-     },
-     {
-      "t": "route",
-      "route": "local",
-      "level": 3,
-      "reason": "route_by_level"
-     },
-     {
-      "t": "notice",
-      "code": "local_mode",
-      "zh": "本会话已切换到本地模式",
-      "en": "This session now uses the local model"
-     },
-     {
-      "t": "approval",
-      "proposal_id": "prop_01m4c0h6sal2eml7w3kd",
-      "tier": 3
-     }
-    ],
-    "pending_approval": {
-     "proposal_id": "prop_01m4c0h6sal2eml7w3kd",
-     "tool": "crm.send_email",
-     "tier": 3,
-     "summary": "Send renewal follow-up email to Havenmeer Distributie B.V. (Simon Jaceps)"
-    },
     "error": null
    }
   }

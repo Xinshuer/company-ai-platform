@@ -136,3 +136,31 @@ def test_relevance_filter():
     assert qa.relevant("这个产品是做什么的？")(_hit("d", 4, "Board minutes"))
     assert qa.relevant("what does it do?")(_hit("e", 1, "anything"))
     assert qa.relevant("FleetPilot 的测试阶段")(_hit("f", 2, "项目测试阶段"))  # Chinese bigrams count too
+
+
+def test_company_name_is_not_a_content_word_but_its_parts_are():
+    # "ABC Tech" is in nearly every document: as a phrase it says nothing about relevance (RN-05) ...
+    keep = qa.relevant("What does ABC Tech say about travel?")
+    assert keep(_hit("a", 1, "Travel policy"))
+    assert not keep(_hit("b", 1, "ABC Tech board minutes"))
+    assert qa.relevant("abc-tech? ABCTech!")(_hit("c", 4, "anything"))  # nothing left to judge by: keep
+    # ... but "tech" and "abc" on their own are ordinary words
+    keep = qa.relevant("How much tech debt does FleetPilot carry?")
+    assert keep(_hit("d", 2, "Tech debt register"))
+    assert qa.relevant("ABC analysis of suppliers")(_hit("e", 2, "Inventory ABC classes"))
+    assert not qa.relevant("Is ABC Technoquill a customer?")(_hit("f", 1, "ABC Tech handbook"))
+
+
+def test_tool_sources_are_shown_as_the_markers_to_cite():
+    """Live finding (demo recording 2026-10-08): with tool sources shown as a plain list, DeepSeek cited
+    "[legal.contract:C-0003]" or the "[tool:...]" header, so tool data lost every citation. The context
+    now shows each source as the exact [doc:<id>] marker, and that marker is what check_citations keeps."""
+    results = [{"domain": "legal", "tool": "contracts_expiring", "ok": True, "level": 3,
+                "sources": ["legal.contract:C-0003"], "denied": [], "error": None, "text": "{}", "flagged": False},
+               {"domain": "code", "tool": "search_tickets", "ok": True, "level": 3, "sources": [], "denied": [],
+                "error": None, "text": "{}", "flagged": False}]
+    ctx = qa._context({"question": "When does C-0003 renew?", "hits": [], "tool_results": results})
+    assert "Tool legal.contracts_expiring result, sources to cite: [doc:legal.contract:C-0003]" in ctx
+    assert "Tool code.search_tickets result, sources to cite: none" in ctx and "[tool:" not in ctx
+    _, cites, dropped = qa.check_citations("Renews 2026-11-30 [doc:legal.contract:C-0003].", [], results)
+    assert [c["doc_id"] for c in cites] == ["legal.contract:C-0003"] and dropped == []

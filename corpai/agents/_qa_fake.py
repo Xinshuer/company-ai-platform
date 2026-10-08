@@ -24,7 +24,8 @@ _CONTRACT = ("contract", "合同")
 _REG_TERMS = ("GDPR", "AI Act")
 
 _DOC_LINE = re.compile(r"^\[doc:([^\]\s]{1,200})\] (.*)$", re.M)
-_TOOL_LINE = re.compile(r"^\[tool:([a-z]+\.[a-z_]+)\] sources: (.*)$", re.M)
+_TOOL_LINE = re.compile(r"^Tool ([a-z]+\.[a-z_]+) result, sources to cite: (.*)$", re.M)
+_MARKER = re.compile(r"\[doc:([^\]\s]{1,200})\]")
 
 
 def _text(m: Any) -> str:
@@ -82,7 +83,7 @@ def answer_responder(messages: list[dict], *, route: str, json_mode: bool) -> st
                         if s.strip() and not s.lstrip().startswith("#")), "")
         lines.append(f"- {title}: {snippet[:140]} [doc:{doc_id}]")
     for m in _TOOL_LINE.finditer(ctx):
-        sources = [s.strip() for s in m.group(2).split(",") if s.strip() and s.strip() != "-"]
+        sources = _MARKER.findall(m.group(2))
         cites = " ".join(f"[doc:{s}]" for s in sources[:2])
         lines.append(f"- {m.group(1)} returned {len(sources)} record(s) {cites}".rstrip())
     if not lines:

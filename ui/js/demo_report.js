@@ -1,8 +1,10 @@
 // Demo-mode behaviour of the management report and the metric board (M3); owned by that milestone.
 // It answers what the live API answers, from fixtures/report.js (recorded from the real graph and the
 // real metric layer on the synthetic company), and refuses what the live API refuses:
-// - POST /api/runs {app: report}: the persona's own recording for the asked period (the shared rules in
-//   demo.js still apply: start permission, thread level, user level, outage switches);
+// - POST /api/runs {app: report}: the persona's own recording for the asked period, in the language of
+//   the input as live writes it (the page's default input is in the UI language, so the English page
+//   gets the English recording), else in the UI language, else any (the shared rules in demo.js still
+//   apply: start permission, thread level, user level, outage switches);
 // - GET /api/metrics, /api/metrics/board, /api/metrics/<id>: rows filtered like row-level security does
 //   (drafts and signed rows for their draft ACL, published rows for their audience, clearance >= level),
 //   platform roles refused;
@@ -31,6 +33,12 @@
     m = s.match(/(\d{4})\s*年\s*(1[0-2]|0?[1-9])\s*月/);
     if (m) return m[1] + "-" + (m[2].length === 1 ? "0" + m[2] : m[2]);
     return DEFAULT_PERIOD;
+  }
+
+  // the language request.py reads from the input: Chinese unless it has Latin words and no CJK
+  function langOf(text) {
+    var s = String(text || "");
+    return /[㐀-鿿]/.test(s) || !/[A-Za-z]{2,}/.test(s) ? "zh" : "en";
   }
 
   function fx(ctx) { return ctx.appFixture.metrics || {defs: [], periods: {}, groups: {}}; }
@@ -231,13 +239,17 @@
 
   KB.demo.register("report", {
     apps: ["report"],
-    // the persona's own recording for the period asked for; null falls back to the shared lookup
+    // the persona's own recording for the period asked for, in the input's language if recorded,
+    // else in the UI language, else any; null falls back to the shared lookup
     findRun: function (ctx, personaKey, body) {
       var period = periodOf(body.input);
-      return (ctx.appFixture.runs || []).filter(function (it) {
+      var mine = (ctx.appFixture.runs || []).filter(function (it) {
         return it.persona_key === personaKey && it.app === "report" && it.run && it.run.output &&
           it.run.output.data && it.run.output.data.period === period;
-      })[0] || null;
+      });
+      function inLang(lang) { return mine.filter(function (it) { return it.run.output.data.lang === lang; })[0]; }
+      var ui = KB.lang && KB.lang.current;
+      return inLang(langOf(body.input)) || (ui ? inLang(ui) : null) || mine[0] || null;
     },
     routes: [
       {method: "GET", path: /^\/api\/metrics$/, handle: listMetrics},
@@ -256,6 +268,7 @@
       ctx.state.status = {};   // "<period>|<key>" -> status after a demo sign-off or publication
       ctx.state.prov = {};     // "<period>|<key>" -> signed_by / signed_at / published_at set in the demo
     },
-    periodOf: periodOf
+    periodOf: periodOf,
+    langOf: langOf
   });
 })();

@@ -100,7 +100,7 @@
           row("report_prov_sources", p.sources), row("report_prov_signed", p.signed_by),
           row("report_prov_signed_at", p.signed_at ? U.fmtTime(p.signed_at) : null),
           row("report_prov_published", p.published_at ? U.fmtTime(p.published_at) : null),
-          row("report_prov_version", p.version), row("report_prov_signal", p.signal ? p.signal + " · " + p.field : null),
+          row("report_prov_version", p.version), row("report_prov_signal", p.signal ? label("sig_", p.signal) + " · " + label("sigf_", p.field) : null),
           row("report_prov_reason", e.reason)
         ]));
         body.appendChild(el("p", {class: "small"}, [C.levelChip(e.level, {compact: true})]));
@@ -114,15 +114,28 @@
     return el("span", {class: "chip status status-" + cls}, t("report_section_" + st));
   }
 
+  function label(prefix, code) {
+    return KB.lang.has(prefix + code) ? t(prefix + code) : String(code);
+  }
+
   // The detector's evidence as key: value pairs. A figure with a table entry (signal.<kind>.<ref>.<field>)
-  // is shown as code rendered it, with its provenance; ids, dates and flags as they are.
+  // is shown as code rendered it, with its provenance; ids, dates and other values as they are, with the
+  // field names, flags and departments in the page's language (issues-log WR-14).
+  function evidenceValue(k, v) {
+    if (Array.isArray(v)) return v.join(", ");
+    if (typeof v === "boolean") return t(v ? "report_bool_true" : "report_bool_false");
+    if (k === "dept") return label("dept_", v);
+    if (k === "contract_type") return label("legal_ctype_", String(v).toLowerCase());
+    return String(v);
+  }
+
   function evidence(kind, f, table, lang, prov) {
     return el("dl", {class: "kv kv-inline small"}, Object.keys(f).filter(function (k) { return k !== "ref"; }).reduce(function (acc, k) {
       var v = f[k];
       if (v === null || v === undefined || (typeof v === "object" && !Array.isArray(v))) return acc;
       var entry = table["signal." + kind + "." + f.ref + "." + k];
-      acc.push(el("dt", {}, k));
-      acc.push(el("dd", {}, entry ? numButton(entry, lang, prov) : (Array.isArray(v) ? v.join(", ") : String(v))));
+      acc.push(el("dt", {title: k}, label("sigf_", k)));
+      acc.push(el("dd", {}, entry ? numButton(entry, lang, prov) : evidenceValue(k, v)));
       return acc;
     }, []));
   }
@@ -130,7 +143,7 @@
   function signalsBlock(sec, table, lang, prov) {
     if (!(sec.signals || []).length) return null;
     return el("div", {}, [el("h4", {class: "label"}, t("report_signals")), el("ul", {class: "steps"}, sec.signals.map(function (s) {
-      var title = KB.lang.has("sig_" + s.kind) ? t("sig_" + s.kind) : s.kind;
+      var title = label("sig_", s.kind);
       if (s.status !== "ok") {
         return el("li", {}, [el("strong", {}, title), " ", el("span", {class: "chip status status-bad"},
           [C.icon("lock", "icon-xs"), t("report_signal_denied", {sources: (s.denied_sources || []).join(", ") || "—"})])]);

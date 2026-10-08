@@ -29,9 +29,13 @@ class NullSpan:
     span_id: str = field(default_factory=lambda: new_id("span"))
     attrs: dict = field(default_factory=dict)
     output: str | None = None
+    subjects: set = field(default_factory=set)
 
     def set_level(self, level):
         self.level = max(self.level, Level(level))
+
+    def add_subjects(self, ids):
+        self.subjects.update(ids)
 
     def set_attr(self, k, v):
         self.attrs[k] = v

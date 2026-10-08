@@ -27,6 +27,8 @@ from corpai.legal.clausecheck.models import PlaybookRule
 from corpai.legal.clausecheck.playbook import Playbook
 from corpai.types import Level
 
+# Rule ids KB-00, KB-01, ... keep the former company name's initials (Kestrelbyte): reviews cite them as
+# "KB-01@2026-10-01", so stored reviews and recorded demo runs stay valid.
 PLAYBOOK_PATH = Path(__file__).resolve().parent / "data" / "playbook.json"
 
 # Worst-first ordering of where a clause sits relative to a rule.

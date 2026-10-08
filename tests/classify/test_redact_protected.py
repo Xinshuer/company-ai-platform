@@ -38,9 +38,35 @@ CV_ZH = """王伟
 工作经历：2018-2026 某物流公司 后端开发，熟悉 Go 与 PostgreSQL。
 """
 
+# issues-log FN-27: a Stockholm employer gets Swedish résumés
+CV_SV = """Meritförteckning
+Födelsedatum: 1984-03-02
+Kön: kvinna
+Civilstånd: gift, två barn
+Ålder: 41 år
+Nationalitet: svensk
+Födelseort: Göteborg
+Hälsa: inga begränsningar
+Funktionsnedsättning: nej
+Sexuell läggning: lesbisk
+Erfarenhet: 9 år som backendutvecklare, Python och PostgreSQL.
+Hon har lett ett team på fem personer.
+"""
+
 
 def _kinds(findings) -> set[str]:
     return {f.kind for f in findings}
+
+
+def test_swedish_cv():
+    out, findings = redact_protected(CV_SV)
+    for leaked in ("1984-03-02", "kvinna", "gift", "två barn", "41 år", "svensk", "Göteborg", "inga begränsningar",
+                   "lesbisk", "Hon "):
+        assert leaked not in out, leaked
+    assert {"date_of_birth", "gender", "marital_status", "age", "nationality", "origin", "health", "disability",
+            "sexual_orientation"} <= _kinds(findings)
+    for kept in ("9 år som backendutvecklare, Python och PostgreSQL", "lett ett team på fem personer"):
+        assert kept in out
 
 
 def test_english_cv():
@@ -93,6 +119,30 @@ def test_chinese_cv():
     ("出生于1992年5月，现居上海。", "1992", "date_of_birth"),
     ("2018年怀孕，休产假一年。", "怀孕", "health"),
     ("育有一子。", "育有一子", "children"),
+    ("Född 2 mars 1984 i Malmö.", "1984", "date_of_birth"),
+    ("Född 2 mars 1984 i Malmö.", "Malmö", "date_of_birth"),
+    ("Personnummer: 840302-1234", "840302", "date_of_birth"),
+    ("Jag är 52 år gammal.", "52 år", "age"),
+    ("En 38-årig utvecklare.", "38-årig", "age"),
+    ("Uppvuxen i Kiruna, bor i Stockholm.", "Kiruna", "origin"),
+    ("Irakisk medborgare med arbetstillstånd.", "Irakisk medborgare", "nationality"),
+    ("Sambo, en dotter.", "Sambo", "marital_status"),
+    ("Sambo, en dotter.", "en dotter", "children"),
+    ("Föräldraledig 2023.", "Föräldraledig", "children"),
+    ("Aktiv i Svenska kyrkan, luthersk.", "luthersk", "religion"),
+    ("Diagnostiserad med diabetes typ 1.", "diabetes", "health"),
+    ("Är sjukskriven sedan maj.", "sjukskriven", "health"),
+    ("Rullstolsburen sedan 2010.", "Rullstolsburen", "disability"),
+    ("Fru Lind har sex års erfarenhet.", "Fru", "gender"),
+    ("Hennes senaste projekt var en ruttmotor.", "Hennes", "gender"),
+    ("Sexual orientation: gay", "gay", "sexual_orientation"),
+    ("I am openly gay and lead our LGBTQ network.", "gay", "sexual_orientation"),
+    ("Sexuelle Orientierung: schwul", "schwul", "sexual_orientation"),
+    ("性取向：同性恋", "同性恋", "sexual_orientation"),
+    ("Gender identity: trans woman", "trans woman", "gender_identity"),
+    ("She is a trans woman.", "trans woman", "gender_identity"),
+    ("Jag är icke-binär.", "icke-binär", "gender_identity"),
+    ("Könsidentitet: transman", "transman", "gender_identity"),
 ])
 def test_inline_snippets(snippet, leak, kind):
     out, findings = redact_protected(snippet)
@@ -110,6 +160,28 @@ def test_counterfactual_pair_is_identical_after_redaction():
     out_b, _ = redact_protected(b)
     assert out_a == out_b
     assert "6 years of Python" in out_a
+
+
+def test_swedish_counterfactual_pair_is_identical_after_redaction():
+    a = ("Kön: kvinna\nÅlder: 29 år\nCivilstånd: sambo, ett barn\n"
+         "Sammanfattning: Hon har 6 års erfarenhet av Python. Hennes senaste projekt var en ruttmotor.\n")
+    b = ("Kön: man\nÅlder: 51 år\nCivilstånd: gift, tre barn\n"
+         "Sammanfattning: Han har 6 års erfarenhet av Python. Hans senaste projekt var en ruttmotor.\n")
+    out_a, _ = redact_protected(a)
+    out_b, _ = redact_protected(b)
+    assert out_a == out_b
+    assert "6 års erfarenhet av Python" in out_a
+
+
+@pytest.mark.parametrize("text", [
+    "Han Wei and Hans Weber led the depot project.",   # names, not pronouns
+    "10 år erfarenhet av Python och Kafka.",            # years of experience, not an age
+    "Built the gift card service and a transactional mail queue.",
+    "Kristen Berg reviewed the design.",                # a first name, not the adjective
+])
+def test_swedish_patterns_leave_ordinary_text_alone(text):
+    out, findings = redact_protected(text)
+    assert out == text and findings == []
 
 
 def test_findings_point_into_the_input_and_hold_no_text():

@@ -50,6 +50,27 @@ def test_counterfactual_pair_with_uppercase_header_and_profile_url_gets_identica
     assert a.text == b.text
 
 
+# issues-log FN-27: the same résumé in Swedish, differing in name, gender, age, family and orientation
+SV_PAIR = (
+    ("Maja Ekberg", "Maja Ekberg\nKön: kvinna | Födelsedatum: 1996-05-14 | Ålder: 29 år\n"
+                      "Civilstånd: sambo, ett barn\nSexuell läggning: lesbisk\n\n## Erfarenhet\n"
+                      "2019-2025 Backendutvecklare på Kranich Software AB, Stockholm: Python, Kafka.\n"
+                      "Hon införde kontraktstester. Hennes team hanterade 40 000 000 stopp per år.\n"),
+    ("Nils Ahlgren", "Nils Ahlgren\nKön: man | Födelsedatum: 1974-11-02 | Ålder: 51 år\n"
+                       "Civilstånd: gift, tre barn\nSexuell läggning: heterosexuell\n\n## Erfarenhet\n"
+                       "2019-2025 Backendutvecklare på Kranich Software AB, Stockholm: Python, Kafka.\n"
+                       "Han införde kontraktstester. Hans team hanterade 40 000 000 stopp per år.\n"),
+)
+
+
+def test_swedish_counterfactual_pair_gets_identical_input():
+    (na, ra), (nb, rb) = SV_PAIR
+    a, b = prepare_resume(ra, name=na), prepare_resume(rb, name=nb)
+    assert a.text == b.text
+    assert "Python, Kafka" in a.text and "40 000 000 stopp per år" in a.text
+    assert {"gender", "date_of_birth", "age", "marital_status", "sexual_orientation"} <= set(a.removed_kinds)
+
+
 def test_employment_ranges_and_large_numbers_are_not_phone_numbers():
     resume = ("Anna Berlin\nBackend engineer\n\n## Experience\n"
               "03/2019 - 06/2023  Backend engineer, Kranich Software GmbH, Berlin\n"

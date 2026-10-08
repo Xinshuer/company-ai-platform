@@ -190,11 +190,22 @@ def test_every_write_tool_has_an_owner_and_an_approver():
         domain, _, tool = wt.partition(".")
         users = {k for k, p in people.items() for a in specs if policy.tool_allowed(p, a, domain, tool).allow}
         if not users:
-            continue  # e.g. code.create_ticket: no agent holds it yet (B3 adds an eng agent)
+            continue  # held by no agent (UNHELD_WRITE_TOOLS below)
         for k in users:
             view = policy.ProposalView(people[k].user_id, domain, tool, policy.tool_tier(domain, tool))
             approvers = {a for a, p in people.items() if a != k and policy.can_approve(p, view).allow}
             assert approvers, (wt, k)
+
+
+# Write tools with an MCP server, an executor and tool rules that no agent holds, so no token can call them
+# (issues-log D-06/D-16): kept for a later engineering or finance agent, tested through a test-only agent
+# (tests/mcp/support.py). Giving one to an agent, or orphaning another, is a decision: it shows up here.
+UNHELD_WRITE_TOOLS = {"code.create_ticket", "code.comment_ticket", "finance.post_journal_entry"}
+
+
+def test_unheld_write_tools_are_exactly_the_known_ones():
+    held = {t for spec in policy.load_agents().values() for t in spec.tools}
+    assert WRITE_TOOLS - held == UNHELD_WRITE_TOOLS
 
 
 def test_can_approve_rejects_malformed_tier():

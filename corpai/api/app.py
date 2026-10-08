@@ -20,7 +20,8 @@ from __future__ import annotations
 
 import logging
 from contextlib import asynccontextmanager
-from typing import Any, AsyncIterator
+from typing import Any, AsyncIterator, Iterable
+from urllib.parse import urlsplit
 
 import anyio
 from fastapi import FastAPI
@@ -28,8 +29,8 @@ from fastapi.responses import HTMLResponse
 from psycopg.rows import dict_row
 
 from corpai.api import errors, routes_core, routes_ops, routes_proposals, routes_runs
-from corpai.api.security import SecurityHeaders
-from corpai.config import ROOT
+from corpai.api.security import HostCheck, SecurityHeaders
+from corpai.config import ROOT, settings
 
 log = logging.getLogger(__name__)
 
@@ -172,8 +173,10 @@ def _milestone_routers() -> list[Any]:
     return out
 
 
-def create_app(*, gateway: Any = None) -> FastAPI:
-    """A new app. `gateway` (tests) replaces get_gateway() for graphs and /v1/chat/completions."""
+def create_app(*, gateway: Any = None, extra_hosts: Iterable[str] = ()) -> FastAPI:
+    """A new app. `gateway` (tests) replaces get_gateway() for graphs and /v1/chat/completions.
+    Host names served besides loopback: CORPAI_API_BASE's, CORPAI_ALLOWED_HOSTS and `extra_hosts`
+    (serve's --host)."""
     from corpai.gateway import openai_compat
     from corpai.mcp_servers import mount_all
 
@@ -189,5 +192,8 @@ def create_app(*, gateway: Any = None) -> FastAPI:
     mcp_running = mount_all(app)  # /mcp/<domain>/mcp; before the UI mount, which catches everything else
     _mount_ui(app)
     app.router.lifespan_context = _lifespan(mcp_running)
+    # inside SecurityHeaders, so a refused host still gets the headers
+    s = settings()
+    app.add_middleware(HostCheck, allowed=[urlsplit(s.api_base).hostname or "", *s.allowed_hosts, *extra_hosts])
     app.add_middleware(SecurityHeaders)
     return app

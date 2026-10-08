@@ -25,7 +25,7 @@ KB.lang.extend("legal", {
   "legal_pick_contract": "合同",
   "legal_pick_none": "（不关联合同）",
   "legal_pick_loading": "正在读取你能看到的合同…",
-  "legal_link_contract": "对应的库存合同（可选：审查对方的修改稿时选择，用来比对）",
+  "legal_link_contract": "关联合同库中的合同（可选：审查对方的修改稿时选择，用来比对）",
   "legal_paste_placeholder": "在这里粘贴合同全文…",
   "legal_file_label": "合同文件（纯文本 .txt 或 .md）",
   "legal_file_chosen": "已选择：{name}（{n} 个字符）",
@@ -145,7 +145,19 @@ KB.lang.extend("legal", {
   "legal_samples": "录制的示例",
   "legal_sample_use": "填入",
   "legal_contract_option": "{id} · {party} · {type} · {status}",
-  "legal_result": "结果"
+  "legal_result": "结果",
+  "legal_ctype_msa": "主订阅协议（MSA）",
+  "legal_ctype_dpa": "数据处理协议（DPA）",
+  "legal_ctype_nda": "保密协议（NDA）",
+  "legal_ctype_sow": "工作说明书（SOW）",
+  "legal_ctype_order_form": "订单",
+  "legal_cstatus_draft": "草稿",
+  "legal_cstatus_negotiation": "谈判中",
+  "legal_cstatus_signed": "已签署",
+  "legal_cstatus_expired": "已到期",
+  "legal_cstatus_terminated": "已终止",
+  "legal_action_auto_renew": "会自动续约：不想续约，须在 {d} 前发出不续约通知",
+  "legal_action_ends": "{expires} 到期：如要续约，须在 {d} 前谈妥"
  },
  "en": {
   "app_legal_review": "Contract review",
@@ -289,6 +301,18 @@ KB.lang.extend("legal", {
   "legal_samples": "Recorded samples",
   "legal_sample_use": "Use",
   "legal_contract_option": "{id} · {party} · {type} · {status}",
-  "legal_result": "Result"
+  "legal_result": "Result",
+  "legal_ctype_msa": "MSA",
+  "legal_ctype_dpa": "DPA",
+  "legal_ctype_nda": "NDA",
+  "legal_ctype_sow": "SOW",
+  "legal_ctype_order_form": "order form",
+  "legal_cstatus_draft": "draft",
+  "legal_cstatus_negotiation": "in negotiation",
+  "legal_cstatus_signed": "signed",
+  "legal_cstatus_expired": "expired",
+  "legal_cstatus_terminated": "terminated",
+  "legal_action_auto_renew": "Renews automatically unless notice of non-renewal is given by {d}",
+  "legal_action_ends": "Ends on {expires}; agree any renewal by {d}"
  }
 });
