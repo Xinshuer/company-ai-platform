@@ -7,7 +7,8 @@ Frozen core (docs/architecture.md §4). Two login roles:
                 principal_tx() sets; outside principal_tx it sees nothing (fail-closed).
 
 Windows gotcha: pgserver's cleanup() does not stop postgres, and the port changes on every start,
-so we attach through postmaster.pid and stop with `pg_ctl stop -m fast` ourselves.
+so we attach through postmaster.pid and stop with `pg_ctl stop -m fast` ourselves. On macOS and Linux
+pgserver listens on a Unix socket only, so the connection string carries the socket dir as `host`.
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ from pathlib import Path
 from typing import AsyncIterator, Iterator
 
 import psycopg
+from psycopg.conninfo import make_conninfo
 from psycopg.rows import dict_row
 
 from corpai.config import settings
@@ -40,10 +42,10 @@ def _pg_bin(name: str) -> str:
 
 
 def _swap(uri: str, user: str, database: str) -> str:
-    # pgserver URIs look like postgresql://postgres:@127.0.0.1:PORT/postgres (TCP on Windows)
-    rest = uri.split("@", 1)[1]
-    hostport = rest.split("/", 1)[0]
-    return f"postgresql://{user}:@{hostport}/{database}"
+    # pgserver URIs: postgresql://postgres:@127.0.0.1:PORT/postgres (TCP, Windows) or
+    # postgresql://postgres:@/postgres?host=<socket dir> (Unix socket, macOS/Linux). make_conninfo keeps
+    # the host, port and socket dir and replaces only the user and database.
+    return make_conninfo(uri, user=user, dbname=database)
 
 
 def _bootstrap(super_uri: str) -> None:

@@ -2,7 +2,7 @@
 name = "corpai"
 version = "0.1.0"
 description = "Simulated internal AI platform for a fictional 70-person company: permission-aware RAG, MCP, LangGraph, routed models, audit"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.13"  # pgserver 0.1.4 ships wheels up to cp312 only
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

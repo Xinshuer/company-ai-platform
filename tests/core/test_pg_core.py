@@ -35,6 +35,17 @@ def demo_table(pg):
         c.execute("DROP SCHEMA coretest CASCADE")
 
 
+@pytest.mark.parametrize("uri, where", [
+    ("postgresql://postgres:@127.0.0.1:54321/postgres", {"host": "127.0.0.1", "port": "54321"}),  # Windows: TCP
+    ("postgresql://postgres:@/postgres?host=/Users/x/dev/.data/pg", {"host": "/Users/x/dev/.data/pg"}),  # Unix socket
+])
+def test_swap_keeps_the_address_and_replaces_user_and_database(uri, where):
+    from psycopg.conninfo import conninfo_to_dict
+
+    assert conninfo_to_dict(pgmod._swap(uri, "corpai_app", "corpai")) == {"user": "corpai_app", "dbname": "corpai",
+                                                                           **where}
+
+
 def _ids(conn) -> set[str]:
     return {r["id"] for r in conn.execute("SELECT id FROM coretest.items").fetchall()}
 
