@@ -226,7 +226,7 @@ python -m corpai demo-record --small --out-dir $env:TEMP\demo-fixtures   # 试�
 ```bash
 brew install python@3.12                         # Node.js（brew install node）可选，和 Windows 一样
 mkdir -p ~/dev && cd ~/dev
-git clone https://github.com/Xinshuer/company-ai-platform.git   # 私有仓库：先运行 `gh auth login`
+git clone https://github.com/Xinshuer/company-ai-platform.git
 cd company-ai-platform
 python3.12 -m venv .venv
 source .venv/bin/activate

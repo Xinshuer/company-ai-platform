@@ -224,7 +224,7 @@ Apple Silicon with macOS 14 or later (one of the pinned wheels, `onnxruntime`, n
 ```bash
 brew install python@3.12                         # Node.js (brew install node) is optional, as on Windows
 mkdir -p ~/dev && cd ~/dev
-git clone https://github.com/Xinshuer/company-ai-platform.git   # private repo: run `gh auth login` first
+git clone https://github.com/Xinshuer/company-ai-platform.git
 cd company-ai-platform
 python3.12 -m venv .venv
 source .venv/bin/activate
